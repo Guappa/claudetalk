@@ -1,4 +1,4 @@
-import type { MessageSink, SinkAction } from "../../src/discord/messageSink.ts";
+import type { MessageSink, SinkAction, SinkMenu } from "../../src/discord/messageSink.ts";
 
 export function quietSink(): MessageSink {
   return {
@@ -36,6 +36,24 @@ export function askingSink(onAsk: (actions: SinkAction[]) => void): MessageSink 
     ask: async (_text, actions) => {
       onAsk(actions);
       return { close: async () => undefined };
+    },
+  };
+}
+
+export interface MenuAsk {
+  text: string;
+  menus: SinkMenu[];
+  actions: SinkAction[];
+  closed: string[];
+}
+
+export function menuAskingSink(onAsk: (ask: MenuAsk) => void): MessageSink {
+  return {
+    ...quietSink(),
+    askWithMenus: async (text, menus, actions) => {
+      const ask: MenuAsk = { text, menus, actions, closed: [] };
+      onAsk(ask);
+      return { close: async (outcome) => void ask.closed.push(outcome) };
     },
   };
 }

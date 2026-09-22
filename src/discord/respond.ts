@@ -4,14 +4,16 @@ import type {
   ChatInputCommandInteraction,
   InteractionEditReplyOptions,
   InteractionUpdateOptions,
+  ModalSubmitInteraction,
   StringSelectMenuInteraction,
 } from "discord.js";
 
 export type Respondable = ChatInputCommandInteraction | ButtonInteraction;
 type MenuInteraction = ButtonInteraction | StringSelectMenuInteraction;
+type Quiet = Respondable | StringSelectMenuInteraction | ModalSubmitInteraction;
 
 // A button press is not a command, so nothing deferred it; the ack is the reply and only the presser sees it.
-export async function respondQuietly(interaction: Respondable, content: string): Promise<void> {
+export async function respondQuietly(interaction: Quiet, content: string): Promise<void> {
   if (interaction.deferred || interaction.replied) {
     await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
     return;

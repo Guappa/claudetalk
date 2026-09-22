@@ -4,6 +4,7 @@ import { killTree, turnSpawnOptions } from "../platform.ts";
 import { outboxRelative } from "../discord/outbox.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
+import { QUESTION_TOOL, parseQuestions, type AskQuestions } from "./questions.ts";
 
 export interface ChannelSettings {
   model?: string;
@@ -25,6 +26,7 @@ export interface TurnRequest {
   settings: ChannelSettings;
   fork?: boolean;
   approve?: ApproveTool;
+  askQuestions?: AskQuestions;
 }
 
 interface TurnOutcome {
@@ -82,30 +84,56 @@ export function buildOptions(request: TurnRequest): Options {
   if (settings.agent) options.agent = settings.agent;
   // No typed option covers autocompact, and extraArgs is the SDK's own escape hatch to the flag.
   if (settings.autocompact) options.extraArgs = { autocompact: settings.autocompact };
+  // Claude Code offers AskUserQuestion only to a client with a prompt surface; the hook answers before that is consulted.
+  if (request.askQuestions) options.permissionPromptToolName = "stdio";
 
   return options;
 }
 
+interface HookOutput {
+  hookSpecificOutput: {
+    hookEventName: "PreToolUse";
+    permissionDecision: "allow" | "deny";
+    permissionDecisionReason: string;
+    updatedInput?: Record<string, unknown>;
+  };
+}
+
+function allowed(reason: string, updatedInput?: Record<string, unknown>): HookOutput {
+  return {
+    hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: reason, updatedInput },
+  };
+}
+
+function denied(reason: string): HookOutput {
+  return { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: reason } };
+}
+
+interface Gates {
+  approve?: ApproveTool;
+  askQuestions?: AskQuestions;
+}
+
 // A permission mode cannot hold the gate: the host's own allow rules are consulted first, a hook is not.
-function gate(approve: ApproveTool): NonNullable<Options["hooks"]> {
+function gate(gates: Gates): NonNullable<Options["hooks"]> {
   return {
     PreToolUse: [
       {
         hooks: [
           async (input) => {
             const toolName = String((input as { tool_name?: unknown }).tool_name ?? "");
-            if (UNGATED_TOOLS.has(toolName)) return { continue: true };
-
             const toolInput = ((input as { tool_input?: unknown }).tool_input ?? {}) as Record<string, unknown>;
-            const decision = await approve(toolName, toolInput);
 
-            return {
-              hookSpecificOutput: {
-                hookEventName: "PreToolUse",
-                permissionDecision: decision.allow ? "allow" : "deny",
-                permissionDecisionReason: decision.allow ? "Approved from Discord." : decision.reason,
-              },
-            };
+            if (toolName === QUESTION_TOOL && gates.askQuestions) {
+              const outcome = await gates.askQuestions(parseQuestions(toolInput));
+              return outcome.answered
+                ? allowed("Answered from Discord.", { ...toolInput, answers: outcome.answers })
+                : denied(outcome.reason);
+            }
+
+            if (!gates.approve || UNGATED_TOOLS.has(toolName)) return { continue: true };
+            const decision = await gates.approve(toolName, toolInput);
+            return decision.allow ? allowed("Approved from Discord.") : denied(decision.reason);
           },
         ],
       },
@@ -170,7 +198,7 @@ export interface RunningTurn {
 export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => void): RunningTurn {
   const abort = new AbortController();
   const options = buildOptions(request);
-  if (request.approve) options.hooks = gate(request.approve);
+  if (request.approve || request.askQuestions) options.hooks = gate(request);
 
   // Spawning it ourselves is the only way to learn the pid, and stopping a turn means its whole tree.
   let pid: number | undefined;

@@ -266,6 +266,24 @@ silently open it; a hook is asked either way. A denial stops only the call it
 was asked about. With the setting `false`, the default, every turn runs without
 asking.
 
+## Answering Claude's questions
+
+When Claude wants a decision before it continues, it asks through the same tool
+the terminal uses, and the questions arrive in the channel as select menus: one
+per question, up to four, each holding the choices Claude offered with their
+descriptions, plus **Other...** for an answer in your own words, which opens a
+text box. A question that allows several picks lets you tick several. Picks are
+kept until **Submit** sends the whole set, so a choice can still change; **Skip**
+sends none. The message then collapses to what was answered. A follow-up
+question is a new message with its own menus.
+
+Anyone who can use the bot can answer: the question is about the work, not a
+permission. Ten minutes without an answer, a skip, a `/stop`, or the turn ending
+all tell Claude no answer came, and it continues on its own judgement saying what
+it assumed. This works whether or not `CLAUDE_TOOL_APPROVALS` is set. A preview
+Claude attaches to a choice shows as a code block under the question rather than
+on hover.
+
 ## Claude Code commands
 
 Anything starting with `/` that is not a bridge command is passed to the session

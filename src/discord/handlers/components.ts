@@ -2,9 +2,14 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  LabelBuilder,
+  ModalBuilder,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
@@ -22,9 +27,11 @@ import {
   PURGE_CONFIRM,
   parseCustomId,
   pluginToggleId,
+  questionOtherId,
   skillSelectId,
   type MenuAction,
 } from "../menus.ts";
+import { OTHER_VALUE } from "../questions.ts";
 import { describePurge, purgeChannel } from "../purge.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { channelSink } from "../sink.ts";
@@ -156,6 +163,62 @@ async function runSkill(bridge: Bridge, interaction: StringSelectMenuInteraction
   });
 }
 
+const OTHER_ANSWER_FIELD = "answer";
+
+function otherAnswerModal(action: Action<"question-pick">): ModalBuilder {
+  const field = new TextInputBuilder()
+    .setCustomId(OTHER_ANSWER_FIELD)
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setMaxLength(1000);
+  return new ModalBuilder()
+    .setCustomId(questionOtherId(action.askId, action.index))
+    .setTitle(`Your own answer to question ${action.index + 1}`)
+    .addLabelComponents(new LabelBuilder().setLabel("Answer").setTextInputComponent(field));
+}
+
+// A pick is kept, not sent: the message keeps its menus until Submit, so a choice can still change.
+async function pickAnswer(bridge: Bridge, interaction: StringSelectMenuInteraction, action: Action<"question-pick">) {
+  const complaint = bridge.questions.pick(action.askId, action.index, interaction.values);
+  if (complaint) {
+    await respondQuietly(interaction, complaint);
+    return;
+  }
+  if (interaction.values.includes(OTHER_VALUE)) {
+    await interaction.showModal(otherAnswerModal(action));
+    return;
+  }
+  await interaction.deferUpdate();
+}
+
+async function answerInOwnWords(bridge: Bridge, interaction: ModalSubmitInteraction, action: Action<"question-other">) {
+  const text = interaction.fields.getTextInputValue(OTHER_ANSWER_FIELD);
+  const complaint = bridge.questions.answerFreeText(action.askId, action.index, text);
+  if (complaint) {
+    await respondQuietly(interaction, complaint);
+    return;
+  }
+  await interaction.deferUpdate();
+}
+
+async function submitAnswers(bridge: Bridge, interaction: ButtonInteraction, action: Action<"question-submit">) {
+  const complaint = bridge.questions.submit(action.askId);
+  if (complaint) {
+    await respondQuietly(interaction, complaint);
+    return;
+  }
+  await interaction.deferUpdate();
+}
+
+async function skipQuestions(bridge: Bridge, interaction: ButtonInteraction, action: Action<"question-skip">) {
+  const complaint = bridge.questions.skip(action.askId);
+  if (complaint) {
+    await respondQuietly(interaction, complaint);
+    return;
+  }
+  await interaction.deferUpdate();
+}
+
 export async function handleSelect(bridge: Bridge, interaction: StringSelectMenuInteraction): Promise<void> {
   const action = parseCustomId(interaction.customId, interaction.values[0]);
   switch (action.kind) {
@@ -163,9 +226,17 @@ export async function handleSelect(bridge: Bridge, interaction: StringSelectMenu
       return await choosePlugin(bridge, interaction, action);
     case "skill-chosen":
       return await runSkill(bridge, interaction, action);
+    case "question-pick":
+      return await pickAnswer(bridge, interaction, action);
     default:
       return await settleMenu(interaction, STALE);
   }
+}
+
+export async function handleModal(bridge: Bridge, interaction: ModalSubmitInteraction): Promise<void> {
+  const action = parseCustomId(interaction.customId);
+  if (action.kind === "question-other") return await answerInOwnWords(bridge, interaction, action);
+  await respondQuietly(interaction, STALE);
 }
 
 async function decideApproval(bridge: Bridge, interaction: ButtonInteraction, action: Action<"approval">) {
@@ -291,6 +362,10 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await keepUnboundChannel(bridge, interaction);
     case "unbind-delete":
       return await deleteUnboundChannel(bridge, interaction);
+    case "question-submit":
+      return await submitAnswers(bridge, interaction, action);
+    case "question-skip":
+      return await skipQuestions(bridge, interaction, action);
     case "plugin-toggle":
       return await togglePlugin(bridge, interaction, action);
     default:

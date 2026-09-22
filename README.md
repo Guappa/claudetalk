@@ -22,6 +22,10 @@ your terminal, pick it up from your phone, then resume the same conversation in
 the CLI later with its full history intact. The conversation lives in Claude
 Code's own transcript, so nothing here owns it.
 
+When Claude stops to ask you something, the questions arrive as select menus
+with the choices it offered, an "Other..." for your own words, and a Submit
+button, the same exchange the terminal shows as a wizard.
+
 ## Requirements
 
 - Node 22.12 or newer

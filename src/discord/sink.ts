@@ -1,8 +1,20 @@
 import type { Message, MessageCreateOptions, SendableChannels } from "discord.js";
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
-import type { AskHandle, MessageSink, SinkAction, SinkFile } from "./messageSink.ts";
+import {
+  ActionRowBuilder,
+  AttachmentBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+} from "discord.js";
+import type { AskHandle, MessageSink, SinkAction, SinkFile, SinkMenu } from "./messageSink.ts";
 import { redactHome } from "../displayPath.ts";
+import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
+
+// Discord's limits for a select menu: 100 characters for a label, value or description, 150 for the placeholder.
+const MENU_TEXT_LIMIT = 100;
+const PLACEHOLDER_LIMIT = 150;
 
 // Only users from the supplied context may be pinged, so channel text cannot cause a mass-notify.
 function mentionPolicy(allowedUserIds: string[]): MessageCreateOptions["allowedMentions"] {
@@ -26,6 +38,33 @@ function buttonRow(actions: SinkAction[]): ActionRowBuilder<ButtonBuilder>[] {
       .setStyle(action.tone === "danger" ? ButtonStyle.Danger : ButtonStyle.Secondary),
   );
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)];
+}
+
+function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
+  const options = menu.options.map((option) => {
+    const built = new StringSelectMenuOptionBuilder()
+      .setValue(truncate(option.value, MENU_TEXT_LIMIT))
+      .setLabel(truncate(option.label, MENU_TEXT_LIMIT) || "(blank)");
+    if (option.description) built.setDescription(truncate(option.description, MENU_TEXT_LIMIT));
+    return built;
+  });
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(menu.id)
+    .setPlaceholder(truncate(menu.placeholder, PLACEHOLDER_LIMIT))
+    .setMinValues(1)
+    .setMaxValues(menu.multiple ? options.length : 1)
+    .addOptions(options);
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+}
+
+type AnyRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
+
+function closable(sent: Message, shown: string): AskHandle {
+  return {
+    async close(outcome: string): Promise<void> {
+      await sent.edit({ content: `${shown}\n\n**${outcome}**`, components: [] }).catch(() => undefined);
+    },
+  };
 }
 
 export function channelSink(channel: SendableChannels, options: SinkOptions = {}): MessageSink {
@@ -67,11 +106,14 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
     async ask(text: string, actions: SinkAction[]): Promise<AskHandle> {
       const shown = redactHome(text);
       const sent = await channel.send({ content: shown, allowedMentions, components: buttonRow(actions) });
-      return {
-        async close(outcome: string): Promise<void> {
-          await sent.edit({ content: `${shown}\n\n**${outcome}**`, components: [] }).catch(() => undefined);
-        },
-      };
+      return closable(sent, shown);
+    },
+    // Five rows to a message: the tool asks at most four questions, and the buttons take the fifth.
+    async askWithMenus(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle> {
+      const shown = redactHome(text);
+      const components: AnyRow[] = [...menus.slice(0, 4).map(menuRow), ...buttonRow(actions)];
+      const sent = await channel.send({ content: shown, allowedMentions, components });
+      return closable(sent, shown);
     },
     async sendFiles(text: string, files: SinkFile[]): Promise<void> {
       const attachments = files.map((file) => new AttachmentBuilder(file.data, { name: file.name }));

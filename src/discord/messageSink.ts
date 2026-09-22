@@ -14,6 +14,20 @@ export interface AskHandle {
   close(outcome: string): Promise<void>;
 }
 
+export interface SinkMenuOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+// A list to pick from, one or several; Discord draws it as a select menu.
+export interface SinkMenu {
+  id: string;
+  placeholder: string;
+  options: SinkMenuOption[];
+  multiple: boolean;
+}
+
 // The only way a turn talks back to Discord, so a different transport can be dropped in behind it.
 export interface MessageSink {
   send(text: string): Promise<void>;
@@ -21,5 +35,6 @@ export interface MessageSink {
   edit(text: string, actions?: SinkAction[]): Promise<void>;
   sendFiles(text: string, files: SinkFile[]): Promise<void>;
   ask?(text: string, actions: SinkAction[]): Promise<AskHandle>;
+  askWithMenus?(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle>;
   typing?(): void;
 }
