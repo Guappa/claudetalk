@@ -1,0 +1,77 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  # macOS bills ten times the rate, so the launchd agent is proved once per release rather than per push.
+  macos:
+    runs-on: macos-latest
+    steps:
+      # Pinned by commit, not tag: a tag can be moved to point at other code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      # The only real Mac this project has; the plist is worth proving against the launchctl that reads it.
+      - name: autostart installs, reports and removes itself
+        run: |
+          set -euo pipefail
+          cat > .env <<ENV
+          DISCORD_BOT_TOKEN=x
+          DISCORD_GUILD_ID=1
+          DISCORD_OWNER_IDS=123456789012345678
+          PROJECTS_ROOT=$RUNNER_TEMP
+          ENV
+          scripts/install-autostart-macos.sh install
+          plist="$HOME/Library/LaunchAgents/com.claudetalk.bridge.plist"
+          test -f "$plist"
+          plutil -lint "$plist"
+          scripts/install-autostart-macos.sh status
+          scripts/install-autostart-macos.sh uninstall
+          test ! -f "$plist"
+          rm -f .env
+
+  publish:
+    needs: macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Without the whole history there is no earlier tag to measure this release against.
+          fetch-depth: 0
+
+      - name: build the notes from the commits in this tag
+        env:
+          # The notes link each commit to the pull request it landed through, which needs the API.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          node scripts/release-notes.mjs "$tag" > notes.md
+          previous="$(git describe --tags --abbrev=0 "$tag~1" 2>/dev/null || true)"
+          if [ -n "$previous" ]; then
+            printf '\n**Full changelog**: %s/compare/%s...%s\n' \
+              "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" "$previous" "$tag" >> notes.md
+          fi
+          cat notes.md
+
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A release cut by hand with its own notes, as the first public one was, is left as written.
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; leaving its notes alone."
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" --title "ClaudeTalk ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag

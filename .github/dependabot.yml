@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Pinned action SHAs cannot be updated by hand for long, so Dependabot moves them.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    ignore:
+      # Types must describe the oldest Node the package.json engines field allows,
+      # or code typechecks against APIs that are missing at runtime for that version.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]

@@ -1,0 +1,59 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Runtime state and secrets
+data/
+.env
+.private-terms
+CLAUDE-SECURITY-*/
+.env.*
+!.env.example
+*.log
+
+# AI agent tooling and generated context
+.claude/
+.codex/
+.gemini/
+.aider*
+.continue/
+.codeium/
+.windsurf/
+.windsurfrules
+.cursor/
+.cursorrules
+.cursorignore
+.cline/
+.clinerules
+.roo/
+.roomodes
+.kilocode/
+.goose/
+.opencode/
+.augment/
+.specstory/
+.sourcegraph/
+.tabnine/
+.devin/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.github/copilot-instructions.md
+
+# Editors
+.vscode/
+.idea/
+.zed/
+.fleet/
+*.iml
+*.swp
+*.swo
+*~
+
+# Operating system
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini

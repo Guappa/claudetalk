@@ -1,0 +1,15 @@
+{"type":"custom-title","customTitle":"Drift Test","sessionId":"s9"}
+{"type":"user","message":{"content":"first prompt from discord"},"cwd":"/p","timestamp":"2026-09-13T10:00:00Z"}
+{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"hmm"},{"type":"text","text":"first reply"}]},"cwd":"/p","timestamp":"2026-09-13T10:00:05Z"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{}}]},"cwd":"/p","timestamp":"2026-09-13T10:00:06Z"}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"data"}]},"cwd":"/p","timestamp":"2026-09-13T10:00:07Z"}
+{"type":"user","message":{"content":"typed in the terminal"},"cwd":"/p","timestamp":"2026-09-13T11:00:00Z"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"terminal reply"}]},"cwd":"/p","timestamp":"2026-09-13T11:00:04Z"}
+{"type":"user","message":{"content":"injected marker"},"isMeta":true,"cwd":"/p","timestamp":"2026-09-13T11:00:05Z"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"subagent chatter"}],"isSidechain":true},"isSidechain":true,"cwd":"/p","timestamp":"2026-09-13T11:00:06Z"}
+{"type":"user","message":{"content":"<command-name>/compact</command-name>\n  <command-message>compact</command-message>\n  <command-args></command-args>"},"cwd":"/p","timestamp":"2026-09-13T11:30:00Z"}
+{"type":"user","message":{"content":"<local-command-stdout>Compacted </local-command-stdout>"},"cwd":"/p","timestamp":"2026-09-13T11:31:00Z"}
+{"type":"user","message":{"content":"<task-notification>background task finished</task-notification>"},"cwd":"/p","timestamp":"2026-09-13T11:32:00Z"}
+{"type":"user","message":{"content":"<bash-input>ls -la</bash-input>"},"cwd":"/p","timestamp":"2026-09-13T11:33:00Z"}
+{"type":"user","message":{"content":"a real question about the code"},"cwd":"/p","timestamp":"2026-09-13T11:34:00Z"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"a real answer"}]},"cwd":"/p","timestamp":"2026-09-13T11:35:00Z"}

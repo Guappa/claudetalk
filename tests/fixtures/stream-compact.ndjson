@@ -1,0 +1,10 @@
+{"type":"system","subtype":"status","status":"compacting","session_id":"33333333-2222-4333-8444-555555555555"}
+{"type":"rate_limit_event","rate_limit_info":{}}
+{"type":"system","subtype":"status","status":null,"compact_result":"success","session_id":"33333333-2222-4333-8444-555555555555"}
+{"type":"system","subtype":"compact_boundary","session_id":"33333333-2222-4333-8444-555555555555","compact_metadata":{"trigger":"manual","pre_tokens":3252,"post_tokens":4814,"cumulative_dropped_tokens":20918,"duration_ms":18257}}
+{"type":"system","subtype":"init","cwd":"/tmp/p","model":"claude-haiku-4-5-20251001","permissionMode":"default","slash_commands":["compact","context","usage"],"terminal_slash_commands":["doctor","color","reload-plugins"],"skills":["superpowers:brainstorming"],"plugins":["superpowers"],"mcp_servers":[],"claude_code_version":"2.1.270"}
+{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"..."},{"type":"tool_use","name":"Read","input":{"file_path":"/tmp/x.png"}}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"ok"}]}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Done."}]}}
+{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":0.0255568,"result":"Done.","usage":{"input_tokens":12,"output_tokens":34,"cache_read_input_tokens":8000,"cache_creation_input_tokens":100}}
+not json, must be ignored

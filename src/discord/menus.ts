@@ -1,0 +1,74 @@
+const CUSTOM_ID_LIMIT = 100;
+
+export const PLUGIN_SELECT = "plugin:select";
+export const SKILL_SELECT = "skill:select";
+export const PURGE_CONFIRM = "purge:confirm";
+export const PURGE_CANCEL = "purge:cancel";
+export const CREATE_NEW = "create:new";
+export const CREATE_CANCEL = "create:cancel";
+export const UNBIND_DELETE = "unbind:delete";
+export const UNBIND_KEEP = "unbind:keep";
+
+export function stopActionId(sessionId: string): string {
+  return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+}
+
+// Every menu in one message needs its own id, and which page a skill came from does not matter.
+export function skillSelectId(page: number): string {
+  return `${SKILL_SELECT}:${page}`;
+}
+
+export type MenuAction =
+  | { kind: "plugin-chosen"; id: string }
+  | { kind: "plugin-toggle"; id: string; enable: boolean }
+  | { kind: "skill-chosen"; skill: string }
+  | { kind: "purge-confirm" }
+  | { kind: "purge-cancel" }
+  | { kind: "create-new" }
+  | { kind: "create-cancel" }
+  | { kind: "unbind-delete" }
+  | { kind: "unbind-keep" }
+  | { kind: "create-resume"; sessionId: string }
+  | { kind: "turn-stop"; sessionId: string }
+  | { kind: "approval"; id: string; choice: "approve" | "deny" | "approve-all" }
+  | { kind: "unknown" };
+
+export function pluginToggleId(id: string, enable: boolean): string {
+  return `plugin:${enable ? "enable" : "disable"}:${id}`.slice(0, CUSTOM_ID_LIMIT);
+}
+
+export function createResumeId(sessionId: string): string {
+  return `create:resume:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+}
+
+function isSkillSelect(customId: string): boolean {
+  return customId === SKILL_SELECT || /^skill:select:\d+$/.test(customId);
+}
+
+export function parseCustomId(customId: string, selectedValue?: string): MenuAction {
+  if (customId === PLUGIN_SELECT && selectedValue) return { kind: "plugin-chosen", id: selectedValue };
+  if (isSkillSelect(customId) && selectedValue) return { kind: "skill-chosen", skill: selectedValue };
+
+  if (customId === PURGE_CONFIRM) return { kind: "purge-confirm" };
+  if (customId === PURGE_CANCEL) return { kind: "purge-cancel" };
+
+  if (customId === CREATE_NEW) return { kind: "create-new" };
+  if (customId === CREATE_CANCEL) return { kind: "create-cancel" };
+  if (customId === UNBIND_DELETE) return { kind: "unbind-delete" };
+  if (customId === UNBIND_KEEP) return { kind: "unbind-keep" };
+  const resume = /^create:resume:(.+)$/.exec(customId);
+  if (resume?.[1]) return { kind: "create-resume", sessionId: resume[1] };
+
+  const stop = /^turn:stop:(.+)$/.exec(customId);
+  if (stop?.[1]) return { kind: "turn-stop", sessionId: stop[1] };
+
+  const approval = /^(approve-all|approve|deny):(.+)$/.exec(customId);
+  if (approval?.[1] && approval[2]) {
+    return { kind: "approval", id: approval[2], choice: approval[1] as "approve" | "deny" | "approve-all" };
+  }
+
+  const toggle = /^plugin:(enable|disable):(.+)$/.exec(customId);
+  if (toggle?.[1] && toggle[2]) return { kind: "plugin-toggle", id: toggle[2], enable: toggle[1] === "enable" };
+
+  return { kind: "unknown" };
+}
