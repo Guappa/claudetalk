@@ -12,6 +12,7 @@ import { OutboxDelivery } from "./discord/outboxDelivery.ts";
 import { SessionIndex } from "./sessions/index.ts";
 import { PendingCreates } from "./discord/pendingCreate.ts";
 import { ApprovalPrompts } from "./discord/approvals.ts";
+import { QuestionPrompts } from "./discord/questions.ts";
 
 export interface Bridge {
   config: Config;
@@ -21,6 +22,7 @@ export interface Bridge {
   usage: UsageLedger;
   planUsage: PlanUsage;
   approvals: ApprovalPrompts;
+  questions: QuestionPrompts;
   outbox: OutboxDelivery;
   flow: TurnFlow;
   sessions: SessionIndex;
@@ -44,6 +46,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
   const usage = new UsageLedger();
   const planUsage = new PlanUsage();
   const approvals = new ApprovalPrompts();
+  const questions = new QuestionPrompts();
   const outbox = new OutboxDelivery();
   const trackers = new Map<string, ContextTracker>();
   const trackerFor = (sessionId: string): ContextTracker => {
@@ -62,8 +65,9 @@ export async function createBridge(config: Config): Promise<Bridge> {
     usage,
     planUsage,
     approvals,
+    questions,
     outbox,
-    flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, outbox, config),
+    flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, config),
     sessions: new SessionIndex(),
     pendingCreates: new PendingCreates(),
   };

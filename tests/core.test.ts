@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { actionId, askingSink, quietSink, recordingSink } from "./helpers/sinks.ts";
+import { actionId, askingSink, menuAskingSink, quietSink, recordingSink, type MenuAsk } from "./helpers/sinks.ts";
 import { record, usage, wait } from "./helpers/records.ts";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -30,6 +30,8 @@ import { UsageLedger } from "../src/claude/usageLedger.ts";
 import { PlanUsage, describePlanUsage, parsePlanUsage } from "../src/claude/planUsage.ts";
 import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
 import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
+import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
+import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
 import { chunkForDiscord, shouldSpillToFile, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
 import {
@@ -70,6 +72,10 @@ import {
   UNBIND_KEEP,
   parseCustomId,
   pluginToggleId,
+  questionOtherId,
+  questionPickId,
+  questionSkipId,
+  questionSubmitId,
   skillSelectId,
 } from "../src/discord/menus.ts";
 import { describeDefault, parseHostDefaults } from "../src/claude/hostSettings.ts";
@@ -226,6 +232,13 @@ describe("buildOptions", () => {
 
   it("gates nothing unless the turn was given an approver", () => {
     expect(buildOptions({ ...base, resume: true }).hooks).toBeUndefined();
+  });
+
+  // Claude Code offers the question tool only to a client that can prompt, so a turn that can answer declares one.
+  it("declares a prompt surface only when the turn can answer questions", () => {
+    expect(buildOptions({ ...base, resume: true }).permissionPromptToolName).toBeUndefined();
+    const options = buildOptions({ ...base, resume: true, askQuestions: async () => ({ answered: false, reason: "" }) });
+    expect(options.permissionPromptToolName).toBe("stdio");
   });
 });
 
@@ -1048,6 +1061,151 @@ describe("ApprovalPrompts", () => {
     const text = describeRequest("Bash", { command: "git push --force" });
     expect(text).toContain("Bash");
     expect(text).toContain("git push --force");
+  });
+});
+
+
+describe("QuestionPrompts", () => {
+  const library: Question = {
+    question: "Which library should we use for dates?",
+    header: "Library",
+    multiSelect: false,
+    options: [
+      { label: "date-fns", description: "Functions over plain dates" },
+      { label: "Day.js", description: "Small and chainable" },
+    ],
+  };
+  const features: Question = {
+    question: "Which features do you want?",
+    header: "Features",
+    multiSelect: true,
+    options: [
+      { label: "Caching", description: "Keep results around" },
+      { label: "Retries", description: "Try again on failure" },
+      { label: "Metrics", description: "Count what happens" },
+    ],
+  };
+  const askIdOf = (ask: MenuAsk) => actionId(ask.actions, "question:submit");
+
+  it("turns picks into an answer per question, keyed by the question text", async () => {
+    const prompts = new QuestionPrompts();
+    let shown: MenuAsk | undefined;
+    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+      shown = ask;
+      const askId = askIdOf(ask);
+      prompts.pick(askId, 0, ["1"]);
+      prompts.pick(askId, 1, ["0", "1"]);
+      expect(prompts.submit(askId)).toBeUndefined();
+    }), [library, features]);
+
+    expect(outcome).toEqual({
+      answered: true,
+      answers: { [library.question]: "Day.js", [features.question]: "Caching, Retries" },
+    });
+    expect(shown?.closed).toEqual(["Answered: Library = Day.js. Features = Caching, Retries."]);
+  });
+
+  it("takes an answer in the asker's own words alongside the picks", async () => {
+    const prompts = new QuestionPrompts();
+    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+      const askId = askIdOf(ask);
+      prompts.pick(askId, 0, ["0", OTHER_VALUE]);
+      prompts.answerFreeText(askId, 0, "  Retries with jitter ");
+      prompts.submit(askId);
+    }), [features]);
+
+    expect(outcome.answered && outcome.answers[features.question]).toBe("Caching, Retries with jitter");
+  });
+
+  it("refuses to send while a question has nothing picked", async () => {
+    const prompts = new QuestionPrompts();
+    let complaint: string | undefined;
+    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+      const askId = askIdOf(ask);
+      prompts.pick(askId, 0, ["0"]);
+      complaint = prompts.submit(askId);
+      prompts.pick(askId, 1, ["2"]);
+      prompts.submit(askId);
+    }), [library, features]);
+
+    expect(complaint).toContain("Question 2");
+    expect(outcome.answered).toBe(true);
+  });
+
+  it("lets the model continue without answers when skipped, and says so", async () => {
+    const prompts = new QuestionPrompts();
+    let shown: MenuAsk | undefined;
+    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+      shown = ask;
+      prompts.skip(actionId(ask.actions, "question:skip"));
+    }), [library]);
+
+    expect(outcome.answered).toBe(false);
+    expect(outcome.answered === false && outcome.reason).toContain("Skipped");
+    expect(shown?.closed[0]).toContain("Skipped");
+  });
+
+  it("settles what a turn asked when that turn ends", async () => {
+    const prompts = new QuestionPrompts();
+    const outcome = prompts.ask("turn-1", menuAskingSink(() => prompts.finish("turn-1")), [library]);
+    expect(await outcome).toEqual({ answered: false, reason: expect.stringContaining("turn ended") });
+  });
+
+  it("tells a late press that the questions are gone", async () => {
+    const prompts = new QuestionPrompts();
+    let askId = "";
+    await prompts.ask("turn-1", menuAskingSink((ask) => {
+      askId = askIdOf(ask);
+      prompts.skip(askId);
+    }), [library]);
+
+    expect(prompts.submit(askId)).toContain("already answered");
+    expect(prompts.pick(askId, 0, ["0"])).toContain("already answered");
+  });
+
+  it("continues without an answer when the conversation cannot show menus", async () => {
+    const outcome = await new QuestionPrompts().ask("turn-1", quietSink(), [library]);
+    expect(outcome.answered).toBe(false);
+  });
+
+  it("draws one menu per question with an entry for an answer of one's own", () => {
+    const menus = menusFor("ask-1", [library, features]);
+    expect(menus.map((menu) => menu.id)).toEqual([questionPickId("ask-1", 0), questionPickId("ask-1", 1)]);
+    expect(menus[0]?.multiple).toBe(false);
+    expect(menus[1]?.multiple).toBe(true);
+    expect(menus[0]?.options.map((option) => option.value)).toEqual(["0", "1", OTHER_VALUE]);
+    expect(menus[1]?.options.at(-1)?.label).toBe("Other...");
+  });
+
+  it("numbers the questions and shows a preview as a block", () => {
+    const withPreview: Question = {
+      ...library,
+      options: [{ label: "Day.js", description: "Small", preview: "dayjs().format()" }],
+    };
+    const text = describeQuestions([withPreview, features]);
+    expect(text).toContain("Claude has 2 questions.");
+    expect(text).toContain("**1. Library**");
+    expect(text).toContain("**2. Features**");
+    expect(text).toContain("Pick any that apply.");
+    expect(text).toContain("```\ndayjs().format()\n```");
+  });
+
+  it("types the tool input without trusting any field to be present", () => {
+    const parsed = parseQuestions({
+      questions: [{ question: "Red or blue?", header: "Colour", options: [{ label: "Red" }], multiSelect: "yes" }],
+    });
+    expect(parsed).toEqual([
+      { question: "Red or blue?", header: "Colour", options: [{ label: "Red", description: "" }], multiSelect: false },
+    ]);
+    expect(parseQuestions({})).toEqual([]);
+  });
+
+  it("round-trips every question control id", () => {
+    expect(parseCustomId(questionPickId("ask-1", 2))).toEqual({ kind: "question-pick", askId: "ask-1", index: 2 });
+    expect(parseCustomId(questionOtherId("ask-1", 0))).toEqual({ kind: "question-other", askId: "ask-1", index: 0 });
+    expect(parseCustomId(questionSubmitId("ask-1"))).toEqual({ kind: "question-submit", askId: "ask-1" });
+    expect(parseCustomId(questionSkipId("ask-1"))).toEqual({ kind: "question-skip", askId: "ask-1" });
+    expect(parseCustomId("question:pick:ask-1").kind).toBe("unknown");
   });
 });
 

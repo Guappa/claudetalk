@@ -190,6 +190,13 @@ entry there would open the gate without anyone noticing. A hook is asked either
 way. Approving a command still approves it to do anything the host account can
 do; the gate shows you each step, it does not contain one.
 
+**The same hook answers `AskUserQuestion`.** Claude Code only offers that tool
+to a client that declares a prompt surface, so a turn that can ask sets
+`permissionPromptToolName` to `stdio`, which is what the SDK itself sends when a
+`canUseTool` callback is present. The callback is never reached under
+`bypassPermissions`; the hook answers first by returning the tool's input with
+an `answers` map, or denies with a reason that tells Claude to continue.
+
 **The Windows task is registered S4U.** It runs as you, in session 0, with no
 desktop session and no stored password. A task in your own session gets a console
 window; on Windows 11 that window is Windows Terminal, which ignores
@@ -198,4 +205,5 @@ than as SYSTEM because Claude Code's credentials live in your user's store.
 
 **`MessageSink` is the only way `TurnFlow` talks back to Discord.** Keeping that
 boundary is what will let a voice sink drop in later without touching the turn
-logic.
+logic. A question is a list of `SinkMenu`s and two actions; how a menu is drawn
+and how the "Other..." entry collects free text is the Discord sink's business.

@@ -16,6 +16,7 @@ import { handleSync } from "../commands/sync.ts";
 import { handleSpend } from "../commands/spend.ts";
 import {
   handleButton,
+  handleModal,
   handlePluginsCommand,
   handlePurgeCommand,
   handleSelect,
@@ -75,6 +76,7 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
 
   if (interaction.isAutocomplete()) return await handleAutocomplete(bridge, interaction);
   if (interaction.isStringSelectMenu()) return await handleSelect(bridge, interaction);
+  if (interaction.isModalSubmit()) return await handleModal(bridge, interaction);
   if (interaction.isButton()) return await handleButton(bridge, interaction);
   if (!interaction.isChatInputCommand()) return;
 

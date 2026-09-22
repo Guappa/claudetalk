@@ -5,6 +5,7 @@ import { ContextTracker } from "../src/claude/contextTracker.ts";
 import { UsageLedger } from "../src/claude/usageLedger.ts";
 import { PlanUsage } from "../src/claude/planUsage.ts";
 import { ApprovalPrompts } from "../src/discord/approvals.ts";
+import { QuestionPrompts } from "../src/discord/questions.ts";
 import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
 import type { Config } from "../src/config.ts";
 import { TurnFlow } from "../src/discord/turnFlow.ts";
@@ -35,6 +36,7 @@ function makeFlow(): TurnFlow {
     new UsageLedger(),
     new PlanUsage(),
     new ApprovalPrompts(),
+    new QuestionPrompts(),
     new OutboxDelivery(),
     config,
   );

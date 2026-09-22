@@ -13,6 +13,22 @@ export function stopActionId(sessionId: string): string {
   return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
 }
 
+export function questionPickId(askId: string, index: number): string {
+  return `question:pick:${askId}:${index}`;
+}
+
+export function questionOtherId(askId: string, index: number): string {
+  return `question:other:${askId}:${index}`;
+}
+
+export function questionSubmitId(askId: string): string {
+  return `question:submit:${askId}`;
+}
+
+export function questionSkipId(askId: string): string {
+  return `question:skip:${askId}`;
+}
+
 // Every menu in one message needs its own id, and which page a skill came from does not matter.
 export function skillSelectId(page: number): string {
   return `${SKILL_SELECT}:${page}`;
@@ -30,6 +46,10 @@ export type MenuAction =
   | { kind: "unbind-keep" }
   | { kind: "create-resume"; sessionId: string }
   | { kind: "turn-stop"; sessionId: string }
+  | { kind: "question-pick"; askId: string; index: number }
+  | { kind: "question-other"; askId: string; index: number }
+  | { kind: "question-submit"; askId: string }
+  | { kind: "question-skip"; askId: string }
   | { kind: "approval"; id: string; choice: "approve" | "deny" | "approve-all" }
   | { kind: "unknown" };
 
@@ -61,6 +81,16 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
 
   const stop = /^turn:stop:(.+)$/.exec(customId);
   if (stop?.[1]) return { kind: "turn-stop", sessionId: stop[1] };
+
+  const question = /^question:(pick|other|submit|skip):([^:]+)(?::(\d+))?$/.exec(customId);
+  if (question?.[1] && question[2]) {
+    const askId = question[2];
+    const index = Number(question[3] ?? -1);
+    if (question[1] === "pick" && index >= 0) return { kind: "question-pick", askId, index };
+    if (question[1] === "other" && index >= 0) return { kind: "question-other", askId, index };
+    if (question[1] === "submit") return { kind: "question-submit", askId };
+    if (question[1] === "skip") return { kind: "question-skip", askId };
+  }
 
   const approval = /^(approve-all|approve|deny):(.+)$/.exec(customId);
   if (approval?.[1] && approval[2]) {

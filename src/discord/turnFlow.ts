@@ -7,6 +7,7 @@ import type { ContextTracker } from "../claude/contextTracker.ts";
 import type { UsageLedger } from "../claude/usageLedger.ts";
 import type { PlanUsage } from "../claude/planUsage.ts";
 import type { ApprovalPrompts } from "./approvals.ts";
+import type { QuestionPrompts } from "./questions.ts";
 import type { Config } from "../config.ts";
 import type { SessionRecord } from "../sessions/index.ts";
 import type { MessageSink } from "./messageSink.ts";
@@ -109,6 +110,7 @@ export class TurnFlow {
   private readonly usage: UsageLedger;
   private readonly planUsage: PlanUsage;
   private readonly approvals: ApprovalPrompts;
+  private readonly questions: QuestionPrompts;
   private readonly outbox: OutboxDelivery;
   private readonly config: Config;
 
@@ -118,6 +120,7 @@ export class TurnFlow {
     usage: UsageLedger,
     planUsage: PlanUsage,
     approvals: ApprovalPrompts,
+    questions: QuestionPrompts,
     outbox: OutboxDelivery,
     config: Config,
   ) {
@@ -126,6 +129,7 @@ export class TurnFlow {
     this.usage = usage;
     this.planUsage = planUsage;
     this.approvals = approvals;
+    this.questions = questions;
     this.outbox = outbox;
     this.config = config;
   }
@@ -211,6 +215,7 @@ export class TurnFlow {
         name: options.name,
         fork: options.fork,
         approve: this.approvalGate(sessionId, sink),
+        askQuestions: (questions) => this.questions.ask(sessionId, sink, questions),
       },
       (event) => {
         pending.push(this.handleEvent(event, sessionId, status, sink, tracker, () => void (compaction.happened = true)));
@@ -239,6 +244,7 @@ export class TurnFlow {
     } finally {
       status.stop();
       this.approvals.finish(sessionId);
+      this.questions.finish(sessionId);
       this.running.delete(sessionId);
       this.stopping.delete(sessionId);
     }
