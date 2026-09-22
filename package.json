@@ -1,6 +1,6 @@
 {
   "name": "claudetalk",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "Reach Claude Code sessions on your own machine from Discord, on any device",
   "type": "module",
   "license": "MIT",
