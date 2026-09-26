@@ -154,17 +154,29 @@ function messageUsage(usage: unknown): TokenUsage | undefined {
   };
 }
 
+const RESTART = Symbol("restart");
+
 async function consumeStream(
   held: HeldPrompt,
   options: Options,
   abort: AbortController,
   onEvent: (event: ClaudeEvent) => void,
-): Promise<TurnResult> {
+): Promise<TurnResult | typeof RESTART> {
   const outcome: TurnOutcome = { text: "" };
 
   try {
-    for await (const message of query({ prompt: held.stream(), options: { ...options, abortController: abort } })) {
+    const run = query({ prompt: held.stream(), options: { ...options, abortController: abort } });
+    // Either outcome of the handshake lets the prompt go; a doomed process has already been marked by then.
+    run.initializationResult().then(
+      () => held.ready(),
+      () => held.ready(),
+    );
+    for await (const message of run) {
       held.observe(message as unknown as ClaudeEvent);
+      if (held.needsRestart) {
+        abort.abort();
+        return RESTART;
+      }
       onEvent(message as unknown as ClaudeEvent);
 
       const reported = (message as { session_id?: string }).session_id;
@@ -183,6 +195,7 @@ async function consumeStream(
       }
     }
   } catch (error) {
+    if (held.needsRestart) return RESTART;
     if (abort.signal.aborted) {
       return { ...outcome, ok: false, error: { kind: "unknown", message: "The turn was stopped." } };
     }
@@ -192,13 +205,29 @@ async function consumeStream(
   return { ...outcome, ok: true };
 }
 
+const ORPHAN_TWICE: TurnResult = {
+  text: "",
+  ok: false,
+  error: {
+    kind: "unknown",
+    message:
+      "Claude Code reported a background command left over from an earlier turn twice in a row, and a session " +
+      "that starts by reporting one refuses every tool call. Send the message again; it normally clears on the next try.",
+  },
+};
+
 export interface RunningTurn {
   stop: () => void;
   done: Promise<TurnResult>;
 }
 
+interface Attempt {
+  held: HeldPrompt;
+  abort: AbortController;
+  done: Promise<TurnResult | typeof RESTART>;
+}
+
 export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => void): RunningTurn {
-  const abort = new AbortController();
   const options = buildOptions(request);
   if (request.approve || request.askQuestions) options.hooks = gate(request);
 
@@ -214,15 +243,33 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     return child;
   };
 
-  const held = new HeldPrompt(request.prompt);
-  const stop = (): void => {
-    // Killing only the turn leaves whatever it was running alive, which is not what a stop means.
-    if (pid !== undefined) killTree(pid);
-    held.close();
-    abort.abort();
+  const start = (): Attempt => {
+    const held = new HeldPrompt(request.prompt);
+    const abort = new AbortController();
+    return { held, abort, done: consumeStream(held, options, abort, onEvent) };
   };
 
-  return { stop, done: consumeStream(held, options, abort, onEvent) };
+  let attempt = start();
+  let stopped = false;
+
+  // A process that met an orphaned task is thrown away before the prompt goes out, and a fresh one gets the turn.
+  const done = attempt.done.then(async (result) => {
+    if (result !== RESTART) return result;
+    if (stopped) return { text: "", ok: false, error: { kind: "unknown", message: "The turn was stopped." } } as TurnResult;
+    attempt = start();
+    const again = await attempt.done;
+    return again === RESTART ? ORPHAN_TWICE : again;
+  });
+
+  const stop = (): void => {
+    stopped = true;
+    // Killing only the turn leaves whatever it was running alive, which is not what a stop means.
+    if (pid !== undefined) killTree(pid);
+    attempt.held.close();
+    attempt.abort.abort();
+  };
+
+  return { stop, done };
 }
 
 function resultError(subtype: string, text: string): ClaudeError {

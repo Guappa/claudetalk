@@ -37,6 +37,7 @@ export type ClaudeEvent =
   | { type: "system"; subtype: "status"; status: string | null; compact_result?: string }
   | { type: "system"; subtype: "compact_boundary"; compact_metadata: CompactMetadata }
   | { type: "system"; subtype: "background_tasks_changed"; tasks: BackgroundTask[] }
+  | { type: "system"; subtype: "task_notification"; status: string }
   | { type: "system"; subtype: string }
   | { type: "assistant"; message: { content: ContentBlock[] } }
   | { type: "user"; message: { content: ContentBlock[] } }
@@ -54,6 +55,11 @@ export function isCompactionStart(event: ClaudeEvent): boolean {
     "status" in event &&
     event.status === "compacting"
   );
+}
+
+// A task the previous process left running is reported once, by the next process to resume the session.
+export function isOrphanReport(event: ClaudeEvent): boolean {
+  return event.type === "system" && event.subtype === "task_notification" && "status" in event && event.status === "stopped";
 }
 
 // Ambient tasks are watchers, not work; only real work keeps a turn's input open.

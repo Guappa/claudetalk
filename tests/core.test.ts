@@ -1223,18 +1223,27 @@ describe("HeldPrompt", () => {
     ],
   });
 
+  const orphan = { type: "system", subtype: "task_notification", status: "stopped" } as ClaudeEvent;
+
+  const spoke = { type: "assistant", message: { content: [{ type: "text", text: "on it" }] } } as ClaudeEvent;
+
+  // The prompt goes out once the handshake is done; whether the input then closes is what each case checks.
   async function settled(held: HeldPrompt, ms = 15): Promise<boolean> {
     const stream = held.stream();
+    held.ready();
     await stream.next();
     const ended = stream.next().then(() => true);
     return await Promise.race([ended, wait(ms).then(() => false)]);
   }
 
-  it("yields the prompt once and lets go as soon as the answer arrives with nothing running", async () => {
+  it("holds the prompt until the handshake is done, then yields it once", async () => {
     const held = new HeldPrompt("hello", 5);
     const stream = held.stream();
-    const first = await stream.next();
-    expect(first.value).toMatchObject({ type: "user", message: { role: "user", content: "hello" } });
+    const first = stream.next();
+    held.observe(init);
+    expect(await Promise.race([first.then(() => true), wait(15).then(() => false)])).toBe(false);
+    held.ready();
+    expect((await first).value).toMatchObject({ type: "user", message: { role: "user", content: "hello" } });
     held.observe(result);
     expect((await stream.next()).done).toBe(true);
   });
@@ -1278,6 +1287,40 @@ describe("HeldPrompt", () => {
     held.observe(tasks(3));
     held.close();
     expect(await settled(held)).toBe(true);
+  });
+
+  // A process that opens by reporting an orphaned task cancels every tool call, so the prompt must never reach it.
+  it("asks for a restart the moment the CLI opens with an orphaned task, and sends nothing", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    const first = stream.next();
+    held.observe(orphan);
+    expect(held.needsRestart).toBe(true);
+    expect((await first).done).toBe(true);
+    held.ready();
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  // The report can land a moment after the handshake let the prompt go; only a model reply makes it too late.
+  it("still restarts when the report lands after the prompt but before the model has spoken", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(orphan);
+    expect(held.needsRestart).toBe(true);
+  });
+
+  it("treats an orphan reported once the model has spoken as an ordinary notification", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    held.observe(orphan);
+    held.observe(result);
+    expect(held.needsRestart).toBe(false);
+    expect((await stream.next()).done).toBe(true);
   });
 });
 

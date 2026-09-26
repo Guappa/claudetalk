@@ -349,6 +349,12 @@ finishes Claude picks up its output in a follow-up that is part of the same turn
 with tools working as they did before. The answer that lands beneath the trail
 is the follow-up's. The Stop button ends both.
 
+A command that a stop or a crash left running is reported by Claude Code at the
+start of the next turn, and a process that opens with such a report refuses
+every tool call. The bridge notices, discards that process before your message
+reaches it, and starts another, which costs the turn a second or two and
+nothing else.
+
 ### Stopping it
 
 `/stop` and the **Stop** button are the equivalent of pressing escape in the
