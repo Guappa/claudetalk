@@ -59,6 +59,7 @@ import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
 import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl } from "../src/discord/repoLinks.ts";
+import { convertTables } from "../src/discord/tables.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -1454,6 +1455,28 @@ describe("ActiveTurns", () => {
     await Promise.all(Array.from({ length: 10 }, (_, index) => turns.clear(`s${index}`)));
     const onDisk = JSON.parse(await fs.readFile(file, "utf8"));
     expect(Object.keys(onDisk).sort()).toEqual(Array.from({ length: 10 }, (_, index) => `s${index + 10}`).sort());
+  });
+});
+
+describe("convertTables", () => {
+  // Discord has no table markup, so a two-column table reads best as a list with the key in bold.
+  it("turns a two-column table into a list, keeping inline formatting", () => {
+    const table = ["Deployed:", "", "| Surface | Check |", "|---|---|", "| api | new wording served |", "| wiki | every chunk `application/javascript` |"].join("\n");
+    expect(convertTables(table)).toBe(
+      ["Deployed:", "", "- **api**: new wording served", "- **wiki**: every chunk `application/javascript`"].join("\n"),
+    );
+  });
+
+  it("turns a wider table into an aligned code block without inline markup", () => {
+    const table = ["| Name | Size | Note |", "|:---|---:|---|", "| `a.ts` | 12 | **big** |", "| b.ts | 3 | small |"].join("\n");
+    expect(convertTables(table)).toBe(
+      ["```", "Name  Size  Note", "----  ----  -----", "a.ts  12    big", "b.ts  3     small", "```"].join("\n"),
+    );
+  });
+
+  it("leaves text without a header separator alone", () => {
+    const notATable = "a | b\n| just a pipe | in prose |\nend";
+    expect(convertTables(notATable)).toBe(notATable);
   });
 });
 

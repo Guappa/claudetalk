@@ -1,6 +1,7 @@
 import { runTurn, type ApproveTool, type ChannelSettings, type RunningTurn, type TurnResult } from "../claude/runner.ts";
 import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
+import { convertTables } from "./tables.ts";
 import { compactMetadata, isCompactionStart, isInit, type ClaudeEvent } from "../claude/events.ts";
 import type { ClaudeError } from "../claude/errors.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
@@ -100,7 +101,7 @@ async function postAnswer(
   text: string,
   compacted: boolean,
 ): Promise<void> {
-  const answer = text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.";
+  const answer = convertTables(text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.");
   status.dropEcho(answer);
   const links = await resolveReferences(cwd, answer);
   await conclude(status, sink, chunkForDiscord(links ? linkReferences(answer, links) : linkPlain(answer)));

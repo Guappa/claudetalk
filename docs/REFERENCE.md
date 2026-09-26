@@ -343,6 +343,11 @@ When the turn ends the heading changes to **Worked**, the trail stays, and the
 answer arrives as its own message beneath it, not repeated in the trail. A turn
 whose only remark was the answer keeps no trail.
 
+Discord draws no tables, and every turn is told so. A Markdown table that
+arrives anyway is converted: two columns become a list with the first cell in
+bold, more become an aligned code block with inline markup dropped, since it
+would show as literal punctuation there.
+
 References in the answer become links, written so that Discord adds no embed
 beneath the message. A bare URL is kept clickable, a domain name becomes a link
 to it, and when the working directory has an `origin` remote the repository's

@@ -49,6 +49,7 @@ export function bridgeSystemNote(sessionId: string): string {
     "that and keep replies readable at phone width; longer output is split across messages.",
     `Better: write a file under 8 MB into ${outboxRelative(sessionId)} in the working directory,`,
     "creating the folder if needed, and it is attached, then removed. Anything larger is refused.",
+    "Discord renders no tables; use a list instead.",
     "Think out loud as you go: before a step, and when something turns out differently than you",
     "expected, say so in a sentence. Those remarks show live while the turn runs and are the only",
     "sign of progress the reader gets, so silence reads as a hang.",
