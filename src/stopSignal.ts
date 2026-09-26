@@ -11,10 +11,13 @@ export function stopRequestPath(lockPath: string): string {
   return path.join(path.dirname(lockPath), "stop.request");
 }
 
+// Written beside and renamed over: the bridge polls the path and must never read a half-written request.
 export async function requestStop(lockPath: string, mode: StopMode = "drain"): Promise<void> {
   const target = stopRequestPath(lockPath);
   await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, mode, "utf8");
+  const temp = `${target}.${process.pid}.tmp`;
+  await fs.writeFile(temp, mode, "utf8");
+  await fs.rename(temp, target);
 }
 
 // A request written by an older bridge holds a timestamp, which reads as a plain drain.

@@ -26,6 +26,8 @@ export interface Bridge {
   approvals: ApprovalPrompts;
   questions: QuestionPrompts;
   activeTurns: ActiveTurns;
+  // The newest message posted per channel, shared by every sink so the trail knows what sits beneath it.
+  latestPosts: Map<string, string>;
   outbox: OutboxDelivery;
   flow: TurnFlow;
   sessions: SessionIndex;
@@ -72,6 +74,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
     approvals,
     questions,
     activeTurns,
+    latestPosts: new Map<string, string>(),
     outbox,
     flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, activeTurns, config),
     sessions: new SessionIndex(),

@@ -12,6 +12,7 @@ type Anchors = Record<string, SinkAnchor>;
 export class ActiveTurns {
   private readonly filePath: string;
   private anchors: Anchors = {};
+  private writes: Promise<void> = Promise.resolve();
 
   constructor(filePath: string) {
     this.filePath = filePath;
@@ -21,23 +22,32 @@ export class ActiveTurns {
     this.anchors = await readJsonOr<Anchors>(this.filePath, () => ({}));
   }
 
-  async record(sessionId: string, anchor: SinkAnchor): Promise<void> {
+  record(sessionId: string, anchor: SinkAnchor): Promise<void> {
     this.anchors[sessionId] = anchor;
-    await writeJsonAtomic(this.filePath, this.anchors);
+    return this.save();
   }
 
-  async clear(sessionId: string): Promise<void> {
-    if (!(sessionId in this.anchors)) return;
+  clear(sessionId: string): Promise<void> {
+    if (!(sessionId in this.anchors)) return this.writes;
     delete this.anchors[sessionId];
-    await writeJsonAtomic(this.filePath, this.anchors);
+    return this.save();
   }
 
   // What the previous process was running when it died; taking them is what stops a double report.
   async takeLeftovers(): Promise<SinkAnchor[]> {
     const leftovers = Object.values(this.anchors);
     this.anchors = {};
-    if (leftovers.length > 0) await writeJsonAtomic(this.filePath, this.anchors);
+    if (leftovers.length > 0) await this.save();
     return leftovers;
+  }
+
+  // Every session shares the one file, so writes go out one at a time, and a failed one costs a log line, not a turn.
+  private save(): Promise<void> {
+    const snapshot = { ...this.anchors };
+    this.writes = this.writes
+      .then(() => writeJsonAtomic(this.filePath, snapshot))
+      .catch((error: unknown) => console.error(`could not write ${this.filePath}: ${errorMessage(error)}`));
+    return this.writes;
   }
 }
 

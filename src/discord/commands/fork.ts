@@ -22,7 +22,7 @@ export async function runFork(
     prompt:
       `This conversation has been branched into a copy named "${name}". ` +
       `Say in one line what it was about, so the branch starts with its bearings.`,
-    sink: channelSink(channel),
+    sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     resume: true,
     fork: true,
     onSessionId: (id) => {

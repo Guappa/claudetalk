@@ -26,6 +26,8 @@ export const NO_MENTIONS: MessageCreateOptions["allowedMentions"] = { parse: [],
 export interface SinkOptions {
   allowedUserIds?: string[];
   replyToMessageId?: string;
+  // Shared across sinks, keyed by channel, so a message posted by another sink still counts as beneath the trail.
+  latestPosts?: Map<string, string>;
 }
 
 // Discord allows five buttons to a row, and nothing here offers more than three.
@@ -71,7 +73,7 @@ function closable(sent: Message, shown: string): AskHandle {
 export function channelSink(channel: SendableChannels, options: SinkOptions = {}): MessageSink {
   const allowedMentions = mentionPolicy(options.allowedUserIds ?? []);
   let owned: Message | null = null;
-  let latest: Message | null = null;
+  const latestPosts = options.latestPosts ?? new Map<string, string>();
 
   // The first message of a turn threads to what prompted it; a ping would be redundant on top.
   const firstSendOptions = (content: string): MessageCreateOptions =>
@@ -85,7 +87,7 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
 
   const post = async (payload: MessageCreateOptions): Promise<Message> => {
     const sent = await channel.send(payload);
-    latest = sent;
+    latestPosts.set(channel.id, sent.id);
     return sent;
   };
 
@@ -107,7 +109,7 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
       owned = await post({ content: redactHome(text), allowedMentions, components: buttonRow(actions) });
     },
     isLatest(): boolean {
-      return owned !== null && owned === latest;
+      return owned !== null && owned.id === latestPosts.get(channel.id);
     },
     // A notice deletes itself after a minute, so it never counts as something lasting beneath the trail.
     async notice(text: string): Promise<void> {

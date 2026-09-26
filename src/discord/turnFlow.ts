@@ -96,8 +96,11 @@ async function postAnswer(status: StatusMessage, sink: MessageSink, text: string
   const answer = text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.";
   status.dropEcho(answer);
 
-  const chunks = chunkForDiscord(answer);
-  // The answer replaces the progress message only when nothing lasting was posted beneath it since.
+  await conclude(status, sink, chunkForDiscord(answer));
+}
+
+// The outcome replaces the progress message only when nothing lasting was posted beneath it since.
+async function conclude(status: StatusMessage, sink: MessageSink, chunks: string[]): Promise<void> {
   const inPlace = !status.hasNotes() && (sink.isLatest?.() ?? true);
   if (!inPlace) {
     await status.settle();
@@ -238,9 +241,10 @@ export class TurnFlow {
     options: TurnOptions,
   ): Promise<void> {
     // The record follows the trail into each new message, so an interruption is marked where the reader looks.
+    let ended = false;
     const remember = async (): Promise<void> => {
       const anchor = sink.anchor?.();
-      if (anchor) await this.activeTurns.record(sessionId, anchor);
+      if (anchor && !ended) await this.activeTurns.record(sessionId, anchor);
     };
     const status = new StatusMessage(
       sink,
@@ -280,7 +284,7 @@ export class TurnFlow {
 
       if (!result.ok) {
         // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
-        await status.finish(this.stopping.has(sessionId) ? "Stopped." : describeFailure(result.error));
+        await conclude(status, sink, [this.stopping.has(sessionId) ? "Stopped." : describeFailure(result.error)]);
         return;
       }
 
@@ -295,6 +299,9 @@ export class TurnFlow {
       status.stop();
       this.approvals.finish(sessionId);
       this.questions.finish(sessionId);
+      // A move still queued would record the turn again after it was cleared, so the queue is emptied first.
+      ended = true;
+      await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
       this.stopping.delete(sessionId);

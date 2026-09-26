@@ -37,6 +37,7 @@ export async function handleAsk(
     prompt: composePrompt(context, prompt),
     sink: channelSink(interaction.channel, {
       allowedUserIds: [...new Set([interaction.user.id, ...context.mentionableUserIds])],
+      latestPosts: bridge.latestPosts,
     }),
     resume: true,
     quoted: context.quoted,

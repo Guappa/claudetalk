@@ -158,7 +158,7 @@ async function runSkill(bridge: Bridge, interaction: StringSelectMenuInteraction
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,
     prompt: `/${action.skill}`,
-    sink: channelSink(interaction.channel),
+    sink: channelSink(interaction.channel, { latestPosts: bridge.latestPosts }),
     resume: true,
   });
 }

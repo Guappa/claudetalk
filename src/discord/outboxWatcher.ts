@@ -16,7 +16,7 @@ async function sweepOutboxes(bridge: Bridge, client: Client): Promise<number> {
     // The files stay put when the channel is gone, so a rebind still finds them.
     if (!channel?.isSendable()) continue;
 
-    delivered += await bridge.outbox.deliver(conversation.cwd, conversation.sessionId, channelSink(channel), SETTLE_MS);
+    delivered += await bridge.outbox.deliver(conversation.cwd, conversation.sessionId, channelSink(channel, { latestPosts: bridge.latestPosts }), SETTLE_MS);
   }
 
   return delivered;

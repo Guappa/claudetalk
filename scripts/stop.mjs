@@ -39,6 +39,12 @@ for (let waited = 0; ; waited += POLL_MS) {
     console.log(`Stopped bridge pid ${lock.pid}.`);
     process.exit(0);
   }
+  // A bridge that dies mid-drain leaves its lock behind, and waiting on a corpse would never end.
+  if (!isProcessAlive(lock.pid)) {
+    rmSync(lockPath, { force: true });
+    console.error(`Bridge pid ${lock.pid} died before it finished stopping. Check data/bridge.log for why; its lock is cleared.`);
+    process.exit(1);
+  }
   const turns = readLock()?.draining?.turns;
   if (typeof turns === "number") {
     if (turns !== reported) {

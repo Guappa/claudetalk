@@ -586,6 +586,35 @@ describe("StatusMessage", () => {
     expect(status.hasNotes()).toBe(true);
   });
 
+  // Several remarks can land in one stream chunk before the queued move has run; they belong to the same new message.
+  it("moves once for a burst of remarks arriving while the trail is still buried", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("Before.");
+    sink.othersBelow = true;
+    status.note("After one.");
+    status.note("After two.");
+    status.note("After three.");
+    await status.settle();
+
+    expect(sink.messages).toHaveLength(2);
+    expect(sink.messages[1]).toContain("After one.");
+    expect(sink.messages[1]).toContain("After three.");
+  });
+
+  it("leaves a plain marker, not a live heading, when it moves before any remark was made", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    sink.othersBelow = true;
+    status.note("First remark, after an approval prompt.");
+    await status.settle();
+
+    expect(sink.messages[0]).toBe("**Started**");
+    expect(sink.messages[0]).not.toContain("Working");
+  });
+
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
     const sink = recordingSink();
     const moved = vi.fn(async () => undefined);
@@ -1412,6 +1441,18 @@ describe("ActiveTurns", () => {
     const turns = new ActiveTurns(await freshFile());
     await turns.load();
     expect(await turns.takeLeftovers()).toEqual([]);
+  });
+
+  // Every session shares the one file, and two turns starting together must not trip over the same temp file.
+  it("survives many sessions recording and clearing at once, and ends with the truth on disk", async () => {
+    const file = await freshFile();
+    const turns = new ActiveTurns(file);
+    await Promise.all(
+      Array.from({ length: 20 }, (_, index) => turns.record(`s${index}`, { channelId: "c", messageId: `m${index}` })),
+    );
+    await Promise.all(Array.from({ length: 10 }, (_, index) => turns.clear(`s${index}`)));
+    const onDisk = JSON.parse(await fs.readFile(file, "utf8"));
+    expect(Object.keys(onDisk).sort()).toEqual(Array.from({ length: 10 }, (_, index) => `s${index + 10}`).sort());
   });
 });
 
