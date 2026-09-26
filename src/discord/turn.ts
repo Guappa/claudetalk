@@ -1,6 +1,7 @@
 import type { Bridge } from "../bridge.ts";
 import type { Conversation } from "../conversations.ts";
 import type { MessageSink } from "./messageSink.ts";
+import type { StateMarker } from "./reactions.ts";
 import { markCaughtUp, pendingDrift } from "./sync.ts";
 import { describeDrift } from "./transcriptView.ts";
 
@@ -13,6 +14,7 @@ export interface ConversationTurn {
   name?: string;
   fork?: boolean;
   onSessionId?: (sessionId: string) => void;
+  onState?: StateMarker;
 }
 
 // The only door into spending a turn, so none can skip the preflight or the catch-up that follows.
@@ -42,6 +44,7 @@ export async function runConversationTurn(
       name: turn.name,
       fork: turn.fork,
       onSessionId: turn.onSessionId,
+      onState: turn.onState,
       // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
       beforeTurn: async () => {
         const drift = await pendingDrift(conversation, await bridge.sessions.find(conversation.sessionId));

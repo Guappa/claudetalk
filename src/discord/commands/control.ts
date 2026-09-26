@@ -3,7 +3,7 @@ import type { Bridge } from "../../bridge.ts";
 import { UNBIND_DELETE, UNBIND_KEEP } from "../menus.ts";
 import { stopBackgroundSession } from "../../sessions/activeSessions.ts";
 import { requireConversation } from "../binding.ts";
-import { describeStop, preflight } from "../turnFlow.ts";
+import { describeStop, describeStopTurn, preflight } from "../turnFlow.ts";
 import { describeDepth } from "../turnQueue.ts";
 import { respond } from "../respond.ts";
 
@@ -12,8 +12,13 @@ export async function handleStop(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const conversation = bridge.store.byChannel(interaction.channelId);
-  const outcome = conversation ? bridge.flow.stop(conversation.sessionId) : { stopped: false, dropped: 0 };
-  await respond(interaction, describeStop(outcome));
+  if (interaction.options.getBoolean("all")) {
+    const outcome = conversation ? bridge.flow.stop(conversation.sessionId) : { stopped: false, dropped: 0 };
+    await respond(interaction, describeStop(outcome));
+    return;
+  }
+  const outcome = conversation ? bridge.flow.stopTurn(conversation.sessionId) : { stopped: false, queued: 0 };
+  await respond(interaction, describeStopTurn(outcome));
 }
 
 export async function handleQueue(

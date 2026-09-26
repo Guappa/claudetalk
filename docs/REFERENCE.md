@@ -26,7 +26,7 @@ this covers behaviour.
 | `/skills` | O | Lists the bound session's skills, A to Z across up to five menus of twenty-five, and runs the one you pick. Past 125 the rest are counted and reachable by sending `/name` as a message. |
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |
-| `/stop` | O | Kills the in-flight turn and its process tree, and drops anything queued behind it. The transcript keeps the partial turn. A **Stop** button on the progress message does the same thing without typing. |
+| `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
 | `/takeover` | O | Stops a background agent holding this conversation, then continues. |
 | `/category [name]` | O | Shows the category this conversation's channel is in, or moves it to one. Creates the category if it does not exist. |
@@ -315,10 +315,15 @@ second message sent mid-turn queues rather than being turned away.
 ### Watching it
 
 While a turn runs, one message is kept updated with how long it has been going,
-how many steps it has taken, and what Claude has said along the way:
+how many steps it has taken, and what Claude has said along the way. The message
+that started the turn carries one reaction from the bot, changed as the turn
+moves: eyes while it works, a clock while it is queued behind another turn, a
+question mark while it waits on you, then a tick, a stop sign or a cross for
+finished, stopped or failed. The heading carries the same state in front of the
+verb, an hourglass while working. Those are the only emoji the bridge uses.
 
 ```
-**Working** 1m 12s · 3 steps
+⏳ **Working** 1m 12s · 3 steps
 
 Looking up how the generator picks a seed, then checking whether the docs match.
 
@@ -386,12 +391,14 @@ nothing else.
 ### Stopping it
 
 `/stop` and the **Stop** button are the equivalent of pressing escape in the
-terminal. The turn ends at once, the log closes with "Stopped.", anything queued
-behind it is dropped and the reply says how many, so one press ends the
-conversation's activity. The transcript keeps the partial turn. Claude Code
-treats the next message the way the terminal does after an escape, adding
-"Continue from where you left off" to it; if that is not what you want, say so
-in the message.
+terminal. The turn ends at once and the log closes with "Stopped." What was
+queued behind it is kept and runs next, which is how you correct a turn that
+went wrong: send the correction, press Stop, and the correction takes over.
+**Stop all**, a second button that appears only while something is queued, and
+`/stop all:true` drop the queue as well, and the reply says how many messages
+went with it. The transcript keeps the partial turn. Claude Code treats the next
+message the way the terminal does after an escape, adding "Continue from where
+you left off" to it; if that is not what you want, say so in the message.
 
 What a stop cannot promise is killing work already handed to the operating
 system. The turn is killed with its process tree, which on Linux is its whole

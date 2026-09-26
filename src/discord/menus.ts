@@ -13,6 +13,10 @@ export function stopActionId(sessionId: string): string {
   return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
 }
 
+export function stopAllActionId(sessionId: string): string {
+  return `turn:stopall:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+}
+
 export function questionPickId(askId: string, index: number): string {
   return `question:pick:${askId}:${index}`;
 }
@@ -46,6 +50,7 @@ export type MenuAction =
   | { kind: "unbind-keep" }
   | { kind: "create-resume"; sessionId: string }
   | { kind: "turn-stop"; sessionId: string }
+  | { kind: "turn-stop-all"; sessionId: string }
   | { kind: "question-pick"; askId: string; index: number }
   | { kind: "question-other"; askId: string; index: number }
   | { kind: "question-submit"; askId: string }
@@ -78,6 +83,9 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
   if (customId === UNBIND_KEEP) return { kind: "unbind-keep" };
   const resume = /^create:resume:(.+)$/.exec(customId);
   if (resume?.[1]) return { kind: "create-resume", sessionId: resume[1] };
+
+  const stopAll = /^turn:stopall:(.+)$/.exec(customId);
+  if (stopAll?.[1]) return { kind: "turn-stop-all", sessionId: stopAll[1] };
 
   const stop = /^turn:stop:(.+)$/.exec(customId);
   if (stop?.[1]) return { kind: "turn-stop", sessionId: stop[1] };

@@ -61,6 +61,9 @@ import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl } from "../src/discord/repoLinks.ts";
 import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
+import { STATE_EMOJI } from "../src/discord/reactions.ts";
+import { describeStopTurn } from "../src/discord/turnFlow.ts";
+import { stopActionId, stopAllActionId } from "../src/discord/menus.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -502,7 +505,7 @@ describe("StatusMessage", () => {
     const status = new StatusMessage(sink, () => 0);
     await status.start();
     status.stop();
-    expect(sink.written.at(-1)).toBe("**Working** 0s");
+    expect(sink.written.at(-1)).toBe("⏳ **Working** 0s");
   });
 
   it("replaces the activity log with the answer when the turn ends", async () => {
@@ -559,7 +562,7 @@ describe("StatusMessage", () => {
   // The terminal scrolls; a trail that no longer fits carries on below instead of eliding what came first.
   it("continues in a new message once the trail would not fit, keeping every remark in order", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0, [{ id: "stop", label: "Stop" }]);
+    const status = new StatusMessage(sink, () => 0, () => [{ id: "stop", label: "Stop" }]);
     await status.start();
     const remarks = Array.from({ length: 12 }, (_, index) => `Remark ${index + 1}: ${"x".repeat(240)}`);
     for (const remark of remarks) status.note(remark);
@@ -622,7 +625,7 @@ describe("StatusMessage", () => {
   it("finalizes a sealed segment and the settled trail, and nothing in between", async () => {
     const sink = recordingSink();
     const finalize = vi.fn(async (text: string) => text.replace("e2ea070", "[e2ea070](<url>)"));
-    const status = new StatusMessage(sink, () => 0, [], undefined, finalize);
+    const status = new StatusMessage(sink, () => 0, () => [], undefined, finalize);
     await status.start();
     status.note("Landed e2ea070.");
     sink.othersBelow = true;
@@ -637,7 +640,7 @@ describe("StatusMessage", () => {
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
     const sink = recordingSink();
     const moved = vi.fn(async () => undefined);
-    const status = new StatusMessage(sink, () => 0, [], moved);
+    const status = new StatusMessage(sink, () => 0, () => [], moved);
     await status.start();
     status.note("First.");
     sink.othersBelow = true;
@@ -965,21 +968,21 @@ describe("displayPath", () => {
 describe("renderActivity", () => {
   it("shows what Claude said, newest last, as paragraphs", () => {
     const rendered = renderActivity(["Checking the schema first.", "It is a rounding bug."], 5000);
-    const expected = ["**Working** 5s", "", "Checking the schema first.", "", "It is a rounding bug."];
+    const expected = ["⏳ **Working** 5s", "", "Checking the schema first.", "", "It is a rounding bug."];
     expect(rendered.split("\n")).toEqual(expected);
   });
 
   it("says only that it is working when nothing has been said yet", () => {
-    expect(renderActivity([], 12_000)).toBe("**Working** 12s");
+    expect(renderActivity([], 12_000)).toBe("⏳ **Working** 12s");
   });
 
   it("counts the steps taken, so a quiet turn still shows it is getting somewhere", () => {
-    expect(renderActivity([], 272_000, 7)).toBe("**Working** 4m 32s · 7 steps");
-    expect(renderActivity([], 5000, 1)).toBe("**Working** 5s · 1 step");
+    expect(renderActivity([], 272_000, 7)).toBe("⏳ **Working** 4m 32s · 7 steps");
+    expect(renderActivity([], 5000, 1)).toBe("⏳ **Working** 5s · 1 step");
   });
 
   it("leaves the count off before anything has been done", () => {
-    expect(renderActivity([], 5000, 0)).toBe("**Working** 5s");
+    expect(renderActivity([], 5000, 0)).toBe("⏳ **Working** 5s");
   });
 
   it("shows the newest notes and elides the rest", () => {
@@ -1478,6 +1481,26 @@ describe("ActiveTurns", () => {
   });
 });
 
+describe("stopping one turn or all of them", () => {
+  it("tells a stop button from a stop-all button", () => {
+    expect(parseCustomId(stopActionId("s1"))).toEqual({ kind: "turn-stop", sessionId: "s1" });
+    expect(parseCustomId(stopAllActionId("s1"))).toEqual({ kind: "turn-stop-all", sessionId: "s1" });
+  });
+
+  it("says what runs next when only the turn in flight was stopped", () => {
+    expect(describeStopTurn({ stopped: true, queued: 0 })).toContain("Nothing was queued");
+    expect(describeStopTurn({ stopped: true, queued: 1 })).toContain("1 message queued behind it runs next");
+    expect(describeStopTurn({ stopped: true, queued: 3 })).toContain("3 messages queued behind it run next");
+    expect(describeStopTurn({ stopped: false, queued: 0 })).toBe("Nothing is running here.");
+  });
+
+  // The fixed set: standard Unicode, one per state, and nothing else in the bridge uses emoji.
+  it("has one standard emoji per turn state", () => {
+    expect(Object.keys(STATE_EMOJI).sort()).toEqual(["done", "failed", "queued", "running", "stopped", "waiting"]);
+    expect(new Set(Object.values(STATE_EMOJI)).size).toBe(6);
+  });
+});
+
 describe("describeToolUse", () => {
   it("shows an edit as a diff block with the removed and added lines under the file's path", () => {
     const shown = describeToolUse("Edit", {
@@ -1552,7 +1575,7 @@ describe("StatusMessage formatting", () => {
     status.dropEcho("Later remark.");
     expect(status.currentIsEmpty()).toBe(true);
     expect(await status.finishWithHeading("Later remark.")).toBe(true);
-    expect(sink.messages.at(-1)).toBe("**Worked** 0s\n\nLater remark.");
+    expect(sink.messages.at(-1)).toBe("✅ **Worked** 0s\n\nLater remark.");
     expect(await status.finishWithHeading("z".repeat(2000))).toBe(false);
   });
 });
