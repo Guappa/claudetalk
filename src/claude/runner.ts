@@ -4,6 +4,7 @@ import { killTree, turnSpawnOptions } from "../platform.ts";
 import { outboxRelative } from "../discord/outbox.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
+import { HeldPrompt } from "./heldPrompt.ts";
 import { QUESTION_TOOL, parseQuestions, type AskQuestions } from "./questions.ts";
 
 export interface ChannelSettings {
@@ -154,7 +155,7 @@ function messageUsage(usage: unknown): TokenUsage | undefined {
 }
 
 async function consumeStream(
-  prompt: string,
+  held: HeldPrompt,
   options: Options,
   abort: AbortController,
   onEvent: (event: ClaudeEvent) => void,
@@ -162,7 +163,8 @@ async function consumeStream(
   const outcome: TurnOutcome = { text: "" };
 
   try {
-    for await (const message of query({ prompt, options: { ...options, abortController: abort } })) {
+    for await (const message of query({ prompt: held.stream(), options: { ...options, abortController: abort } })) {
+      held.observe(message as unknown as ClaudeEvent);
       onEvent(message as unknown as ClaudeEvent);
 
       const reported = (message as { session_id?: string }).session_id;
@@ -212,13 +214,15 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     return child;
   };
 
+  const held = new HeldPrompt(request.prompt);
   const stop = (): void => {
     // Killing only the turn leaves whatever it was running alive, which is not what a stop means.
     if (pid !== undefined) killTree(pid);
+    held.close();
     abort.abort();
   };
 
-  return { stop, done: consumeStream(request.prompt, options, abort, onEvent) };
+  return { stop, done: consumeStream(held, options, abort, onEvent) };
 }
 
 function resultError(subtype: string, text: string): ClaudeError {

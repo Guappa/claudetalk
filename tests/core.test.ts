@@ -32,6 +32,8 @@ import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
 import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
 import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
+import { HeldPrompt } from "../src/claude/heldPrompt.ts";
+import type { ClaudeEvent } from "../src/claude/events.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
 import { chunkForDiscord, shouldSpillToFile, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
 import {
@@ -1206,6 +1208,76 @@ describe("QuestionPrompts", () => {
     expect(parseCustomId(questionSubmitId("ask-1"))).toEqual({ kind: "question-submit", askId: "ask-1" });
     expect(parseCustomId(questionSkipId("ask-1"))).toEqual({ kind: "question-skip", askId: "ask-1" });
     expect(parseCustomId("question:pick:ask-1").kind).toBe("unknown");
+  });
+});
+
+describe("HeldPrompt", () => {
+  const result: ClaudeEvent = { type: "result", subtype: "success", is_error: false, total_cost_usd: 0, usage: usage(10) };
+  const init = { type: "system", subtype: "init" } as ClaudeEvent;
+  const tasks = (live: number, ambient = 0): ClaudeEvent => ({
+    type: "system",
+    subtype: "background_tasks_changed",
+    tasks: [
+      ...Array.from({ length: live }, (_, index) => ({ task_id: `t${index}` })),
+      ...Array.from({ length: ambient }, (_, index) => ({ task_id: `w${index}`, ambient: true })),
+    ],
+  });
+
+  async function settled(held: HeldPrompt, ms = 15): Promise<boolean> {
+    const stream = held.stream();
+    await stream.next();
+    const ended = stream.next().then(() => true);
+    return await Promise.race([ended, wait(ms).then(() => false)]);
+  }
+
+  it("yields the prompt once and lets go as soon as the answer arrives with nothing running", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    const first = await stream.next();
+    expect(first.value).toMatchObject({ type: "user", message: { role: "user", content: "hello" } });
+    held.observe(result);
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  it("stays open while a background command is still running", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(1));
+    held.observe(result);
+    expect(await settled(held)).toBe(false);
+  });
+
+  it("lets go a moment after the last command finishes with no follow-up", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(1));
+    held.observe(result);
+    held.observe(tasks(0));
+    expect(await settled(held, 40)).toBe(true);
+  });
+
+  // The follow-up turn a finished task triggers is the whole reason the input was held.
+  it("keeps holding when a follow-up turn starts, until that turn answers", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(1));
+    held.observe(result);
+    held.observe(tasks(0));
+    held.observe(init);
+    expect(await settled(held, 40)).toBe(false);
+    held.observe(result);
+    expect(await settled(held)).toBe(true);
+  });
+
+  it("does not count a watcher as work", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(0, 2));
+    held.observe(result);
+    expect(await settled(held)).toBe(true);
+  });
+
+  it("lets go at once when closed, whatever is running", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(3));
+    held.close();
+    expect(await settled(held)).toBe(true);
   });
 });
 

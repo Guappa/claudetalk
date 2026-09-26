@@ -174,6 +174,14 @@ or `/effort` through to the session would report success and silently revert.
 flag string and no stdout parsing. The SDK still spawns the same `claude`
 binary, which is why transcripts stay where `src/sessions/` reads them.
 
+**The prompt is streamed, never passed as a string.** `HeldPrompt` yields the
+one user message and then holds the input open until the answer has arrived and
+no background command is left running. With a string prompt the SDK closes the
+input after the first answer, and a command Claude backgrounded then finishes
+into a CLI that has lost its host: hooks are not consulted and every tool call
+in the follow-up turn is denied as cancelled. The CLI reports the live task list
+through `background_tasks_changed`, which is what decides when to let go.
+
 **Paths handed to a session must be long-form.** `os.tmpdir()` returns a Windows
 8.3 short name such as `RUNNER~1`; `platform.ts` resolves it with
 `realpathSync.native`.

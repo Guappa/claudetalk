@@ -27,10 +27,16 @@ export type ContentBlock =
   | { type: "tool_use"; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; content: unknown };
 
+export interface BackgroundTask {
+  task_id: string;
+  ambient?: boolean;
+}
+
 export type ClaudeEvent =
   | InitEvent
   | { type: "system"; subtype: "status"; status: string | null; compact_result?: string }
   | { type: "system"; subtype: "compact_boundary"; compact_metadata: CompactMetadata }
+  | { type: "system"; subtype: "background_tasks_changed"; tasks: BackgroundTask[] }
   | { type: "system"; subtype: string }
   | { type: "assistant"; message: { content: ContentBlock[] } }
   | { type: "user"; message: { content: ContentBlock[] } }
@@ -48,6 +54,12 @@ export function isCompactionStart(event: ClaudeEvent): boolean {
     "status" in event &&
     event.status === "compacting"
   );
+}
+
+// Ambient tasks are watchers, not work; only real work keeps a turn's input open.
+export function liveBackgroundTasks(event: ClaudeEvent): number | null {
+  if (event.type !== "system" || event.subtype !== "background_tasks_changed" || !("tasks" in event)) return null;
+  return event.tasks.filter((task) => !task.ambient).length;
 }
 
 export function compactMetadata(event: ClaudeEvent): CompactMetadata | null {
