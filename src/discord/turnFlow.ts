@@ -1,5 +1,6 @@
 import { runTurn, type ApproveTool, type ChannelSettings, type RunningTurn, type TurnResult } from "../claude/runner.ts";
 import { assistantText, toolUses } from "../claude/streamParser.ts";
+import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { compactMetadata, isCompactionStart, isInit, type ClaudeEvent } from "../claude/events.ts";
 import type { ClaudeError } from "../claude/errors.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
@@ -92,11 +93,17 @@ function describeFailure(error: ClaudeError): string {
 }
 
 // The last thing said is the answer, so it is posted beneath the trail rather than repeated inside it.
-async function postAnswer(status: StatusMessage, sink: MessageSink, text: string, compacted: boolean): Promise<void> {
+async function postAnswer(
+  status: StatusMessage,
+  sink: MessageSink,
+  cwd: string,
+  text: string,
+  compacted: boolean,
+): Promise<void> {
   const answer = text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.";
   status.dropEcho(answer);
-
-  await conclude(status, sink, chunkForDiscord(answer));
+  const links = await resolveReferences(cwd, answer);
+  await conclude(status, sink, chunkForDiscord(links ? linkReferences(answer, links) : linkPlain(answer)));
 }
 
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
@@ -288,7 +295,7 @@ export class TurnFlow {
         return;
       }
 
-      await postAnswer(status, sink, result.text, compaction.happened);
+      await postAnswer(status, sink, cwd, result.text, compaction.happened);
       await this.outbox.deliver(cwd, sessionId, sink);
 
       if (result.contextUsage) {

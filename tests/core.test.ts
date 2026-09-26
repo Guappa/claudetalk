@@ -58,6 +58,7 @@ import { displayName } from "../src/sessions/displayName.ts";
 import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
 import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
+import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl } from "../src/discord/repoLinks.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -1453,6 +1454,94 @@ describe("ActiveTurns", () => {
     await Promise.all(Array.from({ length: 10 }, (_, index) => turns.clear(`s${index}`)));
     const onDisk = JSON.parse(await fs.readFile(file, "utf8"));
     expect(Object.keys(onDisk).sort()).toEqual(Array.from({ length: 10 }, (_, index) => `s${index + 10}`).sort());
+  });
+});
+
+describe("repo links", () => {
+  const verified = {
+    head: "abc1234abc1234abc1234abc1234abc1234abc12",
+    commits: new Set(["e2ea070", "2d560e0"]),
+    branches: new Set(["main", "feat/drain-on-stop"]),
+    tags: new Set(["v0.14.0"]),
+    files: new Set(["src/discord/turnFlow.ts", "README.md"]),
+  };
+  const links = referenceLinks("https://github.com/someone/project", verified);
+  const base = "https://github.com/someone/project";
+
+  it("reads the web page out of every spelling of a remote", () => {
+    expect(remoteWebUrl("git@github.com:someone/project.git")).toBe(base);
+    expect(remoteWebUrl("https://github.com/someone/project.git")).toBe(base);
+    expect(remoteWebUrl("https://github.com/someone/project")).toBe(base);
+    expect(remoteWebUrl("ssh://git@gitlab.example.com:2222/team/thing.git")).toBe("https://gitlab.example.com/team/thing");
+    expect(remoteWebUrl("/srv/git/bare-repo.git")).toBeNull();
+  });
+
+  it("links a commit hash only when the repo knows it, keeping the embed suppressed", () => {
+    expect(linkReferences("Pushed `e2ea070` and 2d560e0.", links)).toBe(
+      `Pushed [e2ea070](<${base}/commit/e2ea070>) and [2d560e0](<${base}/commit/2d560e0>).`,
+    );
+    expect(linkReferences("Not a commit: `deadbee` nor cafef00d.", links)).toBe("Not a commit: `deadbee` nor cafef00d.");
+  });
+
+  it("links pull request and issue numbers, branches, tags and files with their lines", () => {
+    expect(linkReferences("Landed as #8.", links)).toBe(`Landed as [#8](<${base}/issues/8>).`);
+    expect(linkReferences("On `feat/drain-on-stop`, tagged `v0.14.0`.", links)).toBe(
+      `On [feat/drain-on-stop](<${base}/tree/feat/drain-on-stop>), tagged [v0.14.0](<${base}/releases/tag/v0.14.0>).`,
+    );
+    expect(linkReferences("See `src/discord/turnFlow.ts:283` and src/discord/turnFlow.ts:10-12.", links)).toBe(
+      `See [src/discord/turnFlow.ts:283](<${base}/blob/${verified.head}/src/discord/turnFlow.ts#L283>) and ` +
+        `[src/discord/turnFlow.ts:10-12](<${base}/blob/${verified.head}/src/discord/turnFlow.ts#L10-L12>).`,
+    );
+  });
+
+  it("leaves fenced code, existing links, wrapped urls and unknown names alone", () => {
+    const fenced = "```\ngit show e2ea070\n```";
+    expect(linkReferences(fenced, links)).toBe(fenced);
+    const already = `[e2ea070](<${base}/commit/e2ea070>) and <${base}/pull/8> and \`src/missing.ts\` and \`nothing\``;
+    expect(linkReferences(already, links)).toBe(already);
+  });
+
+  // A bare URL keeps working inside angle brackets, and Discord then hangs no embed under the message.
+  it("wraps bare urls and links domain names, with the sentence's punctuation left outside", () => {
+    expect(linkPlain("See https://example.org/docs/page, then example.com.")).toBe(
+      "See <https://example.org/docs/page>, then [example.com](<https://example.com>).",
+    );
+    expect(linkPlain("package.json and index.ts are files, node.js too")).toBe(
+      "package.json and index.ts are files, node.js too",
+    );
+  });
+
+  // The usual way a commit is quoted is hash and subject in one code span; the hash is the reference.
+  it("links the hash out of a code span that quotes a commit with its subject", () => {
+    expect(linkReferences("On top of `e2ea070 fix(validator): reject a location`.", links)).toBe(
+      `On top of [e2ea070](<${base}/commit/e2ea070>) \`fix(validator): reject a location\`.`,
+    );
+    expect(linkReferences("On top of `deadbee fix: nothing`.", links)).toBe("On top of `deadbee fix: nothing`.");
+    expect([...collectReferences("`e2ea070 fix: subject`").hashes]).toEqual(["e2ea070"]);
+  });
+
+  it("links a plain owner/repo written in a code span to that repository on the same host", () => {
+    expect(linkReferences("Forked from `someone-else/thing`.", links)).toBe(
+      "Forked from [someone-else/thing](<https://github.com/someone-else/thing>).",
+    );
+  });
+
+  it("uses each host's own path shapes, including GitLab's merge requests", () => {
+    const gitlab = referenceLinks("https://gitlab.com/team/thing", verified);
+    expect(gitlab.commit("e2ea070")).toBe("https://gitlab.com/team/thing/-/commit/e2ea070");
+    expect(gitlab.file("README.md", "3")).toBe(`https://gitlab.com/team/thing/-/blob/${verified.head}/README.md#L3`);
+    expect(linkReferences("Merged as !12.", gitlab)).toBe("Merged as [!12](<https://gitlab.com/team/thing/-/merge_requests/12>).");
+    expect(linkReferences("Merged as !12.", links)).toBe("Merged as !12.");
+    const bitbucket = referenceLinks("https://bitbucket.org/team/thing", verified);
+    expect(bitbucket.commit("e2ea070")).toBe("https://bitbucket.org/team/thing/commits/e2ea070");
+    expect(bitbucket.ref("main")).toBe("https://bitbucket.org/team/thing/branch/main");
+  });
+
+  it("collects only what the text mentions, so nothing else is looked up", () => {
+    const found = collectReferences("Fixed in `e2ea070`, see `src/x.ts:4` on `main`; #12 too.");
+    expect([...found.hashes]).toEqual(["e2ea070"]);
+    expect([...found.files]).toEqual(["src/x.ts"]);
+    expect(found.names.has("main")).toBe(true);
   });
 });
 
