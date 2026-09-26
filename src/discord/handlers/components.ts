@@ -38,7 +38,7 @@ import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { requireConversation } from "../binding.ts";
 import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
-import { describeStop } from "../turnFlow.ts";
+import { describeStop, describeStopTurn } from "../turnFlow.ts";
 import { canRunCommand, describeOwnersOnly } from "../../access.ts";
 import { tierOf } from "../policy.ts";
 import { hasWorkingDir } from "../../sessions/index.ts";
@@ -245,6 +245,11 @@ async function decideApproval(bridge: Bridge, interaction: ButtonInteraction, ac
 
 async function stopTurn(bridge: Bridge, interaction: ButtonInteraction, action: Action<"turn-stop">) {
   await acknowledgeQuietly(interaction);
+  await respondQuietly(interaction, describeStopTurn(bridge.flow.stopTurn(action.sessionId)));
+}
+
+async function stopAllTurns(bridge: Bridge, interaction: ButtonInteraction, action: Action<"turn-stop-all">) {
+  await acknowledgeQuietly(interaction);
   await respondQuietly(interaction, describeStop(bridge.flow.stop(action.sessionId)));
 }
 
@@ -348,6 +353,8 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await decideApproval(bridge, interaction, action);
     case "turn-stop":
       return await stopTurn(bridge, interaction, action);
+    case "turn-stop-all":
+      return await stopAllTurns(bridge, interaction, action);
     case "purge-cancel":
       return await cancelPurge(bridge, interaction);
     case "purge-confirm":

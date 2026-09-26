@@ -13,15 +13,17 @@ import type { ApprovalPrompts } from "./approvals.ts";
 import type { QuestionPrompts } from "./questions.ts";
 import type { Config } from "../config.ts";
 import type { SessionRecord } from "../sessions/index.ts";
-import type { MessageSink } from "./messageSink.ts";
+import type { MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
 import { chunkForDiscord } from "./renderer.ts";
 import { displayPath } from "../displayPath.ts";
 import { count } from "../text.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeQueued } from "./turnQueue.ts";
-import { stopActionId } from "./menus.ts";
+import { stopActionId, stopAllActionId } from "./menus.ts";
 import type { OutboxDelivery } from "./outboxDelivery.ts";
+import type { StateMarker } from "./reactions.ts";
+import type { Mood } from "./statusMessage.ts";
 import type { ActiveTurns } from "./activeTurns.ts";
 
 const DRAINING =
@@ -64,11 +66,31 @@ export interface TurnOptions {
   // Both run inside the conversation's lane, so a queued message sees the turn before it as finished.
   beforeTurn?: () => Promise<void>;
   afterTurn?: () => Promise<void>;
+  // Where the turn stands, for the reaction on the message that started it.
+  onState?: StateMarker;
 }
 
 export interface StopOutcome {
   stopped: boolean;
   dropped: number;
+}
+
+export interface StopTurnOutcome {
+  stopped: boolean;
+  queued: number;
+}
+
+export function describeStopTurn(outcome: StopTurnOutcome): string {
+  if (!outcome.stopped) {
+    return outcome.queued === 0
+      ? "Nothing is running here."
+      : `Nothing is running yet; ${count(outcome.queued, "message")} queued here will run in turn.`;
+  }
+  const next =
+    outcome.queued === 0
+      ? "Nothing was queued, so Claude takes no further action here until your next message."
+      : `The ${count(outcome.queued, "message")} queued behind it ${outcome.queued === 1 ? "runs" : "run"} next.`;
+  return `Stopped this turn. ${next}`;
 }
 
 function droppedWithIt(dropped: number): string {
@@ -89,6 +111,16 @@ export function describeStop(outcome: StopOutcome): string {
   );
 }
 
+// The reaction shows a question mark while the turn waits on a person, and eyes again once it has its answer.
+async function whileWaiting<T>(onState: StateMarker | undefined, ask: () => Promise<T>): Promise<T> {
+  await onState?.("waiting");
+  try {
+    return await ask();
+  } finally {
+    await onState?.("running");
+  }
+}
+
 function describeFailure(error: ClaudeError): string {
   if (error.kind === "session-busy") return describeBackgroundHold(error.shortId);
   return `The turn failed.\n\`\`\`\n${error.message}\n\`\`\``;
@@ -105,7 +137,7 @@ async function postAnswer(
   const raw = text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.";
   // The echo is matched against what the model said, before any rewriting of it.
   status.dropEcho(raw);
-  await conclude(status, sink, chunkForDiscord(await linkEverything(cwd, convertTables(raw))));
+  await conclude(status, sink, chunkForDiscord(await linkEverything(cwd, convertTables(raw))), "done");
 }
 
 async function linkEverything(cwd: string, text: string): Promise<string> {
@@ -114,25 +146,25 @@ async function linkEverything(cwd: string, text: string): Promise<string> {
 }
 
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
-async function conclude(status: StatusMessage, sink: MessageSink, chunks: string[]): Promise<void> {
+async function conclude(status: StatusMessage, sink: MessageSink, chunks: string[], mood: Mood): Promise<void> {
   const first = chunks[0] ?? "Done.";
-  if (await concludeInPlace(status, sink, first)) {
+  if (await concludeInPlace(status, sink, first, mood)) {
     for (const chunk of chunks.slice(1)) await sink.send(chunk);
     return;
   }
-  await status.settle();
+  await status.settle(mood);
   for (const chunk of chunks) await sink.send(chunk);
 }
 
 // True once the answer went into the progress message itself.
-async function concludeInPlace(status: StatusMessage, sink: MessageSink, first: string): Promise<boolean> {
+async function concludeInPlace(status: StatusMessage, sink: MessageSink, first: string, mood: Mood): Promise<boolean> {
   if (sink.isLatest?.() === false) return false;
   if (!status.hasNotes()) {
     await status.finish(first);
     return true;
   }
   // A segment with no remarks of its own carries the answer under its heading, not a heading alone above it.
-  return status.currentIsEmpty() && (await status.finishWithHeading(first));
+  return status.currentIsEmpty() && (await status.finishWithHeading(first, mood));
 }
 
 export class TurnFlow {
@@ -223,6 +255,16 @@ export class TurnFlow {
     return { stopped: true, dropped };
   }
 
+  // Ends only the turn in flight; a correction queued behind it is exactly what should run next.
+  stopTurn(sessionId: string): StopTurnOutcome {
+    const turn = this.running.get(sessionId);
+    const queued = Math.max(this.queue.depth(sessionId) - (turn ? 1 : 0), 0);
+    if (!turn) return { stopped: false, queued };
+    this.stopping.add(sessionId);
+    turn.stop();
+    return { stopped: true, queued };
+  }
+
   queueDepth(sessionId: string): number {
     return this.queue.depth(sessionId);
   }
@@ -244,9 +286,12 @@ export class TurnFlow {
       await sink.notice(admission.message);
       return false;
     }
-    if (admission.kind === "queued") await sink.notice(describeQueued(admission.ahead));
+    if (admission.kind === "queued") {
+      await sink.notice(describeQueued(admission.ahead));
+      await options.onState?.("queued");
+    }
 
-    return await this.queue.enqueue(sessionId, async () => {
+    const ran = await this.queue.enqueue(sessionId, async () => {
       try {
         await options.beforeTurn?.();
         await this.runNow(sessionId, cwd, prompt, settings, sink, options);
@@ -254,6 +299,8 @@ export class TurnFlow {
         await options.afterTurn?.();
       }
     });
+    if (!ran) await options.onState?.("stopped");
+    return ran;
   }
 
   private async runNow(
@@ -270,15 +317,16 @@ export class TurnFlow {
       const anchor = sink.anchor?.();
       if (anchor && !ended) await this.activeTurns.record(sessionId, anchor);
     };
-    const status = new StatusMessage(
-      sink,
-      Date.now,
-      [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }],
-      remember,
-      (trail) => linkEverything(cwd, trail),
-    );
+    // A second button appears only while something is queued, since that is the only time the two differ.
+    const actions = (): SinkAction[] => {
+      const stop: SinkAction = { id: stopActionId(sessionId), label: "Stop", tone: "danger" };
+      if (this.queue.depth(sessionId) <= 1) return [stop];
+      return [stop, { id: stopAllActionId(sessionId), label: "Stop all", tone: "danger" }];
+    };
+    const status = new StatusMessage(sink, Date.now, actions, remember, (trail) => linkEverything(cwd, trail));
     await status.start();
     await remember();
+    await options.onState?.("running");
 
     const tracker = this.trackerFor(sessionId);
     const pending: Array<Promise<void>> = [];
@@ -293,8 +341,9 @@ export class TurnFlow {
         resume: options.resume,
         name: options.name,
         fork: options.fork,
-        approve: this.approvalGate(sessionId, sink),
-        askQuestions: (questions) => this.questions.ask(sessionId, sink, questions),
+        approve: this.approvalGate(sessionId, sink, options.onState),
+        askQuestions: (questions) =>
+          whileWaiting(options.onState, () => this.questions.ask(sessionId, sink, questions)),
       },
       (event) => {
         pending.push(this.handleEvent(event, sessionId, status, sink, tracker, () => void (compaction.happened = true)));
@@ -309,11 +358,14 @@ export class TurnFlow {
 
       if (!result.ok) {
         // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
-        await conclude(status, sink, [this.stopping.has(sessionId) ? "Stopped." : describeFailure(result.error)]);
+        const stopped = this.stopping.has(sessionId);
+        await conclude(status, sink, [stopped ? "Stopped." : describeFailure(result.error)], stopped ? "stopped" : "failed");
+        await options.onState?.(stopped ? "stopped" : "failed");
         return;
       }
 
       await postAnswer(status, sink, cwd, result.text, compaction.happened);
+      await options.onState?.("done");
       await this.outbox.deliver(cwd, sessionId, sink);
 
       if (result.contextUsage) {
@@ -333,9 +385,10 @@ export class TurnFlow {
     }
   }
 
-  private approvalGate(sessionId: string, sink: MessageSink): ApproveTool | undefined {
+  private approvalGate(sessionId: string, sink: MessageSink, onState?: StateMarker): ApproveTool | undefined {
     if (!this.config.toolApprovals) return undefined;
-    return (toolName, input) => this.approvals.ask(sessionId, sink, this.config.ownerIds, toolName, input);
+    return (toolName, input) =>
+      whileWaiting(onState, () => this.approvals.ask(sessionId, sink, this.config.ownerIds, toolName, input));
   }
 
   private recordSpend(sessionId: string, result: TurnResult, options: TurnOptions): void {

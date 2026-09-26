@@ -17,6 +17,7 @@ import { classifyPrompt } from "../commands/settings.ts";
 import { channelSink } from "../sink.ts";
 import { sendNotice } from "../notice.ts";
 import { runConversationTurn } from "../turn.ts";
+import { reactionMarker } from "../reactions.ts";
 import { isFromGuild, isMessageInScope } from "../gate.ts";
 import { toChannelName } from "../channelName.ts";
 import {
@@ -185,6 +186,7 @@ async function runTurn(
     resume: !target.isFirstTurn,
     quoted: context.quoted,
     name: target.isFirstTurn ? toChannelName(channelNameOf(message)) : undefined,
+    onState: reactionMarker(message, message.client.user.id),
   });
 }
 

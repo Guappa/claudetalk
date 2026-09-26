@@ -135,7 +135,12 @@ export function bridgeCommandDefinitions() {
       .setName("purge")
       .setDescription("Delete every message in this channel; the conversation is kept"),
 
-    new SlashCommandBuilder().setName("stop").setDescription("Stop the in-flight turn"),
+    new SlashCommandBuilder()
+      .setName("stop")
+      .setDescription("Stop the in-flight turn; what is queued behind it runs next")
+      .addBooleanOption((option) =>
+        option.setName("all").setDescription("Also drop everything queued behind it"),
+      ),
 
     new SlashCommandBuilder()
       .setName("queue")

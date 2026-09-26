@@ -98,6 +98,23 @@ describe("TurnFlow", () => {
     expect(makeFlow().stop("s4")).toEqual({ stopped: false, dropped: 0 });
   });
 
+  // A correction queued behind a wrong turn is exactly what should run once that turn is stopped.
+  it("stopping only the turn in flight lets what is queued behind it run", async () => {
+    const flow = makeFlow();
+    const order: string[] = [];
+    const hooks = (tag: string) => ({ resume: true, beforeTurn: async () => void order.push(tag) });
+    const states: string[] = [];
+    const first = flow.run("s8", cwd, "wrong", {}, quietSink(), { ...hooks("wrong"), onState: async (state) => void states.push(state) });
+    const second = flow.run("s8", cwd, "correction", {}, quietSink(), hooks("correction"));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(flow.stopTurn("s8")).toEqual({ stopped: true, queued: 1 });
+    expect(await Promise.all([first, second])).toEqual([true, true]);
+    expect(order).toEqual(["wrong", "correction"]);
+    expect(states[0]).toBe("running");
+    expect(flow.stopTurn("s9")).toEqual({ stopped: false, queued: 0 });
+  });
+
   // A shutdown waits for what was accepted, queued messages included, and admits nothing new meanwhile.
   it("drains: finishes the running and queued turns, refuses new ones, then reports empty", async () => {
     const flow = makeFlow();

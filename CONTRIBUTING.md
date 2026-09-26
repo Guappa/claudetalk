@@ -245,6 +245,14 @@ window; on Windows 11 that window is Windows Terminal, which ignores
 `-WindowStyle Hidden`, so closing it would kill the bridge. It runs as you rather
 than as SYSTEM because Claude Code's credentials live in your user's store.
 
+**Emoji appear in exactly two places, from one fixed set.** The reaction on the
+message that started a turn, and the heading of the progress message, each
+carrying the turn's state: queued, running, waiting on a person, done, stopped,
+failed. The set lives in `src/discord/reactions.ts` and `statusMessage.ts`,
+standard Unicode only, so every client draws the same thing and no server needs
+a custom emoji. Nothing else in the bridge uses emoji: not prose, not notices,
+not the answer, not commits.
+
 **`MessageSink` is the only way `TurnFlow` talks back to Discord.** Keeping that
 boundary is what will let a voice sink drop in later without touching the turn
 logic. A question is a list of `SinkMenu`s and two actions; how a menu is drawn

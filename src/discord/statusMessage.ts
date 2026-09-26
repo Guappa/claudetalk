@@ -26,11 +26,21 @@ export function tickIntervalMs(elapsedMs: number): number {
 }
 
 // A count, not a list: it shows the turn is getting somewhere without naming every tool it touches.
-function heading(elapsedMs: number, steps: number, done = false): string {
-  const verb = done ? "Worked" : "Working";
+export type Mood = "working" | "done" | "stopped" | "failed";
+
+// The one place the trail uses emoji: the state at a glance, heading only, standard Unicode only.
+const HEADINGS: Record<Mood, string> = {
+  working: "⏳ **Working**",
+  done: "✅ **Worked**",
+  stopped: "⏹️ **Stopped after**",
+  failed: "❌ **Failed after**",
+};
+
+function heading(elapsedMs: number, steps: number, mood: Mood = "working"): string {
+  const verb = HEADINGS[mood];
   return steps > 0
-    ? `**${verb}** ${formatElapsed(elapsedMs)} · ${count(steps, "step")}`
-    : `**${verb}** ${formatElapsed(elapsedMs)}`;
+    ? `${verb} ${formatElapsed(elapsedMs)} · ${count(steps, "step")}`
+    : `${verb} ${formatElapsed(elapsedMs)}`;
 }
 
 interface Selection {
@@ -56,8 +66,8 @@ function selectShown(notes: string[], headLength: number): Selection {
   return { shown, elided: false };
 }
 
-export function renderActivity(notes: string[], elapsedMs: number, steps = 0, done = false): string {
-  const head = heading(elapsedMs, steps, done);
+export function renderActivity(notes: string[], elapsedMs: number, steps = 0, mood: Mood = "working"): string {
+  const head = heading(elapsedMs, steps, mood);
   if (notes.length === 0) return head;
   const { shown, elided } = selectShown(notes, head.length);
   if (elided) shown.unshift("...");
@@ -94,7 +104,7 @@ export class StatusMessage {
   private moving = false;
   private readonly sink: MessageSink;
   private readonly now: () => number;
-  private readonly actions: SinkAction[];
+  private readonly actions: () => SinkAction[];
   private readonly onContinue: (() => Promise<void>) | undefined;
   private readonly finalize: (text: string) => Promise<string>;
 
@@ -102,7 +112,7 @@ export class StatusMessage {
   constructor(
     sink: MessageSink,
     now: () => number = Date.now,
-    actions: SinkAction[] = [],
+    actions: () => SinkAction[] = () => [],
     onContinue?: () => Promise<void>,
     finalize: (text: string) => Promise<string> = async (text) => text,
   ) {
@@ -117,7 +127,8 @@ export class StatusMessage {
     this.startedAt = this.now();
     this.lastSent = renderActivity(this.notes, 0, this.steps);
     await this.sink.send(this.lastSent);
-    if (this.actions.length > 0) await this.sink.edit(this.lastSent, this.actions).catch(() => undefined);
+    const actions = this.actions();
+    if (actions.length > 0) await this.sink.edit(this.lastSent, actions).catch(() => undefined);
     this.sink.typing?.();
     this.typingTimer = setInterval(() => this.sink.typing?.(), TYPING_MS);
     this.typingTimer.unref();
@@ -195,11 +206,11 @@ export class StatusMessage {
   }
 
   // Leaves the trail in place, marked finished, so the answer can arrive beneath it.
-  async settle(): Promise<void> {
+  async settle(mood: Mood = "done"): Promise<void> {
     this.stop();
     this.rollOverOverflow();
     await this.pendingEdit;
-    const trail = renderActivity(this.notes, this.now() - this.startedAt, this.steps, true);
+    const trail = renderActivity(this.notes, this.now() - this.startedAt, this.steps, mood);
     await this.sink.edit(await this.finalize(trail), []);
   }
 
@@ -218,8 +229,8 @@ export class StatusMessage {
   }
 
   // A segment that holds no remarks of its own carries the answer under its heading rather than a heading alone.
-  async finishWithHeading(text: string): Promise<boolean> {
-    const combined = `${heading(this.now() - this.startedAt, this.steps, true)}\n\n${text}`;
+  async finishWithHeading(text: string, mood: Mood = "done"): Promise<boolean> {
+    const combined = `${heading(this.now() - this.startedAt, this.steps, mood)}\n\n${text}`;
     if (combined.length > DISCORD_MESSAGE_LIMIT) return false;
     await this.finish(combined);
     return true;
@@ -241,7 +252,7 @@ export class StatusMessage {
     this.chain(async () => {
       try {
         await this.sink.edit(await this.finalize(sealedText), []);
-        await this.sink.continueIn!(renderActivity(this.notes, this.now() - this.startedAt, this.steps), this.actions);
+        await this.sink.continueIn!(renderActivity(this.notes, this.now() - this.startedAt, this.steps), this.actions());
         await this.onContinue?.();
       } finally {
         this.moving = false;
@@ -267,7 +278,7 @@ export class StatusMessage {
     const text = renderActivity(this.notes, this.now() - this.startedAt, this.steps);
     if (text !== this.lastSent) {
       this.lastSent = text;
-      this.chain(() => this.sink.edit(text, this.actions));
+      this.chain(() => this.sink.edit(text, this.actions()));
       await this.pendingEdit;
     }
     this.schedule();
