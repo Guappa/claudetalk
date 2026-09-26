@@ -1,5 +1,4 @@
 import { execFile, spawn } from "node:child_process";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { isWithin } from "../platform.ts";
@@ -253,14 +252,17 @@ function existingCommits(cwd: string, hashes: string[]): Promise<Set<string>> {
   });
 }
 
+// A blob link names the committed tree, so a file that is only on disk, ignored or unstaged, gets no link.
 async function existingFiles(cwd: string, files: string[]): Promise<Set<string>> {
-  const found = new Set<string>();
-  for (const file of files) {
-    const target = path.resolve(cwd, file);
-    if (!isWithin(cwd, target)) continue;
-    if (await fs.stat(target).then((stat) => stat.isFile(), () => false)) found.add(file);
+  const inside = files.filter((file) => isWithin(cwd, path.resolve(cwd, file)));
+  if (inside.length === 0) return new Set();
+  const listed = (await git(cwd, ["ls-tree", "-z", "HEAD", "--", ...inside])) ?? "";
+  const blobs = new Set<string>();
+  for (const entry of listed.split("\0")) {
+    const [meta, filePath] = entry.split("\t");
+    if (meta?.split(" ")[1] === "blob" && filePath) blobs.add(filePath);
   }
-  return found;
+  return new Set(inside.filter((file) => blobs.has(file)));
 }
 
 // Nothing in the repo is linked unless it has a remote and the reference exists, so prose never links by accident.
