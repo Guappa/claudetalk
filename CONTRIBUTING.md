@@ -189,6 +189,19 @@ into a CLI that has lost its host: hooks are not consulted and every tool call
 in the follow-up turn is denied as cancelled. The CLI reports the live task list
 through `background_tasks_changed`, which is what decides when to let go.
 
+The same held input is what makes an orphaned task survivable. A stop or a
+crash can still leave a command running when the process exits, and the next
+process to resume that session opens by reporting it and running a rescue turn.
+Every tool call in that process is then cancelled without the hook or the
+permission callback being consulted, however long you wait. The prompt is
+therefore held until the SDK's initialize handshake settles, which the CLI
+answers only after it has reported any orphan, and a `task_notification` with
+status `stopped` arriving before the model has spoken marks the process for a
+restart: it is aborted, the report is already on disk, and a fresh process
+takes the turn cleanly. Holding until `init` instead would deadlock, because a
+clean session emits nothing until it has a prompt. All of this was reproduced
+against the CLI, not inferred.
+
 **Paths handed to a session must be long-form.** `os.tmpdir()` returns a Windows
 8.3 short name such as `RUNNER~1`; `platform.ts` resolves it with
 `realpathSync.native`.
