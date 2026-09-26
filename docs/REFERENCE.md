@@ -367,7 +367,7 @@ own references do too: commit hashes, `#` numbers for pull requests and issues,
 `!` numbers for merge requests on GitLab, branch and tag names written in code
 spans, and file paths with an optional `:line` or `:from-to`. Each repository
 reference is checked first, so a word that merely looks like a hash, or a path
-that does not exist, stays plain text. GitHub, GitLab and Bitbucket get their
+that is not in the committed tree, stays plain text. GitHub, GitLab and Bitbucket get their
 own link shapes, self-hosted GitLab included; any other host gets GitHub's,
 which Gitea, Forgejo and Codeberg share. The trail gets the same links once a
 message of it is final, not on the edits in between.

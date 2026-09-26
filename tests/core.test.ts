@@ -59,7 +59,8 @@ import { displayName } from "../src/sessions/displayName.ts";
 import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
 import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
-import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl } from "../src/discord/repoLinks.ts";
+import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl, resolveReferences } from "../src/discord/repoLinks.ts";
+import { execFileSync } from "node:child_process";
 import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
 import { STATE_EMOJI } from "../src/discord/reactions.ts";
@@ -1610,6 +1611,27 @@ describe("convertTables", () => {
   it("leaves text without a header separator alone", () => {
     const notATable = "a | b\n| just a pipe | in prose |\nend";
     expect(convertTables(notATable)).toBe(notATable);
+  });
+});
+
+describe("repo links against a real repository", () => {
+  // A blob URL names the committed tree, so a file that is only on disk would link to a 404.
+  it("links a committed file and leaves an untracked one plain", async () => {
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), "claudetalk-links-"));
+    const run = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
+    run("init", "-q");
+    run("config", "user.email", "tests@example.invalid");
+    run("config", "user.name", "Tests");
+    run("remote", "add", "origin", "https://example.com/acme/ledger.git");
+    await fs.writeFile(path.join(repo, "committed.md"), "tracked\n");
+    await fs.writeFile(path.join(repo, "local-only.md"), "not tracked\n");
+    run("add", "committed.md");
+    run("commit", "-q", "-m", "initial");
+
+    const links = await resolveReferences(repo, "See `committed.md` and `local-only.md`.");
+    expect(links?.file("committed.md")).toContain("/blob/");
+    expect(links?.file("local-only.md")).toBeNull();
+    await fs.rm(repo, { recursive: true, force: true });
   });
 });
 
