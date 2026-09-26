@@ -1,38 +1,28 @@
 import { Client, Events, GatewayIntentBits, Options } from "discord.js";
 import path from "node:path";
 import { loadConfig } from "./config.ts";
-import { acquireInstanceLock, releaseInstanceLock } from "./instanceLock.ts";
-import { takeStopRequest, watchForStop } from "./stopSignal.ts";
+import { acquireInstanceLock } from "./instanceLock.ts";
+import { takeStopRequest, watchForStop, type StopMode } from "./stopSignal.ts";
 import { createBridge } from "./bridge.ts";
 import { sweepAttachments } from "./attachments.ts";
 import { bridgeCommandDefinitions } from "./discord/commands/registry.ts";
 import { handleMessage } from "./discord/handlers/message.ts";
 import { handleInteraction } from "./discord/handlers/interaction.ts";
 import { watchOutboxes } from "./discord/outboxWatcher.ts";
+import { markInterrupted } from "./discord/activeTurns.ts";
+import { count } from "./text.ts";
 import { bridgeVersion } from "./version.ts";
 
 const config = loadConfig();
 const lockPath = path.join(path.dirname(config.bindingsPath), "bridge.lock");
 // A request left over from a previous run would stop this one on its first tick.
 await takeStopRequest(lockPath);
-const heartbeat = await acquireInstanceLock(lockPath);
+const lock = await acquireInstanceLock(lockPath);
 
 console.log(`Owners: ${config.ownerIds.join(", ")}.`);
 
 const bridge = await createBridge(config);
 await sweepAttachments();
-
-// A crash leaves the lock behind on purpose: its heartbeat goes stale and the next start takes it over.
-const stopWatch = watchForStop(lockPath, shutDown);
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, shutDown);
-}
-
-function shutDown(): void {
-  clearInterval(heartbeat);
-  clearInterval(stopWatch);
-  void releaseInstanceLock(lockPath).then(() => process.exit(0));
-}
 
 const client = new Client({
   intents: [
@@ -53,6 +43,31 @@ const client = new Client({
   },
 });
 
+// A drain lets running turns finish; a second request, or "now", cuts them short and their messages say so.
+function shutdownOnce(): (mode: StopMode) => Promise<void> {
+  let started = false;
+  return async (mode) => {
+    if (mode === "now" || started) bridge.flow.stopAll();
+    if (started) return;
+    started = true;
+    const turns = bridge.flow.activeCount();
+    if (turns > 0) console.log(`stopping after ${count(turns, "running turn")}`);
+    await bridge.flow.drain((left) => void lock.noteDraining(left));
+    clearInterval(stopWatch);
+    console.log("stopped");
+    await client.destroy();
+    await lock.release();
+    process.exit(0);
+  };
+}
+
+const shutDown = shutdownOnce();
+// A crash leaves the lock behind on purpose: its heartbeat goes stale and the next start takes it over.
+const stopWatch = watchForStop(lockPath, (mode) => void shutDown(mode));
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => void shutDown("drain"));
+}
+
 // A gateway error with no listener is an unhandled rejection, which would take the bridge down.
 client.on(Events.Error, (error) => console.error("discord client error", error));
 client.on(Events.ShardDisconnect, (event, id) => console.error(`shard ${id} disconnected`, event.code));
@@ -60,6 +75,7 @@ client.on(Events.ShardReconnecting, (id) => console.log(`shard ${id} reconnectin
 
 client.once(Events.ClientReady, async (ready) => {
   await ready.application.commands.set(bridgeCommandDefinitions(), config.guildId);
+  await markInterrupted(ready, await bridge.activeTurns.takeLeftovers());
   watchOutboxes(bridge, ready);
   console.log(
     `Ready as ${ready.user.tag} on v${bridgeVersion()}. ` +

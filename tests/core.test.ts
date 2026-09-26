@@ -56,7 +56,8 @@ import {
 } from "../src/discord/commands/sessionList.ts";
 import { displayName } from "../src/sessions/displayName.ts";
 import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
-import { acquireInstanceLock, releaseInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
+import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
+import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -562,12 +563,19 @@ describe("stop requests", () => {
 
   it("is consumed exactly once, so a stale request cannot stop the next run", async () => {
     await requestStop(lockPath);
-    expect(await takeStopRequest(lockPath)).toBe(true);
-    expect(await takeStopRequest(lockPath)).toBe(false);
+    expect(await takeStopRequest(lockPath)).toBe("drain");
+    expect(await takeStopRequest(lockPath)).toBeNull();
   });
 
   it("reports nothing when no stop was asked for", async () => {
-    expect(await takeStopRequest(lockPath)).toBe(false);
+    expect(await takeStopRequest(lockPath)).toBeNull();
+  });
+
+  it("carries the mode, and reads an older timestamp request as a drain", async () => {
+    await requestStop(lockPath, "now");
+    expect(await takeStopRequest(lockPath)).toBe("now");
+    await fs.writeFile(stopRequestPath(lockPath), "2026-01-01T00:00:00.000Z");
+    expect(await takeStopRequest(lockPath)).toBe("drain");
   });
 
   it("keeps the request beside the lock, not inside it", async () => {
@@ -1324,6 +1332,44 @@ describe("HeldPrompt", () => {
   });
 });
 
+describe("ActiveTurns", () => {
+  const anchor = { channelId: "chan-1", messageId: "msg-1" };
+
+  async function freshFile(): Promise<string> {
+    return path.join(await fs.mkdtemp(path.join(os.tmpdir(), "turns-")), "turns.json");
+  }
+
+  it("remembers a running turn on disk and forgets it when the turn ends", async () => {
+    const file = await freshFile();
+    const turns = new ActiveTurns(file);
+    await turns.record("s1", anchor);
+    expect(JSON.parse(await fs.readFile(file, "utf8"))).toEqual({ s1: anchor });
+    await turns.clear("s1");
+    expect(JSON.parse(await fs.readFile(file, "utf8"))).toEqual({});
+  });
+
+  // A bridge that died mid-turn is a new process; what it finds on disk is the previous one's unfinished work.
+  it("hands the previous process's unfinished turns to the next one, exactly once", async () => {
+    const file = await freshFile();
+    await new ActiveTurns(file).record("s1", anchor);
+
+    const next = new ActiveTurns(file);
+    await next.load();
+    expect(await next.takeLeftovers()).toEqual([anchor]);
+    expect(await next.takeLeftovers()).toEqual([]);
+
+    const later = new ActiveTurns(file);
+    await later.load();
+    expect(await later.takeLeftovers()).toEqual([]);
+  });
+
+  it("starts empty when there is no file yet", async () => {
+    const turns = new ActiveTurns(await freshFile());
+    await turns.load();
+    expect(await turns.takeLeftovers()).toEqual([]);
+  });
+});
+
 describe("UsageLedger", () => {
   const result = (sessionCostUsd: number, startedHere = false, input = 100, output = 10) => ({
     sessionCostUsd,
@@ -1547,8 +1593,22 @@ describe("acquireInstanceLock", () => {
   });
 
   it("acquires a lock when none exists", async () => {
-    clearInterval(await acquireInstanceLock(lockPath));
+    const lock = await acquireInstanceLock(lockPath);
     expect(JSON.parse(await fs.readFile(lockPath, "utf8")).pid).toBe(process.pid);
+    await lock.release();
+    expect(await fs.stat(lockPath).catch(() => null)).toBeNull();
+  });
+
+  // The stop script reads this to know it is waiting on a turn rather than on a dead bridge.
+  it("reports how many turns it is draining, keeping the moment the drain began", async () => {
+    const lock = await acquireInstanceLock(lockPath);
+    await lock.noteDraining(2);
+    const first = JSON.parse(await fs.readFile(lockPath, "utf8")).draining;
+    await lock.noteDraining(1);
+    const second = JSON.parse(await fs.readFile(lockPath, "utf8")).draining;
+    expect(first).toEqual({ since: expect.any(String), turns: 2 });
+    expect(second).toEqual({ since: first.since, turns: 1 });
+    await lock.release();
   });
 
   it("refuses when another live process is still beating", async () => {
@@ -1560,9 +1620,9 @@ describe("acquireInstanceLock", () => {
   it("takes over a lock whose pid was reused but whose heartbeat stopped", async () => {
     const old = new Date(Date.now() - STALE_AFTER_MS - 1000).toISOString();
     await fs.writeFile(lockPath, JSON.stringify({ pid: 999999, startedAt: old, heartbeatAt: old }));
-    const beat = await acquireInstanceLock(lockPath, () => true);
-    clearInterval(beat);
+    const lock = await acquireInstanceLock(lockPath, () => true);
     expect(JSON.parse(await fs.readFile(lockPath, "utf8")).pid).toBe(process.pid);
+    await lock.release();
   });
 
   it("names the lock file so a stale one can be cleared", async () => {
@@ -1574,8 +1634,9 @@ describe("acquireInstanceLock", () => {
   it("takes over a lock whose process is gone", async () => {
     const now = new Date().toISOString();
     await fs.writeFile(lockPath, JSON.stringify({ pid: 999999, startedAt: now, heartbeatAt: now }));
-    clearInterval(await acquireInstanceLock(lockPath, () => false));
+    const lock = await acquireInstanceLock(lockPath, () => false);
     expect(JSON.parse(await fs.readFile(lockPath, "utf8")).pid).toBe(process.pid);
+    await lock.release();
   });
 
   it("never treats its own pid as a competing holder", () => {
@@ -1585,13 +1646,15 @@ describe("acquireInstanceLock", () => {
 
   it("takes over a corrupt lock file rather than wedging", async () => {
     await fs.writeFile(lockPath, "not json");
-    clearInterval(await acquireInstanceLock(lockPath));
+    const lock = await acquireInstanceLock(lockPath);
     expect(JSON.parse(await fs.readFile(lockPath, "utf8")).pid).toBe(process.pid);
+    await lock.release();
   });
 
   it("releases only its own lock", async () => {
+    const lock = await acquireInstanceLock(lockPath);
     await fs.writeFile(lockPath, JSON.stringify({ pid: 999999, startedAt: "x" }));
-    await releaseInstanceLock(lockPath);
+    await lock.release();
     expect(await fs.readFile(lockPath, "utf8")).toContain("999999");
   });
 });

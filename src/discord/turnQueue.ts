@@ -37,6 +37,16 @@ export class TurnQueue {
     return this.lanes.get(key)?.tickets.length ?? 0;
   }
 
+  total(): number {
+    let sum = 0;
+    for (const lane of this.lanes.values()) sum += lane.tickets.length;
+    return sum;
+  }
+
+  keys(): string[] {
+    return [...this.lanes.keys()];
+  }
+
   admit(key: string): QueueOutcome {
     const waiting = this.depth(key);
     if (waiting === 0) return { kind: "run-now" };

@@ -7,9 +7,11 @@ import { PlanUsage } from "../src/claude/planUsage.ts";
 import { ApprovalPrompts } from "../src/discord/approvals.ts";
 import { QuestionPrompts } from "../src/discord/questions.ts";
 import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
+import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import type { Config } from "../src/config.ts";
 import { TurnFlow } from "../src/discord/turnFlow.ts";
-import { quietSink } from "./helpers/sinks.ts";
+import { quietSink, recordingSink } from "./helpers/sinks.ts";
+import path from "node:path";
 
 const started = vi.hoisted(() => [] as string[]);
 
@@ -38,6 +40,7 @@ function makeFlow(): TurnFlow {
     new ApprovalPrompts(),
     new QuestionPrompts(),
     new OutboxDelivery(),
+    new ActiveTurns(path.join(os.tmpdir(), `claudetalk-turns-${process.pid}-${Math.random()}.json`)),
     config,
   );
 }
@@ -93,5 +96,36 @@ describe("TurnFlow", () => {
 
   it("reports nothing to stop when nothing is running", () => {
     expect(makeFlow().stop("s4")).toEqual({ stopped: false, dropped: 0 });
+  });
+
+  // A shutdown waits for what was accepted, queued messages included, and admits nothing new meanwhile.
+  it("drains: finishes the running and queued turns, refuses new ones, then reports empty", async () => {
+    const flow = makeFlow();
+    const first = flow.run("s5", cwd, "one", {}, quietSink(), { resume: true });
+    const second = flow.run("s5", cwd, "two", {}, quietSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(flow.activeCount()).toBe(2);
+
+    const seen: number[] = [];
+    const drained = flow.drain((turns) => seen.push(turns));
+    const refused = recordingSink();
+    expect(await flow.run("s6", cwd, "three", {}, refused, { resume: true })).toBe(false);
+    expect(refused.written[0]).toContain("shutting down");
+
+    await drained;
+    expect(await Promise.all([first, second])).toEqual([true, true]);
+    expect(seen[0]).toBe(2);
+    expect(flow.activeCount()).toBe(0);
+  });
+
+  it("stops everything at once when told to, dropping what was queued", async () => {
+    const flow = makeFlow();
+    const first = flow.run("s7", cwd, "one", {}, quietSink(), { resume: true });
+    const second = flow.run("s7", cwd, "two", {}, quietSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    flow.stopAll();
+    expect(await Promise.all([first, second])).toEqual([true, false]);
+    expect(flow.activeCount()).toBe(0);
   });
 });

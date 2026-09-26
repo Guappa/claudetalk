@@ -1,6 +1,6 @@
 {
   "name": "claudetalk",
-  "version": "0.13.2",
+  "version": "0.14.0",
   "description": "Reach Claude Code sessions on your own machine from Discord, on any device",
   "type": "module",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "stop": "node scripts/stop.mjs",
+    "stop:now": "node scripts/stop.mjs --now",
     "check:private": "node scripts/scan-private.mjs",
     "release:notes": "node scripts/release-notes.mjs"
   },

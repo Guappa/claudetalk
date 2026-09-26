@@ -52,6 +52,20 @@ beneath it. A file crosses that boundary, and it works the same on Linux.
 Only one bridge may run per host. Two would answer every message twice and
 double your plan usage, which is what the lock exists to prevent.
 
+**A stop drains before it exits.** The request file carries a mode: `drain`
+refuses new turns and waits for the running and queued ones, `now` ends them
+the way `/stop` does. While draining, the bridge writes how many turns it is
+waiting on into the lock, which is how `npm run stop` knows to keep waiting
+rather than report a dead bridge. A termination signal is treated as a drain,
+so the systemd unit and the launchd plist give the bridge thirty minutes before
+the system kills it. A restart mid-turn once cut a real turn short; nothing in
+the shipped scripts should be able to do that again.
+
+**A turn leaves a record while it runs.** `data/turns.json` maps each running
+session to its progress message, cleared when the turn ends. A bridge that
+starts and finds entries there knows the previous process died mid-turn, edits
+those messages to say so, and takes the entries so they are reported once.
+
 ## Getting a change in
 
 `main` is always deployable, so nothing lands on it directly. Branch, open a pull
