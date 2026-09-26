@@ -12,7 +12,6 @@ export interface ReferenceLinks {
   merge(number: string): string | null;
   ref(name: string): string | null;
   file(filePath: string, line?: string, end?: string): string | null;
-  repo(slug: string): string;
 }
 
 export interface References {
@@ -85,7 +84,6 @@ export function remoteWebUrl(remote: string): string | null {
 }
 
 export function referenceLinks(webUrl: string, verified: Verified): ReferenceLinks {
-  const origin = new URL(webUrl).origin;
   const shapes = shapesFor(new URL(webUrl).host);
   return {
     commit: (hash) => (verified.commits.has(hash) ? `${webUrl}${shapes.commit(hash)}` : null),
@@ -101,14 +99,12 @@ export function referenceLinks(webUrl: string, verified: Verified): ReferenceLin
     },
     file: (filePath, line, end) =>
       verified.files.has(filePath) ? `${webUrl}${shapes.file(verified.head, filePath, line, end)}` : null,
-    repo: (slug) => `${origin}/${slug}`,
   };
 }
 
 const HASH = /^[0-9a-f]{7,40}$/;
 const FILE = /^((?:[\w.-]+\/)*[\w-][\w.-]*\.\w+)(?::(\d+)(?:-(\d+))?)?$/;
 const NAME = /^[\w][\w.\-\/]*$/;
-const SLUG = /^[\w.-]+\/[\w-]+$/;
 const TRAILING_PUNCTUATION = /[.,;:!?)]+$/;
 // Fences and existing links pass through untouched; everything else is scanned for something worth a link.
 const TOKENS = new RegExp(
@@ -158,8 +154,6 @@ function linkSpan(content: string, links: ReferenceLinks): string | null {
     const url = links.ref(content);
     if (url) return link(content, url);
   }
-  // A plain owner/repo in a code span, once it is neither a branch nor a file here, names another repository.
-  if (SLUG.test(content) && !content.includes(".")) return link(content, links.repo(content));
   return null;
 }
 
