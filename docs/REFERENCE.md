@@ -326,10 +326,16 @@ An existing test caught this: the note is re-sent on every turn, and the
 addition pushed it past the cap.
 ```
 
-Tool calls are counted, not listed. Reasoning cannot be shown: thinking arrives
-over the stream with a signature and no text. Every turn is therefore asked to
-think out loud, which costs tokens and is worth it, since progress you cannot
-see is indistinguishable from a hang. A remark is shown whole. When the trail
+Tool calls are counted, and the ones the terminal draws are drawn here too, from
+the call's own input, so they cost the model nothing: an edit shows as a `diff`
+block with its removed and added lines, capped at two dozen, since that is the
+one tag Discord colours by line; a written file shows its first lines in a block
+tagged with its language; a shell command shows as a `$` line in a `bash` or
+`powershell` block. Reads and searches are only counted. Reasoning cannot be shown: thinking arrives over the stream with a
+signature and no text. Every turn is therefore asked to think out loud, which
+costs tokens and is worth it, since progress you cannot see is indistinguishable
+from a hang. A remark keeps its paragraphs and code blocks, and one longer than
+a message continues into the next rather than being cut short. When the trail
 would no longer fit in one message, or something lasting has been posted
 beneath it, a question, an approval request, an attachment, the message is left
 as it stands and the trail continues in a new one below, with the heading and

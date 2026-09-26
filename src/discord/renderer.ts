@@ -5,9 +5,9 @@ const FENCE = /^```/;
 const PLACEHOLDER = "_(no output)_";
 
 // A chunk split inside a fence closes and reopens it, and the opener can carry a language tag.
-function roomForLine(openFence: string | null): number {
-  if (!openFence) return DISCORD_MESSAGE_LIMIT - 1;
-  return DISCORD_MESSAGE_LIMIT - FENCE_CLOSE.length - openFence.length - 1;
+function roomForLine(openFence: string | null, limit: number): number {
+  if (!openFence) return limit - 1;
+  return limit - FENCE_CLOSE.length - openFence.length - 1;
 }
 
 function splitOverlongLine(line: string, max: number): string[] {
@@ -19,7 +19,7 @@ function splitOverlongLine(line: string, max: number): string[] {
   return pieces;
 }
 
-export function chunkForDiscord(text: string): string[] {
+export function chunkForDiscord(text: string, limit = DISCORD_MESSAGE_LIMIT): string[] {
   if (!text.trim()) return [PLACEHOLDER];
 
   const chunks: string[] = [];
@@ -36,10 +36,10 @@ export function chunkForDiscord(text: string): string[] {
   };
 
   for (const rawLine of text.split("\n")) {
-    for (const line of splitOverlongLine(rawLine, roomForLine(openFence))) {
+    for (const line of splitOverlongLine(rawLine, roomForLine(openFence, limit))) {
       const cost = line.length + 1;
       const closing = openFence ? FENCE_CLOSE.length : 0;
-      if (length + cost + closing > DISCORD_MESSAGE_LIMIT) flush();
+      if (length + cost + closing > limit) flush();
       lines.push(line);
       length += cost;
       if (FENCE.test(line)) openFence = openFence ? null : line;

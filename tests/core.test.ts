@@ -60,6 +60,7 @@ import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instance
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl } from "../src/discord/repoLinks.ts";
 import { convertTables } from "../src/discord/tables.ts";
+import { describeToolUse } from "../src/discord/toolTrail.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -742,11 +743,14 @@ describe("redactHome", () => {
     expect(shown).toContain("~");
   });
 
-  it("catches both separators and either case", () => {
+  it("catches both separators, either case, and the Git Bash spelling of a Windows home", () => {
     const account = path.basename(os.homedir());
     const forward = os.homedir().split(path.sep).join("/");
-    for (const variant of [forward, forward.toUpperCase(), os.homedir()]) {
+    // Git Bash and MSYS tools spell a Windows home with a lowercase drive letter and forward slashes.
+    const msys = forward.replace(/^([A-Za-z]):/, (_, letter: string) => `/${letter.toLowerCase()}`);
+    for (const variant of [forward, forward.toUpperCase(), os.homedir(), msys]) {
       expect(redactHome(`ran in ${variant}/x`)).not.toContain(account);
+      expect(redactHome(`ran in ${variant}/x`)).toContain("~/x");
     }
   });
 
@@ -1471,6 +1475,93 @@ describe("ActiveTurns", () => {
     await Promise.all(Array.from({ length: 10 }, (_, index) => turns.clear(`s${index}`)));
     const onDisk = JSON.parse(await fs.readFile(file, "utf8"));
     expect(Object.keys(onDisk).sort()).toEqual(Array.from({ length: 10 }, (_, index) => `s${index + 10}`).sort());
+  });
+});
+
+describe("describeToolUse", () => {
+  it("shows an edit as a diff block with the removed and added lines under the file's path", () => {
+    const shown = describeToolUse("Edit", {
+      file_path: "/srv/app/src/thing.ts",
+      old_string: "const alpha = 1;\nconst beta = 2;",
+      new_string: "const alpha = 10;",
+    });
+    expect(shown).toBe("/srv/app/src/thing.ts\n```diff\n- const alpha = 1;\n- const beta = 2;\n+ const alpha = 10;\n```");
+  });
+
+  it("shows a written file in a block tagged with its language, capped, saying how much is left", () => {
+    const shown = describeToolUse("Write", { file_path: "/srv/app/big.py", content: Array(40).fill("x = 1").join("\n") });
+    expect(shown).toContain("(40 lines)");
+    expect(shown).toContain("```python\n");
+    expect(shown?.split("\n").filter((line) => line === "x = 1")).toHaveLength(24);
+    expect(shown).toContain("... 16 more lines");
+    expect(describeToolUse("Write", { file_path: "/srv/app/notes.unknownext", content: "a" })).toContain("```\na\n```");
+  });
+
+  it("shows a command as a prompt line in a shell block and keeps the rest of the tools counted only", () => {
+    expect(describeToolUse("Bash", { command: "npm   test\n  --run" })).toBe("```bash\n$ npm test --run\n```");
+    expect(describeToolUse("PowerShell", { command: "Get-Date" })).toBe("```powershell\n$ Get-Date\n```");
+    expect(describeToolUse("Read", { file_path: "/srv/app/x.ts" })).toBeNull();
+    expect(describeToolUse("Grep", { pattern: "x" })).toBeNull();
+  });
+
+  it("never lets a fence inside the content close the block early", () => {
+    const shown = describeToolUse("Edit", { file_path: "/srv/app/README.md", old_string: "```js", new_string: "```ts" });
+    expect(shown?.match(/```/g)).toHaveLength(2);
+  });
+});
+
+describe("StatusMessage formatting", () => {
+  it("keeps a remark's paragraphs and code blocks instead of flattening them", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("First point.\n\n- one\n- two\n\n```diff\n- old\n+ new\n```");
+    await status.settle();
+    expect(sink.messages[0]).toContain("First point.\n\n- one\n- two\n\n```diff\n- old\n+ new\n```");
+  });
+
+  // A report the model writes mid-turn is shown whole, continued across messages, never cut with an ellipsis.
+  it("continues a remark longer than a message across messages without cutting it", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    const paragraphs = Array.from({ length: 30 }, (_, index) => `Paragraph ${index + 1}: ${"y".repeat(150)}`);
+    status.note(paragraphs.join("\n\n"));
+    await status.settle();
+    const joined = sink.messages.join("\n");
+    for (const paragraph of paragraphs) expect(joined).toContain(paragraph);
+    expect(joined).not.toContain("...");
+    for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
+  });
+
+  it("still drops the echoed answer when the remark kept its line breaks", () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    status.note("Two findings.\n\n- one\n- two");
+    status.dropEcho("Two findings.\n\n- one\n- two");
+    expect(status.hasNotes()).toBe(false);
+  });
+
+  it("puts the answer under the heading when the current message has no remarks of its own", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("Earlier remark.");
+    sink.othersBelow = true;
+    status.note("Later remark.");
+    status.dropEcho("Later remark.");
+    expect(status.currentIsEmpty()).toBe(true);
+    expect(await status.finishWithHeading("Later remark.")).toBe(true);
+    expect(sink.messages.at(-1)).toBe("**Worked** 0s\n\nLater remark.");
+    expect(await status.finishWithHeading("z".repeat(2000))).toBe(false);
+  });
+});
+
+describe("chunkForDiscord with a smaller limit", () => {
+  it("honours the limit it is given", () => {
+    const chunks = chunkForDiscord(Array.from({ length: 10 }, (_, index) => `line ${index} ${"w".repeat(100)}`).join("\n"), 300);
+    expect(chunks.length).toBeGreaterThan(3);
+    for (const chunk of chunks) expect(chunk.length).toBeLessThanOrEqual(300);
   });
 });
 
