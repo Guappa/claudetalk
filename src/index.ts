@@ -43,16 +43,16 @@ const client = new Client({
   },
 });
 
-// A drain lets running turns finish; a second request, or "now", cuts them short and their messages say so.
+// A drain lets running turns finish; only "now" cuts them short, and asking to drain twice changes nothing.
 function shutdownOnce(): (mode: StopMode) => Promise<void> {
   let started = false;
   return async (mode) => {
-    if (mode === "now" || started) bridge.flow.stopAll();
+    if (mode === "now") bridge.flow.stopAll();
     if (started) return;
     started = true;
     const turns = bridge.flow.activeCount();
     if (turns > 0) console.log(`stopping after ${count(turns, "running turn")}`);
-    await bridge.flow.drain((left) => void lock.noteDraining(left));
+    await bridge.flow.drain((left) => void lock.noteDraining(left).catch(() => undefined));
     clearInterval(stopWatch);
     console.log("stopped");
     await client.destroy();

@@ -177,7 +177,7 @@ export async function startConversation(
     prompt:
       `This conversation was created from Discord and is named "${request.name}". ` +
       `Say hello in one short line, naming the folder you are working in but not its full path.`,
-    sink: channelSink(channel),
+    sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     resume: false,
     name: request.name,
   });

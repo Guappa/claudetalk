@@ -82,6 +82,7 @@ export class StatusMessage {
   private lastSent = "";
   private startedAt = 0;
   private stopped = false;
+  private moving = false;
   private readonly sink: MessageSink;
   private readonly now: () => number;
   private readonly actions: SinkAction[];
@@ -120,7 +121,8 @@ export class StatusMessage {
     if (this.sink.continueIn) {
       const elapsed = this.now() - this.startedAt;
       const crowded = !fitsInOne([...this.notes, flat], elapsed, this.steps);
-      const buried = this.sink.isLatest?.() === false;
+      // While a move is still queued the sink reads as buried; the remarks meanwhile belong to that new message.
+      const buried = !this.moving && this.sink.isLatest?.() === false;
       if ((crowded && this.notes.length > 0) || buried) this.rollOver();
     }
     this.notes.push(flat);
@@ -172,18 +174,28 @@ export class StatusMessage {
     await this.sink.edit(text, []);
   }
 
+  // Whatever is queued against Discord has gone out; a turn ends only once that is true.
+  async flush(): Promise<void> {
+    await this.pendingEdit;
+  }
+
   // The current message keeps its remarks as they are; the heading and the button move to a new one below.
   private rollOver(): void {
     const sealed = this.notes;
     this.notes = [];
     this.sealed += sealed.length;
-    const elapsed = this.now() - this.startedAt;
-    const sealedText = sealed.length > 0 ? sealed.join("\n\n") : heading(elapsed, this.steps);
+    // A message with no remarks yet must not be left reading as live work, so it becomes a plain marker.
+    const sealedText = sealed.length > 0 ? sealed.join("\n\n") : "**Started**";
     this.lastSent = "";
+    this.moving = true;
     this.chain(async () => {
-      await this.sink.edit(sealedText, []);
-      await this.sink.continueIn!(renderActivity(this.notes, this.now() - this.startedAt, this.steps), this.actions);
-      await this.onContinue?.();
+      try {
+        await this.sink.edit(sealedText, []);
+        await this.sink.continueIn!(renderActivity(this.notes, this.now() - this.startedAt, this.steps), this.actions);
+        await this.onContinue?.();
+      } finally {
+        this.moving = false;
+      }
     });
   }
 

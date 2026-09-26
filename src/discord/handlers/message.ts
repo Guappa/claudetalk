@@ -180,6 +180,7 @@ async function runTurn(
     sink: channelSink(channel, {
       allowedUserIds: context.mentionableUserIds,
       replyToMessageId: message.id,
+      latestPosts: bridge.latestPosts,
     }),
     resume: !target.isFirstTurn,
     quoted: context.quoted,
