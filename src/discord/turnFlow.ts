@@ -101,10 +101,15 @@ async function postAnswer(
   text: string,
   compacted: boolean,
 ): Promise<void> {
-  const answer = convertTables(text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.");
-  status.dropEcho(answer);
-  const links = await resolveReferences(cwd, answer);
-  await conclude(status, sink, chunkForDiscord(links ? linkReferences(answer, links) : linkPlain(answer)));
+  const raw = text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.";
+  // The echo is matched against what the model said, before any rewriting of it.
+  status.dropEcho(raw);
+  await conclude(status, sink, chunkForDiscord(await linkEverything(cwd, convertTables(raw))));
+}
+
+async function linkEverything(cwd: string, text: string): Promise<string> {
+  const links = await resolveReferences(cwd, text);
+  return links ? linkReferences(text, links) : linkPlain(text);
 }
 
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
@@ -259,6 +264,7 @@ export class TurnFlow {
       Date.now,
       [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }],
       remember,
+      (trail) => linkEverything(cwd, trail),
     );
     await status.start();
     await remember();
