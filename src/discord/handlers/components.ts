@@ -34,6 +34,7 @@ import {
 import { OTHER_VALUE } from "../questions.ts";
 import { describePurge, purgeChannel } from "../purge.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
+import { clearConversation } from "../commands/clear.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { requireConversation } from "../binding.ts";
@@ -302,6 +303,18 @@ async function createResume(bridge: Bridge, interaction: ButtonInteraction, acti
   await openConversation(bridge, interaction, record);
 }
 
+async function cancelClear(_bridge: Bridge, interaction: ButtonInteraction) {
+  await settleMenu(interaction, "Left it alone. The conversation continues as it was.");
+}
+
+async function confirmClear(bridge: Bridge, interaction: ButtonInteraction) {
+  if (!canRunCommand(tierOf(bridge, interaction.user.id), "clear")) {
+    await settleMenu(interaction, describeOwnersOnly("clear"));
+    return;
+  }
+  await clearConversation(bridge, interaction);
+}
+
 async function keepUnboundChannel(_bridge: Bridge, interaction: ButtonInteraction) {
   await settleMenu(interaction, "Kept. The channel stays as it is, with its history.");
 }
@@ -369,6 +382,10 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await keepUnboundChannel(bridge, interaction);
     case "unbind-delete":
       return await deleteUnboundChannel(bridge, interaction);
+    case "clear-cancel":
+      return await cancelClear(bridge, interaction);
+    case "clear-confirm":
+      return await confirmClear(bridge, interaction);
     case "question-submit":
       return await submitAnswers(bridge, interaction, action);
     case "question-skip":

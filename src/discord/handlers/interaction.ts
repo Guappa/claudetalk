@@ -7,6 +7,7 @@ import { tierOf } from "../policy.ts";
 import { handleAsk } from "../commands/ask.ts";
 import { handleCategory } from "../commands/category.ts";
 import { handleQueue, handleStop, handleTakeover, handleUnbind } from "../commands/control.ts";
+import { handleClear } from "../commands/clear.ts";
 import { handleCreate, handleFork, handleResume } from "../commands/conversations.ts";
 import { handleInvite, handleMembers, handleUninvite } from "../commands/membership.ts";
 import { handleOperator } from "../commands/operators.ts";
@@ -49,6 +50,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   ask: handleAsk,
   sync: handleSync,
   purge: handlePurgeCommand,
+  clear: handleClear,
   plugins: handlePluginsCommand,
   skills: handleSkillsCommand,
   operator: handleOperator,

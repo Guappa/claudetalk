@@ -45,6 +45,7 @@ import {
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
 import { classifyPrompt } from "../src/discord/commands/settings.ts";
+import { describeClear } from "../src/discord/commands/clear.ts";
 import {
   describeHidden,
   formatSessionList,
@@ -73,6 +74,8 @@ import {
   skillSelectMenus,
 } from "../src/claude/pluginCatalog.ts";
 import {
+  CLEAR_CANCEL,
+  CLEAR_CONFIRM,
   PLUGIN_SELECT,
   PURGE_CANCEL,
   PURGE_CONFIRM,
@@ -2294,7 +2297,7 @@ describe("access tiers", () => {
   it("lets anyone below operator run nothing at all", () => {
     const everyCommand = [
       "ask", "sync", "whoami", "members", "skills", "stop",
-      "create", "resume", "invite", "operator", "unbind", "purge", "takeover",
+      "create", "resume", "invite", "operator", "unbind", "purge", "clear", "takeover",
     ];
     for (const command of everyCommand) {
       expect(canRunCommand("none", command)).toBe(false);
@@ -2597,9 +2600,10 @@ describe("purge", () => {
 });
 
 describe("/clear is not passed through", () => {
-  it("explains the two meanings instead of wiping session memory", () => {
+  it("points at the bridge's own command instead of starting a session the channel cannot see", () => {
     const result = classifyPrompt("/clear", ["doctor"]);
     expect(result.kind).toBe("ambiguous");
+    expect(result.kind === "ambiguous" && result.message).toContain("own `/clear` command");
     expect(result.kind === "ambiguous" && result.message).toContain("/purge");
   });
 
@@ -3433,5 +3437,19 @@ describe("unbind offers to delete the channel", () => {
   it("round-trips both answers", () => {
     expect(parseCustomId(UNBIND_DELETE)).toEqual({ kind: "unbind-delete" });
     expect(parseCustomId(UNBIND_KEEP)).toEqual({ kind: "unbind-keep" });
+  });
+});
+
+describe("clear asks before starting over", () => {
+  it("round-trips both answers", () => {
+    expect(parseCustomId(CLEAR_CONFIRM)).toEqual({ kind: "clear-confirm" });
+    expect(parseCustomId(CLEAR_CANCEL)).toEqual({ kind: "clear-cancel" });
+  });
+
+  it("names what is kept and what is lost, and how to get the old one back", () => {
+    const text = describeClear("/srv/work/ledger");
+    expect(text).toContain("nothing remembered");
+    expect(text).toContain("/resume");
+    expect(text).toContain("/purge");
   });
 });

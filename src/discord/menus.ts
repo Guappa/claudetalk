@@ -8,6 +8,8 @@ export const CREATE_NEW = "create:new";
 export const CREATE_CANCEL = "create:cancel";
 export const UNBIND_DELETE = "unbind:delete";
 export const UNBIND_KEEP = "unbind:keep";
+export const CLEAR_CONFIRM = "clear:confirm";
+export const CLEAR_CANCEL = "clear:cancel";
 
 export function stopActionId(sessionId: string): string {
   return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
@@ -48,6 +50,8 @@ export type MenuAction =
   | { kind: "create-cancel" }
   | { kind: "unbind-delete" }
   | { kind: "unbind-keep" }
+  | { kind: "clear-confirm" }
+  | { kind: "clear-cancel" }
   | { kind: "create-resume"; sessionId: string }
   | { kind: "turn-stop"; sessionId: string }
   | { kind: "turn-stop-all"; sessionId: string }
@@ -81,6 +85,8 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
   if (customId === CREATE_CANCEL) return { kind: "create-cancel" };
   if (customId === UNBIND_DELETE) return { kind: "unbind-delete" };
   if (customId === UNBIND_KEEP) return { kind: "unbind-keep" };
+  if (customId === CLEAR_CONFIRM) return { kind: "clear-confirm" };
+  if (customId === CLEAR_CANCEL) return { kind: "clear-cancel" };
   const resume = /^create:resume:(.+)$/.exec(customId);
   if (resume?.[1]) return { kind: "create-resume", sessionId: resume[1] };
 

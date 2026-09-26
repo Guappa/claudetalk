@@ -149,12 +149,12 @@ describe("docs follow code", () => {
     }
   });
 
-  // Adding a sixth caller means adding a path to a session, which has to be a deliberate edit.
-  it("spends a turn from only the five places that are gated", () => {
+  // Adding a caller means adding a path to a session, which has to be a deliberate edit.
+  it("spends a turn from only the places that are gated", () => {
     const callers = basenames(files.filter((file) => /runConversationTurn\(/.test(fs.readFileSync(file, "utf8")))).sort();
 
     expect(callers).toEqual(
-      ["ask.ts", "components.ts", "conversations.ts", "fork.ts", "message.ts", "turn.ts"].sort(),
+      ["ask.ts", "clear.ts", "components.ts", "conversations.ts", "fork.ts", "message.ts", "turn.ts"].sort(),
     );
   });
 
