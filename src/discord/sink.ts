@@ -67,9 +67,11 @@ function closable(sent: Message, shown: string): AskHandle {
   };
 }
 
+// The channel reads in time order: the trail message is edited only while nothing lasting sits beneath it.
 export function channelSink(channel: SendableChannels, options: SinkOptions = {}): MessageSink {
   const allowedMentions = mentionPolicy(options.allowedUserIds ?? []);
   let owned: Message | null = null;
+  let latest: Message | null = null;
 
   // The first message of a turn threads to what prompted it; a ping would be redundant on top.
   const firstSendOptions = (content: string): MessageCreateOptions =>
@@ -81,20 +83,33 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
         }
       : { content, allowedMentions };
 
+  const post = async (payload: MessageCreateOptions): Promise<Message> => {
+    const sent = await channel.send(payload);
+    latest = sent;
+    return sent;
+  };
+
   return {
     async send(text: string): Promise<void> {
       const shown = redactHome(text);
-      const sent = await channel.send(owned ? { content: shown, allowedMentions } : firstSendOptions(shown));
+      const sent = await post(owned ? { content: shown, allowedMentions } : firstSendOptions(shown));
       owned ??= sent;
     },
     async edit(text: string, actions: SinkAction[] = []): Promise<void> {
       const shown = redactHome(text);
       if (!owned) {
-        owned = await channel.send(firstSendOptions(shown));
+        owned = await post(firstSendOptions(shown));
         return;
       }
       await owned.edit({ content: shown, allowedMentions, components: buttonRow(actions) });
     },
+    async continueIn(text: string, actions: SinkAction[] = []): Promise<void> {
+      owned = await post({ content: redactHome(text), allowedMentions, components: buttonRow(actions) });
+    },
+    isLatest(): boolean {
+      return owned !== null && owned === latest;
+    },
+    // A notice deletes itself after a minute, so it never counts as something lasting beneath the trail.
     async notice(text: string): Promise<void> {
       await sendNotice(channel, redactHome(text));
     },
@@ -105,22 +120,21 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
     anchor(): SinkAnchor | null {
       return owned ? { channelId: owned.channelId, messageId: owned.id } : null;
     },
-    // An ask owns its own message, so it never fights the status message for the one this sink edits.
     async ask(text: string, actions: SinkAction[]): Promise<AskHandle> {
       const shown = redactHome(text);
-      const sent = await channel.send({ content: shown, allowedMentions, components: buttonRow(actions) });
+      const sent = await post({ content: shown, allowedMentions, components: buttonRow(actions) });
       return closable(sent, shown);
     },
     // Five rows to a message: the tool asks at most four questions, and the buttons take the fifth.
     async askWithMenus(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle> {
       const shown = redactHome(text);
       const components: AnyRow[] = [...menus.slice(0, 4).map(menuRow), ...buttonRow(actions)];
-      const sent = await channel.send({ content: shown, allowedMentions, components });
+      const sent = await post({ content: shown, allowedMentions, components });
       return closable(sent, shown);
     },
     async sendFiles(text: string, files: SinkFile[]): Promise<void> {
       const attachments = files.map((file) => new AttachmentBuilder(file.data, { name: file.name }));
-      await channel.send({ content: redactHome(text), allowedMentions, files: attachments });
+      await post({ content: redactHome(text), allowedMentions, files: attachments });
     },
   };
 }

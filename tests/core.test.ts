@@ -552,6 +552,51 @@ describe("StatusMessage", () => {
     status.note("");
     expect(status.hasNotes()).toBe(false);
   });
+
+  // The terminal scrolls; a trail that no longer fits carries on below instead of eliding what came first.
+  it("continues in a new message once the trail would not fit, keeping every remark in order", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0, [{ id: "stop", label: "Stop" }]);
+    await status.start();
+    const remarks = Array.from({ length: 12 }, (_, index) => `Remark ${index + 1}: ${"x".repeat(240)}`);
+    for (const remark of remarks) status.note(remark);
+    await status.settle();
+
+    expect(sink.messages.length).toBeGreaterThan(1);
+    const joined = sink.messages.join("\n");
+    for (const remark of remarks) expect(joined).toContain(remark);
+    expect(joined).not.toContain("...");
+    for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
+    expect(sink.messages.map((message) => message.indexOf("Remark 12")).filter((at) => at >= 0)).toHaveLength(1);
+    expect(sink.messages.at(-1)).toContain("**Worked**");
+  });
+
+  it("moves the trail below anything lasting posted beneath it, rather than writing above it", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("Before the question.");
+    sink.othersBelow = true;
+    status.note("After the question.");
+    await status.settle();
+
+    expect(sink.messages[0]).toBe("Before the question.");
+    expect(sink.messages[1]).toContain("After the question.");
+    expect(sink.messages[1]).not.toContain("Before the question.");
+    expect(status.hasNotes()).toBe(true);
+  });
+
+  it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
+    const sink = recordingSink();
+    const moved = vi.fn(async () => undefined);
+    const status = new StatusMessage(sink, () => 0, [], moved);
+    await status.start();
+    status.note("First.");
+    sink.othersBelow = true;
+    status.note("Second.");
+    await status.settle();
+    expect(moved).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("stop requests", () => {
