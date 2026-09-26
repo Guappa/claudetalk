@@ -9,10 +9,13 @@ function escaped(segment: string): string {
 export function redactHome(text: string): string {
   const home = os.homedir();
   const segments = home.split(/[\\/]/).filter(Boolean).map(escaped);
-  if (segments.length === 0) return text;
+  const [first, ...rest] = segments;
+  if (!first) return text;
+  // A Windows home is also spelled /c/Users/... by Git Bash and MSYS tools, and commands quote it that way.
+  const drive = /^[A-Za-z]:$/.test(first) ? `(?:${first}|[\\\\/]+${escaped(first[0]!)})` : first;
   // Anchored at both ends: a home called /root must not rewrite the word root, nor /home/dan "danger".
   const lead = path.isAbsolute(home) && !/^[A-Za-z]:/.test(home) ? "[\\\\/]+" : "(?<![\\w.-])";
-  const pattern = new RegExp(`${lead}${segments.join("[\\\\/]+")}(?![\\w.-])`, "gi");
+  const pattern = new RegExp(`${lead}${[drive, ...rest].join("[\\\\/]+")}(?![\\w.-])`, "gi");
   return text.replace(pattern, "~");
 }
 

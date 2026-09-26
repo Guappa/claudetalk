@@ -2,6 +2,7 @@ import { runTurn, type ApproveTool, type ChannelSettings, type RunningTurn, type
 import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
+import { describeToolUse } from "./toolTrail.ts";
 import { compactMetadata, isCompactionStart, isInit, type ClaudeEvent } from "../claude/events.ts";
 import type { ClaudeError } from "../claude/errors.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
@@ -114,14 +115,24 @@ async function linkEverything(cwd: string, text: string): Promise<string> {
 
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
 async function conclude(status: StatusMessage, sink: MessageSink, chunks: string[]): Promise<void> {
-  const inPlace = !status.hasNotes() && (sink.isLatest?.() ?? true);
-  if (!inPlace) {
-    await status.settle();
-    for (const chunk of chunks) await sink.send(chunk);
+  const first = chunks[0] ?? "Done.";
+  if (await concludeInPlace(status, sink, first)) {
+    for (const chunk of chunks.slice(1)) await sink.send(chunk);
     return;
   }
-  await status.finish(chunks[0] ?? "Done.");
-  for (const chunk of chunks.slice(1)) await sink.send(chunk);
+  await status.settle();
+  for (const chunk of chunks) await sink.send(chunk);
+}
+
+// True once the answer went into the progress message itself.
+async function concludeInPlace(status: StatusMessage, sink: MessageSink, first: string): Promise<boolean> {
+  if (sink.isLatest?.() === false) return false;
+  if (!status.hasNotes()) {
+    await status.finish(first);
+    return true;
+  }
+  // A segment with no remarks of its own carries the answer under its heading, not a heading alone above it.
+  return status.currentIsEmpty() && (await status.finishWithHeading(first));
 }
 
 export class TurnFlow {
@@ -373,7 +384,12 @@ export class TurnFlow {
       return;
     }
 
-    status.stepped(toolUses(event).length);
+    const uses = toolUses(event);
+    status.stepped(uses.length);
+    for (const use of uses) {
+      const shown = describeToolUse(use.name, use.input);
+      if (shown) status.note(shown);
+    }
     status.note(assistantText(event));
   }
 }
