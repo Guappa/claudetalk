@@ -39,6 +39,10 @@ export interface MessageSink {
   send(text: string): Promise<void>;
   notice(text: string): Promise<void>;
   edit(text: string, actions?: SinkAction[]): Promise<void>;
+  // A new message that later edits go to, so a trail can carry on past one message's limit.
+  continueIn?(text: string, actions?: SinkAction[]): Promise<void>;
+  // False once something lasting was posted beneath the edited message; editing it further would break time order.
+  isLatest?(): boolean;
   sendFiles(text: string, files: SinkFile[]): Promise<void>;
   ask?(text: string, actions: SinkAction[]): Promise<AskHandle>;
   askWithMenus?(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle>;

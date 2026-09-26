@@ -329,10 +329,15 @@ addition pushed it past the cap.
 Tool calls are counted, not listed. Reasoning cannot be shown: thinking arrives
 over the stream with a signature and no text. Every turn is therefore asked to
 think out loud, which costs tokens and is worth it, since progress you cannot
-see is indistinguishable from a hang. A remark is shown whole or not at all,
-newest kept and older ones elided behind `...`. Edits slow from every two
-seconds to every fifteen as a turn drags, since each is an API call; a twenty
-minute turn costs around 138 edits. Discord's typing indicator runs alongside.
+see is indistinguishable from a hang. A remark is shown whole. When the trail
+would no longer fit in one message, or something lasting has been posted
+beneath it, a question, an approval request, an attachment, the message is left
+as it stands and the trail continues in a new one below, with the heading and
+the Stop button moving down with it. The channel therefore reads in the order
+things happened, the way the terminal scrolls, and nothing is rewritten above
+something newer. Edits slow from every two seconds to every fifteen as a turn
+drags, since each is an API call; a twenty minute turn costs around 138 edits.
+Discord's typing indicator runs alongside.
 
 When the turn ends the heading changes to **Worked**, the trail stays, and the
 answer arrives as its own message beneath it, not repeated in the trail. A turn

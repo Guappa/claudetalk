@@ -12,22 +12,49 @@ export function quietSink(): MessageSink {
 export interface RecordingSink extends MessageSink {
   written: string[];
   files: string[];
+  // Each entry is one message the sink holds, in order; edits replace the last one it edits into.
+  messages: string[];
+  // Set by a test to stand for a question or an attachment posted beneath the trail.
+  othersBelow: boolean;
 }
 
 export function recordingSink(): RecordingSink {
   const written: string[] = [];
   const files: string[] = [];
-  return {
+  const messages: string[] = [];
+  let owned = -1;
+  const sink: RecordingSink = {
     written,
     files,
-    send: async (text) => void written.push(text),
+    messages,
+    othersBelow: false,
+    send: async (text) => {
+      written.push(text);
+      messages.push(text);
+      if (owned < 0) owned = messages.length - 1;
+    },
     notice: async (text) => void written.push(text),
-    edit: async (text) => void written.push(text),
+    edit: async (text) => {
+      written.push(text);
+      if (owned < 0) {
+        messages.push(text);
+        owned = messages.length - 1;
+      } else messages[owned] = text;
+    },
+    continueIn: async (text) => {
+      written.push(text);
+      messages.push(text);
+      owned = messages.length - 1;
+      sink.othersBelow = false;
+    },
+    isLatest: () => !sink.othersBelow && owned === messages.length - 1,
     sendFiles: async (label, delivered) => {
       written.push(label);
+      messages.push(label);
       files.push(...delivered.map((file) => file.name));
     },
   };
+  return sink;
 }
 
 export function askingSink(onAsk: (actions: SinkAction[]) => void): MessageSink {

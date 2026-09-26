@@ -97,7 +97,9 @@ async function postAnswer(status: StatusMessage, sink: MessageSink, text: string
   status.dropEcho(answer);
 
   const chunks = chunkForDiscord(answer);
-  if (status.hasNotes()) {
+  // The answer replaces the progress message only when nothing lasting was posted beneath it since.
+  const inPlace = !status.hasNotes() && (sink.isLatest?.() ?? true);
+  if (!inPlace) {
     await status.settle();
     for (const chunk of chunks) await sink.send(chunk);
     return;
@@ -235,10 +237,19 @@ export class TurnFlow {
     sink: MessageSink,
     options: TurnOptions,
   ): Promise<void> {
-    const status = new StatusMessage(sink, Date.now, [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }]);
+    // The record follows the trail into each new message, so an interruption is marked where the reader looks.
+    const remember = async (): Promise<void> => {
+      const anchor = sink.anchor?.();
+      if (anchor) await this.activeTurns.record(sessionId, anchor);
+    };
+    const status = new StatusMessage(
+      sink,
+      Date.now,
+      [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }],
+      remember,
+    );
     await status.start();
-    const anchor = sink.anchor?.();
-    if (anchor) await this.activeTurns.record(sessionId, anchor);
+    await remember();
 
     const tracker = this.trackerFor(sessionId);
     const pending: Array<Promise<void>> = [];

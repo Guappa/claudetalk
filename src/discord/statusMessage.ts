@@ -2,7 +2,7 @@ import { redactHome } from "../displayPath.ts";
 import { count, truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 
-const MAX_NOTES_SHOWN = 6;
+const MAX_NOTES_SHOWN = 10;
 // Discord caps a message at 2000, and the log has to stay under it however long a turn runs.
 const RENDER_BUDGET = 1800;
 const MAX_NOTES_KEPT = 30;
@@ -30,39 +30,51 @@ function heading(elapsedMs: number, steps: number, done = false): string {
     : `**${verb}** ${formatElapsed(elapsedMs)}`;
 }
 
-export function renderActivity(notes: string[], elapsedMs: number, steps = 0, done = false): string {
-  const head = heading(elapsedMs, steps, done);
-  if (notes.length === 0) return head;
+interface Selection {
+  shown: string[];
+  elided: boolean;
+}
 
+// Newest first, as many as fit; a remark is shown whole or not at all, unless it alone is larger than the budget.
+function selectShown(notes: string[], headLength: number): Selection {
   const shown: string[] = [];
-  let used = head.length;
+  let used = headLength;
   for (let index = notes.length - 1; index >= 0; index -= 1) {
     const note = notes[index]!;
-
-    if (shown.length >= MAX_NOTES_SHOWN) {
-      shown.unshift("...");
-      break;
-    }
-
+    if (shown.length >= MAX_NOTES_SHOWN) return { shown, elided: true };
     if (used + note.length + 2 > RENDER_BUDGET) {
-      // A remark is shown whole or not at all, unless it alone is larger than the whole budget.
-      if (shown.length === 0) shown.push(truncate(note, RENDER_BUDGET - used - 5));
-      else shown.unshift("...");
-      break;
+      if (shown.length > 0) return { shown, elided: true };
+      shown.push(truncate(note, RENDER_BUDGET - used - 5));
+      return { shown, elided: false };
     }
-
     shown.unshift(note);
     used += note.length + 2;
   }
+  return { shown, elided: false };
+}
+
+export function renderActivity(notes: string[], elapsedMs: number, steps = 0, done = false): string {
+  const head = heading(elapsedMs, steps, done);
+  if (notes.length === 0) return head;
+  const { shown, elided } = selectShown(notes, head.length);
+  if (elided) shown.unshift("...");
   return `${head}\n\n${shown.join("\n\n")}`;
+}
+
+// True when every remark would be shown whole.
+function fitsInOne(notes: string[], elapsedMs: number, steps: number): boolean {
+  const { shown, elided } = selectShown(notes, heading(elapsedMs, steps).length);
+  return !elided && shown.length === notes.length && shown.every((note, index) => note === notes[index]);
 }
 
 function oneLine(text: string): string {
   return truncate(redactHome(text).replace(/\s+/g, " ").trim(), RENDER_BUDGET);
 }
 
+// The trail reads in time order, like the terminal: a message is left as it stands once it is full or buried.
 export class StatusMessage {
   private notes: string[] = [];
+  private sealed = 0;
   private steps = 0;
   private timer: NodeJS.Timeout | null = null;
   private typingTimer: NodeJS.Timeout | null = null;
@@ -73,11 +85,18 @@ export class StatusMessage {
   private readonly sink: MessageSink;
   private readonly now: () => number;
   private readonly actions: SinkAction[];
+  private readonly onContinue: (() => Promise<void>) | undefined;
 
-  constructor(sink: MessageSink, now: () => number = Date.now, actions: SinkAction[] = []) {
+  constructor(
+    sink: MessageSink,
+    now: () => number = Date.now,
+    actions: SinkAction[] = [],
+    onContinue?: () => Promise<void>,
+  ) {
     this.sink = sink;
     this.now = now;
     this.actions = actions;
+    this.onContinue = onContinue;
   }
 
   async start(): Promise<void> {
@@ -98,8 +117,15 @@ export class StatusMessage {
   note(text: string): void {
     const flat = oneLine(text);
     if (!flat) return;
+    if (this.sink.continueIn) {
+      const elapsed = this.now() - this.startedAt;
+      const crowded = !fitsInOne([...this.notes, flat], elapsed, this.steps);
+      const buried = this.sink.isLatest?.() === false;
+      if ((crowded && this.notes.length > 0) || buried) this.rollOver();
+    }
     this.notes.push(flat);
-    if (this.notes.length > MAX_NOTES_KEPT) this.notes.shift();
+    // Without a way to continue, the oldest remarks give way instead.
+    if (!this.sink.continueIn && this.notes.length > MAX_NOTES_KEPT) this.notes.shift();
   }
 
   // A status Claude Code repeats every few seconds should read as one line, not a growing column.
@@ -109,7 +135,7 @@ export class StatusMessage {
   }
 
   hasNotes(): boolean {
-    return this.notes.length > 0;
+    return this.notes.length > 0 || this.sealed > 0;
   }
 
   // The last thing said is the answer, which is about to be posted in full beneath the trail.
@@ -146,6 +172,26 @@ export class StatusMessage {
     await this.sink.edit(text, []);
   }
 
+  // The current message keeps its remarks as they are; the heading and the button move to a new one below.
+  private rollOver(): void {
+    const sealed = this.notes;
+    this.notes = [];
+    this.sealed += sealed.length;
+    const elapsed = this.now() - this.startedAt;
+    const sealedText = sealed.length > 0 ? sealed.join("\n\n") : heading(elapsed, this.steps);
+    this.lastSent = "";
+    this.chain(async () => {
+      await this.sink.edit(sealedText, []);
+      await this.sink.continueIn!(renderActivity(this.notes, this.now() - this.startedAt, this.steps), this.actions);
+      await this.onContinue?.();
+    });
+  }
+
+  // Edits go out one at a time, in order, and a failed one (rate limit, message deleted) never takes the turn down.
+  private chain(work: () => Promise<void>): void {
+    this.pendingEdit = this.pendingEdit.then(work).catch(() => undefined);
+  }
+
   private schedule(): void {
     if (this.stopped) return;
     this.timer = setTimeout(() => void this.tick(), tickIntervalMs(this.now() - this.startedAt));
@@ -158,8 +204,7 @@ export class StatusMessage {
     const text = renderActivity(this.notes, this.now() - this.startedAt, this.steps);
     if (text !== this.lastSent) {
       this.lastSent = text;
-      // A failed edit (rate limit, message deleted) must not take the turn down with it.
-      this.pendingEdit = this.sink.edit(text, this.actions).catch(() => undefined);
+      this.chain(() => this.sink.edit(text, this.actions));
       await this.pendingEdit;
     }
     this.schedule();
