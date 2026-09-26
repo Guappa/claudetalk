@@ -171,7 +171,14 @@ npm run stop     # stop whichever instance is running
 ```
 
 Only one bridge may run at a time; a lock file prevents a second. Stop it with
-`npm run stop` rather than killing it, so the lock is released cleanly.
+`npm run stop` rather than killing it. That waits for any turn in flight,
+queued messages included, admits nothing new meanwhile, and says what it is
+waiting on. `npm run stop:now` cuts running turns short instead, and their
+progress messages end with "Stopped." The Linux service and the macOS agent
+treat their own stop the same way, with a thirty minute ceiling before the
+system kills the bridge; the Windows task's own stop kills it at once, so use
+`npm run stop` there. If the bridge is killed anyway, a progress message it left
+mid-turn is marked as interrupted the next time it starts.
 
 Both platforms run the bridge straight from `src/`. Node strips the types, so
 there is no build step.

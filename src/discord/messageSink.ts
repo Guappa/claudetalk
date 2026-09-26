@@ -14,6 +14,12 @@ export interface AskHandle {
   close(outcome: string): Promise<void>;
 }
 
+// Where the progress message lives, so a bridge that died can find it again.
+export interface SinkAnchor {
+  channelId: string;
+  messageId: string;
+}
+
 export interface SinkMenuOption {
   value: string;
   label: string;
@@ -37,4 +43,5 @@ export interface MessageSink {
   ask?(text: string, actions: SinkAction[]): Promise<AskHandle>;
   askWithMenus?(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle>;
   typing?(): void;
+  anchor?(): SinkAnchor | null;
 }

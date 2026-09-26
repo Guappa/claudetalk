@@ -19,6 +19,11 @@ import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeQueued } from "./turnQueue.ts";
 import { stopActionId } from "./menus.ts";
 import type { OutboxDelivery } from "./outboxDelivery.ts";
+import type { ActiveTurns } from "./activeTurns.ts";
+
+const DRAINING =
+  "The bridge is shutting down and takes nothing new until it is back. Send this again in a minute.";
+const DRAIN_POLL_MS = 250;
 
 export type PreflightResult =
   | { kind: "ok" }
@@ -112,7 +117,9 @@ export class TurnFlow {
   private readonly approvals: ApprovalPrompts;
   private readonly questions: QuestionPrompts;
   private readonly outbox: OutboxDelivery;
+  private readonly activeTurns: ActiveTurns;
   private readonly config: Config;
+  private draining = false;
 
   constructor(
     capabilities: CapabilityCache,
@@ -122,6 +129,7 @@ export class TurnFlow {
     approvals: ApprovalPrompts,
     questions: QuestionPrompts,
     outbox: OutboxDelivery,
+    activeTurns: ActiveTurns,
     config: Config,
   ) {
     this.capabilities = capabilities;
@@ -131,7 +139,32 @@ export class TurnFlow {
     this.approvals = approvals;
     this.questions = questions;
     this.outbox = outbox;
+    this.activeTurns = activeTurns;
     this.config = config;
+  }
+
+  // Running and queued turns together: what a shutdown has to wait for.
+  activeCount(): number {
+    return this.queue.total();
+  }
+
+  // Nothing new is admitted; what was already accepted runs to the end, queued messages included.
+  async drain(onProgress: (turns: number) => void): Promise<void> {
+    this.draining = true;
+    let last = -1;
+    while (this.activeCount() > 0) {
+      if (this.activeCount() !== last) {
+        last = this.activeCount();
+        onProgress(last);
+      }
+      await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
+    }
+  }
+
+  stopAll(): void {
+    this.draining = true;
+    for (const sessionId of [...this.running.keys()]) this.stop(sessionId);
+    for (const sessionId of this.queue.keys()) this.queue.drain(sessionId);
   }
 
   // Reading the transcript for a ceiling is expensive, so it happens once per session.
@@ -173,6 +206,10 @@ export class TurnFlow {
     sink: MessageSink,
     options: TurnOptions,
   ): Promise<boolean> {
+    if (this.draining) {
+      await sink.notice(DRAINING);
+      return false;
+    }
     const admission = this.queue.admit(sessionId);
     if (admission.kind === "full") {
       await sink.notice(admission.message);
@@ -200,6 +237,8 @@ export class TurnFlow {
   ): Promise<void> {
     const status = new StatusMessage(sink, Date.now, [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }]);
     await status.start();
+    const anchor = sink.anchor?.();
+    if (anchor) await this.activeTurns.record(sessionId, anchor);
 
     const tracker = this.trackerFor(sessionId);
     const pending: Array<Promise<void>> = [];
@@ -245,6 +284,7 @@ export class TurnFlow {
       status.stop();
       this.approvals.finish(sessionId);
       this.questions.finish(sessionId);
+      await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
       this.stopping.delete(sessionId);
     }

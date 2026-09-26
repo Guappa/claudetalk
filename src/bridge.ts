@@ -13,6 +13,8 @@ import { SessionIndex } from "./sessions/index.ts";
 import { PendingCreates } from "./discord/pendingCreate.ts";
 import { ApprovalPrompts } from "./discord/approvals.ts";
 import { QuestionPrompts } from "./discord/questions.ts";
+import { ActiveTurns } from "./discord/activeTurns.ts";
+import path from "node:path";
 
 export interface Bridge {
   config: Config;
@@ -23,6 +25,7 @@ export interface Bridge {
   planUsage: PlanUsage;
   approvals: ApprovalPrompts;
   questions: QuestionPrompts;
+  activeTurns: ActiveTurns;
   outbox: OutboxDelivery;
   flow: TurnFlow;
   sessions: SessionIndex;
@@ -47,6 +50,8 @@ export async function createBridge(config: Config): Promise<Bridge> {
   const planUsage = new PlanUsage();
   const approvals = new ApprovalPrompts();
   const questions = new QuestionPrompts();
+  const activeTurns = new ActiveTurns(path.join(path.dirname(config.bindingsPath), "turns.json"));
+  await activeTurns.load();
   const outbox = new OutboxDelivery();
   const trackers = new Map<string, ContextTracker>();
   const trackerFor = (sessionId: string): ContextTracker => {
@@ -66,8 +71,9 @@ export async function createBridge(config: Config): Promise<Bridge> {
     planUsage,
     approvals,
     questions,
+    activeTurns,
     outbox,
-    flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, config),
+    flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, activeTurns, config),
     sessions: new SessionIndex(),
     pendingCreates: new PendingCreates(),
   };

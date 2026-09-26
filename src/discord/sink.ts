@@ -7,7 +7,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from "discord.js";
-import type { AskHandle, MessageSink, SinkAction, SinkFile, SinkMenu } from "./messageSink.ts";
+import type { AskHandle, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
 import { redactHome } from "../displayPath.ts";
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
@@ -101,6 +101,9 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
     typing(): void {
       // A failed keepalive is cosmetic; it must never take a turn down.
       if ("sendTyping" in channel) void channel.sendTyping().catch(() => undefined);
+    },
+    anchor(): SinkAnchor | null {
+      return owned ? { channelId: owned.channelId, messageId: owned.id } : null;
     },
     // An ask owns its own message, so it never fights the status message for the one this sink edits.
     async ask(text: string, actions: SinkAction[]): Promise<AskHandle> {

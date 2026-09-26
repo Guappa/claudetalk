@@ -69,6 +69,8 @@ WorkingDirectory=$project_root
 ExecStart=$node_bin --env-file-if-exists=.env --experimental-strip-types src/index.ts
 Restart=on-failure
 RestartSec=10
+# A stop waits for the turn in flight; a turn can run for many minutes, and a kill would cut it short.
+TimeoutStopSec=1800
 # A missing token fails the same way every time, so stop rather than loop on it forever.
 StartLimitIntervalSec=300
 StartLimitBurst=5

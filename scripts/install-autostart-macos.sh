@@ -110,6 +110,8 @@ case "$action" in
     </dict>
     <key>ThrottleInterval</key>
     <integer>10</integer>
+    <key>ExitTimeOut</key>
+    <integer>1800</integer>
     <key>StandardOutPath</key>
     <string>$escaped_log</string>
     <key>StandardErrorPath</key>

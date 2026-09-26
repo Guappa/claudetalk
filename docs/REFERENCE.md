@@ -372,6 +372,15 @@ away from it, so a long `ping`, build or generation can outlive the stop and
 has to be dealt with on the host; the reply says so. Anything deliberately
 detached is untouched.
 
+Stopping the bridge itself is different: `npm run stop` on the host lets every
+turn in flight finish, queued messages included, and admits nothing new until
+the bridge is back. A message sent meanwhile is answered with a notice saying
+so. `npm run stop:now` ends the running turns the way `/stop` does, and each
+progress message says "Stopped." If the bridge dies without either, killed or
+crashed, the progress message it left behind is edited on its next start to say
+it was interrupted, and the next message to that channel resumes the
+conversation from where the transcript ends.
+
 ### Messages sent while it runs
 
 A message sent mid-turn is queued and runs when the current one finishes. The
