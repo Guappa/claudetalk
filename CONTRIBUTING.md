@@ -82,13 +82,20 @@ feature on a private repository. The convention stands regardless.
 | `feat:` | minor | Something new that does not disturb what was there |
 | `!` or `BREAKING CHANGE:` | major | An existing command, config key or file layout changed shape |
 
-A release is a tag, cut on `main` after the pull request has merged:
+A release is a tag on the merged commit. The version bump rides in the pull
+request's last commit, so it lands with the work and costs no extra commit or
+CI run on `main`:
 
 ```bash
+npm version minor --no-git-tag-version   # in the PR: bumps package.json and the lockfile
+git commit -am "feat(scope): ..."         # the bump goes into the commit it belongs to
+# after the PR has merged
 git switch main && git pull
-npm version minor -m "chore(release): %s"   # bumps package.json, commits, tags vX.Y.Z
-git push --follow-tags
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
+
+The tag and the number must agree: the release workflow verifies the tag, and
+the notes name the version from it.
 
 Pushing the tag is the whole release. A workflow reads the commits it contains,
 groups them by type and publishes a GitHub Release with those notes, so watchers
