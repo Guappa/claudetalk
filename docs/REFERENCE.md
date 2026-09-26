@@ -341,9 +341,13 @@ whose only remark was the answer keeps no trail.
 A turn is not time limited. Anything written to the conversation's outbox
 folder is delivered as it appears, not only at the end, so a long job's output
 arrives while it runs. A file is left alone until untouched for three seconds, and removed only
-once the attachment has gone out. That also covers work which outlives its turn:
-a background shell left running belongs to a process that exits when the turn
-does, and whatever it writes afterwards is picked up by the same sweep.
+once the attachment has gone out.
+
+A command Claude starts in the background keeps the turn open. Claude's first
+answer, usually that it is waiting, shows in the trail, and when the command
+finishes Claude picks up its output in a follow-up that is part of the same turn,
+with tools working as they did before. The answer that lands beneath the trail
+is the follow-up's. The Stop button ends both.
 
 ### Stopping it
 
