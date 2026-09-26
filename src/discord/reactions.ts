@@ -1,4 +1,4 @@
-import type { Message } from "discord.js";
+import type { Message, MessageReaction } from "discord.js";
 
 export type TurnState = "queued" | "running" | "waiting" | "done" | "stopped" | "failed";
 
@@ -16,14 +16,14 @@ export type StateMarker = (state: TurnState) => Promise<void>;
 
 // One reaction at a time on the message that started the turn; a reaction that fails is cosmetic, never the turn's problem.
 export function reactionMarker(message: Message, botId: string): StateMarker {
-  let current: string | null = null;
+  let current: MessageReaction | null = null;
   return async (state) => {
     const next = STATE_EMOJI[state];
-    if (next === current) return;
+    if (current?.emoji.name === next) return;
     try {
-      if (current) await message.reactions.resolve(current)?.users.remove(botId);
-      await message.react(next);
-      current = next;
+      // The client keeps no reaction cache, so the one to remove is the one react() handed back.
+      if (current) await current.users.remove(botId);
+      current = await message.react(next);
     } catch {
       current = null;
     }
