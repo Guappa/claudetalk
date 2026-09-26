@@ -26,6 +26,7 @@ this covers behaviour.
 | `/skills` | O | Lists the bound session's skills, A to Z across up to five menus of twenty-five, and runs the one you pick. Past 125 the rest are counted and reachable by sending `/name` as a message. |
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |
+| `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, nothing remembered. The previous conversation stays on the host. The channel's messages are kept. |
 | `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
 | `/takeover` | O | Stops a background agent holding this conversation, then continues. |
@@ -292,10 +293,10 @@ unchanged: `/compact`, `/context`, `/usage`, `/recap`, `/mcp`, `/config`,
 reports as terminal-only (`/doctor`, `/color`, `/reload-plugins`) are refused
 with an explanation; the list is read from the session, not hardcoded.
 
-`/clear` is not passed through: in Claude Code it wipes the conversation's
-memory, in a chat channel people expect it to clear messages, so the bridge
-refuses it and names both, `/purge` for the channel and `/clear` in a terminal
-for the session. `/model` and `/effort` are not passed through either, since
+`/clear` is not passed through: every message here runs a new process resumed
+against the bound session id, so the fresh session it would start is one the
+channel could never reach. The bridge refuses it and points at its own
+`/clear` command instead. `/model` and `/effort` are not passed through either, since
 they apply to one process and every message here runs a new one; the bridge
 stores them per conversation instead.
 
@@ -496,6 +497,18 @@ repopulates the channel and the next message picks up where the transcript left
 off. Discord refuses to bulk delete messages older than 14 days, so those go
 one at a time with a pause; the result says how many took the slow path and how
 many could not be deleted.
+
+## Starting a conversation over
+
+`/clear` is the bridge's version of Claude Code's `/clear`: after a confirmation
+button, the channel is rebound to a new conversation in the same folder with the
+same model, effort, members and mention-only setting, and Claude opens it with a
+one-line hello. Nothing from the previous conversation is remembered. That
+conversation stays on the host with its transcript intact; `/sessions` lists it
+and `/resume` with its session id reopens it in a channel of its own. The
+channel's messages are left as they are, so the history reads on; `/purge`
+removes them if a clean channel is wanted too. It refuses while a turn is
+running here.
 
 ## State on disk
 

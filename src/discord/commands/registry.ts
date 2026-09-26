@@ -136,6 +136,10 @@ export function bridgeCommandDefinitions() {
       .setDescription("Delete every message in this channel; the conversation is kept"),
 
     new SlashCommandBuilder()
+      .setName("clear")
+      .setDescription("Start this channel over with a fresh conversation; the old one stays on the host"),
+
+    new SlashCommandBuilder()
       .setName("stop")
       .setDescription("Stop the in-flight turn; what is queued behind it runs next")
       .addBooleanOption((option) =>

@@ -22,6 +22,7 @@ const OPERATOR_COMMANDS = new Set([
   "unbind",
   "takeover",
   "purge",
+  "clear",
 ]);
 
 export interface AccessContext {

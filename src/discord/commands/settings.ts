@@ -15,9 +15,9 @@ const BRIDGE_OWNED = new Set(["model", "effort", "fallback-model", "autocompact"
 const AMBIGUOUS = new Map([
   [
     "clear",
-    "`/clear` means two different things here. To wipe this channel's messages use `/purge`. " +
-      "To wipe the conversation's memory on the host, run `/clear` in a terminal, where it is " +
-      "clear which one you are destroying.",
+    "`/clear` typed as a message would start a session this channel cannot see. Use this bot's own " +
+      "`/clear` command, which starts the conversation over in this channel, or `/purge` to delete " +
+      "the channel's messages.",
   ],
 ]);
 const COMMAND_PATTERN = /^\/([a-z][a-z0-9-]*(?::[a-z0-9-]+)*)(?:\s|$)/i;
