@@ -617,6 +617,22 @@ describe("StatusMessage", () => {
     expect(sink.messages[0]).not.toContain("Working");
   });
 
+  // Links are resolved once per message, when it is final, never on the two-second edits.
+  it("finalizes a sealed segment and the settled trail, and nothing in between", async () => {
+    const sink = recordingSink();
+    const finalize = vi.fn(async (text: string) => text.replace("e2ea070", "[e2ea070](<url>)"));
+    const status = new StatusMessage(sink, () => 0, [], undefined, finalize);
+    await status.start();
+    status.note("Landed e2ea070.");
+    sink.othersBelow = true;
+    status.note("Then more.");
+    await status.settle();
+
+    expect(finalize).toHaveBeenCalledTimes(2);
+    expect(sink.messages[0]).toBe("Landed [e2ea070](<url>).");
+    expect(sink.messages[1]).toContain("**Worked**");
+  });
+
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
     const sink = recordingSink();
     const moved = vi.fn(async () => undefined);
@@ -1543,10 +1559,10 @@ describe("repo links", () => {
     expect([...collectReferences("`e2ea070 fix: subject`").hashes]).toEqual(["e2ea070"]);
   });
 
-  it("links a plain owner/repo written in a code span to that repository on the same host", () => {
-    expect(linkReferences("Forked from `someone-else/thing`.", links)).toBe(
-      "Forked from [someone-else/thing](<https://github.com/someone-else/thing>).",
-    );
+  // A slash in a code span is not a repository: media types, key paths and ratios all look the same.
+  it("leaves an owner/repo-shaped code span alone", () => {
+    const text = "Forked from `someone-else/thing`, served as `application/javascript`.";
+    expect(linkReferences(text, links)).toBe(text);
   });
 
   it("uses each host's own path shapes, including GitLab's merge requests", () => {

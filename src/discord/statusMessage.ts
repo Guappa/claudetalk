@@ -87,17 +87,21 @@ export class StatusMessage {
   private readonly now: () => number;
   private readonly actions: SinkAction[];
   private readonly onContinue: (() => Promise<void>) | undefined;
+  private readonly finalize: (text: string) => Promise<string>;
 
+  // finalize runs once per message when it is final, so a lookup per edit is never paid.
   constructor(
     sink: MessageSink,
     now: () => number = Date.now,
     actions: SinkAction[] = [],
     onContinue?: () => Promise<void>,
+    finalize: (text: string) => Promise<string> = async (text) => text,
   ) {
     this.sink = sink;
     this.now = now;
     this.actions = actions;
     this.onContinue = onContinue;
+    this.finalize = finalize;
   }
 
   async start(): Promise<void> {
@@ -157,7 +161,8 @@ export class StatusMessage {
   async settle(): Promise<void> {
     this.stop();
     await this.pendingEdit;
-    await this.sink.edit(renderActivity(this.notes, this.now() - this.startedAt, this.steps, true), []);
+    const trail = renderActivity(this.notes, this.now() - this.startedAt, this.steps, true);
+    await this.sink.edit(await this.finalize(trail), []);
   }
 
   stop(): void {
@@ -190,7 +195,7 @@ export class StatusMessage {
     this.moving = true;
     this.chain(async () => {
       try {
-        await this.sink.edit(sealedText, []);
+        await this.sink.edit(await this.finalize(sealedText), []);
         await this.sink.continueIn!(renderActivity(this.notes, this.now() - this.startedAt, this.steps), this.actions);
         await this.onContinue?.();
       } finally {

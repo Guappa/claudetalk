@@ -353,13 +353,12 @@ beneath the message. A bare URL is kept clickable, a domain name becomes a link
 to it, and when the working directory has an `origin` remote the repository's
 own references do too: commit hashes, `#` numbers for pull requests and issues,
 `!` numbers for merge requests on GitLab, branch and tag names written in code
-spans, file paths with an optional `:line` or `:from-to`, and a plain
-`owner/repo` in a code span, which links to that repository on the same host.
-Each repository reference is checked first, so a word that merely looks like a
-hash, or a path that does not exist, stays plain text. GitHub, GitLab and
-Bitbucket get their own link shapes, self-hosted GitLab included; any other host
-gets GitHub's, which Gitea, Forgejo and Codeberg share. The live trail keeps
-plain text.
+spans, and file paths with an optional `:line` or `:from-to`. Each repository
+reference is checked first, so a word that merely looks like a hash, or a path
+that does not exist, stays plain text. GitHub, GitLab and Bitbucket get their
+own link shapes, self-hosted GitLab included; any other host gets GitHub's,
+which Gitea, Forgejo and Codeberg share. The trail gets the same links once a
+message of it is final, not on the edits in between.
 
 A turn is not time limited. Anything written to the conversation's outbox
 folder is delivered as it appears, not only at the end, so a long job's output
