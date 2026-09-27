@@ -1689,6 +1689,15 @@ describe("repo links", () => {
     );
   });
 
+  it("wraps the target of a link written in the answer, and leaves a wrapped or relative one alone", () => {
+    const written = "The guide is in [Scripting Patterns](https://example.org/wiki/scripting).";
+    const wrapped = "The guide is in [Scripting Patterns](<https://example.org/wiki/scripting>).";
+    expect(linkPlain(written)).toBe(wrapped);
+    expect(linkReferences(written, links)).toBe(wrapped);
+    expect(linkPlain(wrapped)).toBe(wrapped);
+    expect(linkPlain("See [the notes](docs/notes.md).")).toBe("See [the notes](docs/notes.md).");
+  });
+
   // The usual way a commit is quoted is hash and subject in one code span; the hash is the reference.
   it("links the hash out of a code span that quotes a commit with its subject", () => {
     expect(linkReferences("On top of `e2ea070 fix(validator): reject a location`.", links)).toBe(
