@@ -96,12 +96,14 @@ feature on a private repository. The convention stands regardless.
 | `feat:` | minor | Something new that does not disturb what was there |
 | `!` or `BREAKING CHANGE:` | major | An existing command, config key or file layout changed shape |
 
-A release is a tag on the merged commit. The version bump rides in the pull
-request's last commit, so it lands with the work and costs no extra commit or
-CI run on `main`:
+A release is a tag on a merged commit, and it batches work: small fixes and
+additions merge without a bump and wait on `main` for the next one. The level
+is decided by everything merged since the last tag, and the bump rides in the
+last pull request of the batch, so it costs no extra commit or CI run on
+`main`:
 
 ```bash
-npm version minor --no-git-tag-version   # in the PR: bumps package.json and the lockfile
+npm version minor --no-git-tag-version   # in the batch's last PR: bumps package.json and the lockfile
 git commit -am "feat(scope): ..."         # the bump goes into the commit it belongs to
 # after the PR has merged
 git switch main && git pull
