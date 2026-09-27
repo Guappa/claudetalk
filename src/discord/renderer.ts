@@ -1,6 +1,5 @@
 export const DISCORD_MESSAGE_LIMIT = 2000;
 const FENCE_CLOSE = "\n```";
-const MAX_CHUNKS_BEFORE_FILE = 4;
 const FENCE = /^```/;
 const PLACEHOLDER = "_(no output)_";
 
@@ -49,8 +48,4 @@ export function chunkForDiscord(text: string, limit = DISCORD_MESSAGE_LIMIT): st
   // A flush that only reopened a fence leaves an empty code block, which is not worth sending.
   if (lines.length > (openFence ? 1 : 0)) flush();
   return chunks.length > 0 ? chunks : [PLACEHOLDER];
-}
-
-export function shouldSpillToFile(chunks: string[]): boolean {
-  return chunks.length > MAX_CHUNKS_BEFORE_FILE;
 }

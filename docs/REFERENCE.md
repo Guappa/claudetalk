@@ -22,7 +22,7 @@ this covers behaviour.
 | `/model [value]` | O | Shows or sets the model for this conversation. Persists across turns. Unset, it names the host default turns actually run with. |
 | `/effort [value]` | O | Shows or sets the effort level. Persists across turns. Unset, it names the host default turns actually run with. |
 | `/ask <prompt> [context:N]` | O | Asks with the last N channel messages as context. `N` is 1 to 50. |
-| `/sync` | O | Posts what happened in this conversation outside Discord since you last saw it, prompts and replies only. Turns the bridge itself ran are marked seen when they end, so they never come back as drift. |
+| `/sync` | O | Posts where you left off outside Discord: the latest few prompts and replies since you last saw it, with all of them attached as a file when there are more than fit in one message. Turns the bridge itself ran are marked seen when they end, so they never come back as drift. |
 | `/skills` | O | Lists the bound session's skills, A to Z across up to five menus of twenty-five, and runs the one you pick. Past 125 the rest are counted and reachable by sending `/name` as a message. |
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |

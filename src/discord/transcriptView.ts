@@ -2,6 +2,8 @@ import type { Exchange } from "../sessions/exchanges.ts";
 import { count, truncate } from "../text.ts";
 
 const MAX_EXCHANGE_CHARS = 1200;
+// Where you left off is a glance at the last few messages; the whole run belongs in a file.
+const MAX_RECENT = 4;
 
 export type ClockStyle = "discord" | "plain";
 
@@ -18,6 +20,17 @@ function formatExchange(exchange: Exchange, style: ClockStyle): string {
 
 export function formatExchanges(exchanges: Exchange[], style: ClockStyle = "discord"): string {
   return exchanges.map((exchange) => formatExchange(exchange, style)).join("\n\n");
+}
+
+// Newest last, as many of the latest as fit the budget together; the newest one always fits on its own.
+export function latestThatFit(exchanges: Exchange[], budget: number): Exchange[] {
+  const recent: Exchange[] = [];
+  for (let index = exchanges.length - 1; index >= 0 && recent.length < MAX_RECENT; index -= 1) {
+    const exchange = exchanges[index]!;
+    if (recent.length > 0 && formatExchanges([exchange, ...recent]).length > budget) break;
+    recent.unshift(exchange);
+  }
+  return recent;
 }
 
 export function describeDrift(exchanges: Exchange[]): string {

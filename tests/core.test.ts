@@ -35,7 +35,7 @@ import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
 import type { ClaudeEvent } from "../src/claude/events.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
-import { chunkForDiscord, shouldSpillToFile, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
+import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
 import {
   StatusMessage,
   formatElapsed,
@@ -141,7 +141,7 @@ import {
   SETTLE_MS,
 } from "../src/discord/outbox.ts";
 import { readExchanges, lastExchanges, lastCompactionCeiling } from "../src/sessions/exchanges.ts";
-import { formatExchanges, describeDrift } from "../src/discord/transcriptView.ts";
+import { formatExchanges, describeDrift, latestThatFit } from "../src/discord/transcriptView.ts";
 import {
   attributionOnly,
   buildContext,
@@ -489,16 +489,6 @@ describe("chunkForDiscord", () => {
 
   it("returns a placeholder for empty text so Discord never rejects the send", () => {
     expect(chunkForDiscord("")).toEqual(["_(no output)_"]);
-  });
-});
-
-describe("shouldSpillToFile", () => {
-  it("is false at four chunks", () => {
-    expect(shouldSpillToFile(new Array(4).fill("x"))).toBe(false);
-  });
-
-  it("is true at five", () => {
-    expect(shouldSpillToFile(new Array(5).fill("x"))).toBe(true);
   });
 });
 
@@ -2171,6 +2161,23 @@ describe("transcript view", () => {
   it("truncates a very long exchange", () => {
     const long = [{ at: new Date("2026-09-13T14:32:00Z"), role: "assistant" as const, text: "x".repeat(5000) }];
     expect(formatExchanges(long).length).toBeLessThan(1400);
+  });
+
+  // Catching up means where you left off; fifty-five messages inline is a wall, not a glance.
+  it("keeps only the latest few messages that fit, newest last", () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({
+      at: new Date(Date.UTC(2026, 8, 13, 14, index)),
+      role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
+      text: `message ${index}`,
+    }));
+    expect(latestThatFit(many, 1880).map((exchange) => exchange.text)).toEqual([
+      "message 6", "message 7", "message 8", "message 9",
+    ]);
+
+    const long = many.map((exchange) => ({ ...exchange, text: "y".repeat(1200) }));
+    const fitted = latestThatFit(long, 1880);
+    expect(fitted).toEqual([long[9]]);
+    expect(latestThatFit(long.slice(0, 1), 10)).toEqual([long[0]]);
   });
 
   it("describes drift with a count and the last time", () => {
