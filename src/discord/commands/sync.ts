@@ -2,9 +2,12 @@ import { AttachmentBuilder, type ChatInputCommandInteraction } from "discord.js"
 import type { Bridge } from "../../bridge.ts";
 import { requireConversation } from "../binding.ts";
 import { markCaughtUp, pendingDrift } from "../sync.ts";
-import { formatExchanges } from "../transcriptView.ts";
-import { chunkForDiscord, shouldSpillToFile } from "../renderer.ts";
+import { formatExchanges, latestThatFit } from "../transcriptView.ts";
+import { DISCORD_MESSAGE_LIMIT } from "../renderer.ts";
 import { respond } from "../respond.ts";
+import { count } from "../../text.ts";
+
+const HEADER_ROOM = 120;
 
 export async function handleSync(
   bridge: Bridge,
@@ -30,17 +33,19 @@ export async function handleSync(
     return;
   }
 
-  const chunks = chunkForDiscord(formatExchanges(drift));
-  if (shouldSpillToFile(chunks)) {
+  const recent = latestThatFit(drift, DISCORD_MESSAGE_LIMIT - HEADER_ROOM);
+  const view = formatExchanges(recent);
+  const total = count(drift.length, "message");
+  if (recent.length === drift.length) {
+    await respond(interaction, `${total} from outside Discord:\n\n${view}`);
+  } else {
     const file = new AttachmentBuilder(Buffer.from(formatExchanges(drift, "plain"), "utf8"), {
       name: `catch-up-${drift.length}-messages.md`,
     });
-    await respond(interaction, { content: `${drift.length} messages from outside Discord:`, files: [file] });
-  } else {
-    await respond(interaction, chunks[0] ?? "_(nothing)_");
-    if (interaction.channel?.isSendable()) {
-      for (const chunk of chunks.slice(1)) await interaction.channel.send(chunk);
-    }
+    await respond(interaction, {
+      content: `${total} from outside Discord. Where you left off, with all of them in the file:\n\n${view}`,
+      files: [file],
+    });
   }
 
   await markCaughtUp(bridge, conversation);
