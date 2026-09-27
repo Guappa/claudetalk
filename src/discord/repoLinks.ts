@@ -105,11 +105,11 @@ const HASH = /^[0-9a-f]{7,40}$/;
 const FILE = /^((?:[\w.-]+\/)*[\w-][\w.-]*\.\w+)(?::(\d+)(?:-(\d+))?)?$/;
 const NAME = /^[\w][\w.\-\/]*$/;
 const TRAILING_PUNCTUATION = /[.,;:!?)]+$/;
-// Fences and existing links pass through untouched; everything else is scanned for something worth a link.
+// Fences pass through untouched and an existing link keeps its text; everything else is scanned for something worth a link.
 const TOKENS = new RegExp(
   [
     "(?<fence>```[\\s\\S]*?```)",
-    "(?<mdlink>\\[[^\\]\\n]*\\]\\([^)\\n]*\\))",
+    "(?<mdlink>\\[(?<mdtext>[^\\]\\n]*)\\]\\((?<mdurl>[^)\\n]*)\\))",
     "(?<url><?https?://[^\\s>]+>?)",
     "`(?<span>[^`\\n]+)`",
     "(?<![\\w#/])#(?<issue>\\d+)\\b",
@@ -178,6 +178,7 @@ export function collectReferences(text: string): References {
 export function linkReferences(text: string, links: ReferenceLinks): string {
   return text.replace(TOKENS, (whole: string, ...rest: unknown[]) => {
     const groups = rest.at(-1) as Record<string, string | undefined>;
+    if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
     if (groups.span) return linkSpan(groups.span, links) ?? whole;
     if (groups.issue) return link(whole, links.issue(groups.issue));
     if (groups.merge) {
@@ -208,10 +209,17 @@ function wrapUrl(token: string): string {
   return `<${target}>${tail}`;
 }
 
+// A link Claude wrote itself would otherwise hang an embed under the message just as a bare URL does.
+function wrapLinkTarget(whole: string, text: string | undefined, target: string | undefined): string {
+  if (text === undefined || !target || !/^https?:\/\/\S+$/.test(target)) return whole;
+  return link(text, target);
+}
+
 // Bare URLs and domains need no repository, so they are linked even where nothing else can be.
 export function linkPlain(text: string): string {
   return text.replace(TOKENS, (whole: string, ...rest: unknown[]) => {
     const groups = rest.at(-1) as Record<string, string | undefined>;
+    if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
     if (groups.url) return wrapUrl(whole);
     if (groups.domain) {
       const [target, tail] = splitTrailing(`${groups.domain}${groups.dpath ?? ""}`);

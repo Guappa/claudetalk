@@ -361,7 +361,8 @@ bold, more become an aligned code block with inline markup dropped, since it
 would show as literal punctuation there.
 
 References in the answer become links, written so that Discord adds no embed
-beneath the message. A bare URL is kept clickable, a domain name becomes a link
+beneath the message. A bare URL is kept clickable, a link Claude writes itself
+keeps its text with the target wrapped the same way, a domain name becomes a link
 to it, and when the working directory has an `origin` remote the repository's
 own references do too: commit hashes, `#` numbers for pull requests and issues,
 `!` numbers for merge requests on GitLab, branch and tag names written in code
