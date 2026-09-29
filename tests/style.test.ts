@@ -202,3 +202,20 @@ describe("docs follow code", () => {
     expect(found).toEqual([]);
   });
 });
+
+describe("everything posted to Discord passes the outgoing gate", () => {
+  // A path or a stray marker that skips forDiscord reaches the channel as written; the sink gates its payloads itself.
+  it("sends text to Discord only through forDiscord", () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      if (["sink.ts", "outgoing.ts"].includes(path.basename(file))) continue;
+      const source = fs.readFileSync(file, "utf8");
+      for (const call of source.matchAll(/(\w+)\??\.(?:send|reply|editReply|followUp|update|edit)\(/g)) {
+        if (/sink$/i.test(call[1]!)) continue;
+        const statement = source.slice(call.index, source.indexOf(";", call.index));
+        if (!statement.includes("forDiscord")) offenders.push(`${path.basename(file)}: ${call[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+});

@@ -8,10 +8,9 @@ import {
   StringSelectMenuOptionBuilder,
 } from "discord.js";
 import type { AskHandle, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
-import { redactHome } from "../displayPath.ts";
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
-import { defuseStrayMarkup } from "./strayMarkup.ts";
+import { forDiscord } from "./outgoing.ts";
 
 // Discord's limits for a select menu: 100 characters for a label, value or description, 150 for the placeholder.
 const MENU_TEXT_LIMIT = 100;
@@ -58,11 +57,6 @@ function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
     .setMaxValues(menu.multiple ? options.length : 1)
     .addOptions(options);
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
-}
-
-// Every text this sink posts passes through here, so no path can skip the redaction or the markup guard.
-function forDiscord(text: string): string {
-  return defuseStrayMarkup(redactHome(text));
 }
 
 type AnyRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;

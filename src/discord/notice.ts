@@ -1,4 +1,5 @@
 import type { SendableChannels } from "discord.js";
+import { postText } from "./outgoing.ts";
 
 const NOTICE_LIFETIME_MS = 60_000;
 
@@ -8,7 +9,7 @@ export async function sendNotice(
   text: string,
   lifetimeMs: number = NOTICE_LIFETIME_MS,
 ): Promise<void> {
-  const sent = await channel.send(text);
+  const sent = await postText(channel, text);
   const timer = setTimeout(() => void sent.delete().catch(() => undefined), lifetimeMs);
   timer.unref();
 }
