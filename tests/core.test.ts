@@ -1502,7 +1502,17 @@ describe("describeToolUse", () => {
       old_string: "const alpha = 1;\nconst beta = 2;",
       new_string: "const alpha = 10;",
     });
-    expect(shown).toBe("/srv/app/src/thing.ts\n```diff\n- const alpha = 1;\n- const beta = 2;\n+ const alpha = 10;\n```");
+    expect(shown).toBe("`/srv/app/src/thing.ts`\n```diff\n- const alpha = 1;\n- const beta = 2;\n+ const alpha = 10;\n```");
+  });
+
+  // Discord read the underscores in a plain path as italics that ran into the fence and broke it.
+  it("keeps a path with underscores out of Markdown, whichever tool drew it", () => {
+    const input = { file_path: "/srv/app/memory/project_backup_notes.md", old_string: "a", new_string: "b", content: "c" };
+    expect(describeToolUse("Edit", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md`");
+    expect(describeToolUse("MultiEdit", { ...input, edits: [{ old_string: "a", new_string: "b" }] })?.split("\n")[0]).toBe(
+      "`/srv/app/memory/project_backup_notes.md`",
+    );
+    expect(describeToolUse("Write", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md` (1 line)");
   });
 
   it("shows a written file in a block tagged with its language, capped, saying how much is left", () => {

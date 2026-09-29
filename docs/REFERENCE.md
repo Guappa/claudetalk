@@ -334,7 +334,8 @@ addition pushed it past the cap.
 
 Tool calls are counted, and the ones the terminal draws are drawn here too, from
 the call's own input, so they cost the model nothing: an edit shows as a `diff`
-block with its removed and added lines, capped at two dozen, since that is the
+block under its file's path, written as code so no character in a file name
+turns into formatting, with the removed and added lines capped at two dozen, since that is the
 one tag Discord colours by line; a written file shows its first lines in a block
 tagged with its language; a shell command shows as a `$` line in a `bash` or
 `powershell` block. Reads and searches are only counted. Reasoning cannot be shown: thinking arrives over the stream with a
