@@ -94,7 +94,8 @@ import {
 } from "../src/discord/menus.ts";
 import { describeDefault, parseHostDefaults } from "../src/claude/hostSettings.ts";
 import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/purge.ts";
-import { displayPath, redactHome } from "../src/displayPath.ts";
+import { displayPath, homePatterns, redactHome, redactPaths } from "../src/displayPath.ts";
+import { shortPrefix } from "../src/platform.ts";
 import {
   EMBED_DESCRIPTION_LIMIT,
   EMBED_FIELD_LIMIT,
@@ -730,6 +731,59 @@ describe("PendingCreates", () => {
 
   it("returns nothing for a button it never saw", () => {
     expect(new PendingCreates(() => 0).take("unknown")).toBeNull();
+  });
+});
+
+// Paths are assembled from pieces: the private scan rightly refuses a literal home path or short name in the tree.
+describe("no account's path reaches Discord, whoever's it is and however it is spelled", () => {
+  const users = ["C:", "Users"].join("\\");
+  const home = [users, "Pat Doe"].join("\\");
+  const shortHome = [users, "PATDOE" + "~1"].join("\\");
+  const ownHome = homePatterns([home, shortHome]);
+  const slashed = (value: string) => value.split("\\").join("/");
+
+  it("turns every spelling of the running account's home into ~", () => {
+    const flattened = "C--Users-Pat-Doe-Documents-projects-ledger";
+    const cases: Array<[string, string]> = [
+      [`tail -40 "${slashed(shortHome)}/AppData/Local/Temp/claude/${flattened}/abc/tasks/x.output"`,
+        `tail -40 "~/AppData/Local/Temp/claude/~-Documents-projects-ledger/abc/tasks/x.output"`],
+      [`~/.claude/projects/${flattened}/memory/notes.md`, "~/.claude/projects/~-Documents-projects-ledger/memory/notes.md"],
+      [`open file:///${slashed(home).replace(" ", "%20")}/notes.md`, "open file:///~/notes.md"],
+      [`cd ${home}\\ledger`, "cd ~\\ledger"],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
+  });
+
+  it("hides the account in anyone else's home path by its shape alone", () => {
+    const cases: Array<[string, string]> = [
+      [[users, "Sam", "repo", "x.ts"].join("\\"), [users, "…", "repo", "x.ts"].join("\\")],
+      [[users, "SAMUEL" + "~1", "x"].join("\\"), [users, "…", "x"].join("\\")],
+      ["/c/" + "Users/" + "Sam/x", "/c/Users/…/x"],
+      ["/home/" + "sam/src", "/home/…/src"],
+      ["/Users/" + "sam/Desktop", "/Users/…/Desktop"],
+      [`"${slashed(users)}/Jo Ann/notes"`, `"${slashed(users)}/…/notes"`],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
+  });
+
+  it("leaves shared folders, look-alike names and web addresses alone, and settles after one pass", () => {
+    const untouched = [
+      [users, "Public", "Documents"].join("\\"),
+      "/Users/" + "Shared/x",
+      "https://example.com/home/about",
+      "C--Users-Pat-Doe2-elsewhere",
+      "the Users folder",
+    ];
+    for (const text of untouched) expect(redactPaths(text, ownHome)).toBe(text);
+    const once = redactPaths(`${home}\\a and ${[users, "Sam", "b"].join("\\")}`, ownHome);
+    expect(redactPaths(once, ownHome)).toBe(once);
+  });
+
+  it("finds the short spelling of the home folder from the temp folder, and nothing when there is none", () => {
+    const tail = "\\AppData\\Local\\Temp";
+    expect(shortPrefix(home, `${shortHome}${tail}`, `${home}${tail}`)).toBe(shortHome);
+    expect(shortPrefix(home, `${home}${tail}`, `${home}${tail}`)).toBeNull();
+    expect(shortPrefix("/home/" + "pat", "/tmp", "/tmp")).toBeNull();
   });
 });
 
