@@ -39,6 +39,11 @@ function fenced(kind: string, lines: string[]): string {
   return `\`\`\`${kind}\n${lines.map(safe).join("\n")}\n\`\`\``;
 }
 
+// Plain text above a fence is parsed as Markdown, and an underscore in a path can open italics that swallow the fence.
+function pathHeading(filePath: string): string {
+  return `\`${displayPath(filePath)}\``;
+}
+
 function diffLines(before: string, after: string): string[] {
   const removed = before ? before.split("\n").map((line) => `- ${line}`) : [];
   const added = after ? after.split("\n").map((line) => `+ ${line}`) : [];
@@ -48,7 +53,7 @@ function diffLines(before: string, after: string): string[] {
 function editDiff(input: Record<string, unknown>): string | null {
   const filePath = text(input.file_path);
   if (!filePath) return null;
-  return `${displayPath(filePath)}\n${fenced("diff", capped(diffLines(text(input.old_string), text(input.new_string))))}`;
+  return `${pathHeading(filePath)}\n${fenced("diff", capped(diffLines(text(input.old_string), text(input.new_string))))}`;
 }
 
 function multiEditDiff(input: Record<string, unknown>): string | null {
@@ -59,7 +64,7 @@ function multiEditDiff(input: Record<string, unknown>): string | null {
     ...(index > 0 ? [""] : []),
     ...diffLines(text(edit.old_string), text(edit.new_string)),
   ]);
-  return `${displayPath(filePath)}\n${fenced("diff", capped(lines))}`;
+  return `${pathHeading(filePath)}\n${fenced("diff", capped(lines))}`;
 }
 
 // Discord highlights a block by its tag; an extension it does not know gets no tag rather than a wrong one.
@@ -108,7 +113,7 @@ function writeSummary(input: Record<string, unknown>): string | null {
   const filePath = text(input.file_path);
   if (!filePath) return null;
   const lines = text(input.content).split("\n");
-  return `${displayPath(filePath)} (${count(lines.length, "line")})\n${fenced(languageFor(filePath), capped(lines))}`;
+  return `${pathHeading(filePath)} (${count(lines.length, "line")})\n${fenced(languageFor(filePath), capped(lines))}`;
 }
 
 function command(input: Record<string, unknown>, shell: string): string | null {
