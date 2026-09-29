@@ -361,6 +361,15 @@ arrives anyway is converted: two columns become a list with the first cell in
 bold, more become an aligned code block with inline markup dropped, since it
 would show as literal punctuation there.
 
+Discord parses a whole message as one run of inline formatting, so an inline
+code span, bold, italics, strikethrough, spoiler or link left open in one place
+closes wherever the next matching marker sits: past blank lines, inside a code
+block, in the next remark. Everything the bridge posts is checked against
+Discord's own rules first, and a marker that cannot close within its own
+stretch of text is escaped so it shows as the character it is. Each remark in
+the trail and each exchange `/sync` posts is sealed on its own, since several
+share one message. Code blocks are left exactly as written.
+
 References in the answer become links, written so that Discord adds no embed
 beneath the message. A bare URL is kept clickable, a link Claude writes itself
 keeps its text with the target wrapped the same way, a domain name becomes a link

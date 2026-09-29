@@ -39,7 +39,7 @@ function fenced(kind: string, lines: string[]): string {
   return `\`\`\`${kind}\n${lines.map(safe).join("\n")}\n\`\`\``;
 }
 
-// Plain text above a fence is parsed as Markdown, and an underscore in a path can open italics that swallow the fence.
+// A path is code, so no character in a file name reads as formatting.
 function pathHeading(filePath: string): string {
   return `\`${displayPath(filePath)}\``;
 }

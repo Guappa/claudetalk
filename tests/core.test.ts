@@ -63,6 +63,7 @@ import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWeb
 import { execFileSync } from "node:child_process";
 import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
+import { defuseStrayMarkup } from "../src/discord/strayMarkup.ts";
 import { STATE_EMOJI } from "../src/discord/reactions.ts";
 import { describeStopTurn } from "../src/discord/turnFlow.ts";
 import { stopActionId, stopAllActionId } from "../src/discord/menus.ts";
@@ -1534,6 +1535,81 @@ describe("describeToolUse", () => {
   it("never lets a fence inside the content close the block early", () => {
     const shown = describeToolUse("Edit", { file_path: "/srv/app/README.md", old_string: "```js", new_string: "```ts" });
     expect(shown?.match(/```/g)).toHaveLength(2);
+  });
+});
+
+// Discord closes an open marker wherever the next one sits, fences included, so nothing may be left open.
+describe("stray markup never reaches past its own text", () => {
+  const fence = "```";
+  const block = `${fence}bash\n$ ls\n${fence}`;
+
+  it("makes a backtick left open by an escaped one literal, so the block after it survives", () => {
+    const remark = "The chip `[Guide \\`intro\\`](#top)` loses its underline.";
+    expect(defuseStrayMarkup(`${remark}\n\n${block}`)).toBe(
+      `The chip \`[Guide \\\`intro\\\`](#top)\\\` loses its underline.\n\n${block}`,
+    );
+  });
+
+  it("makes an underscore literal when its italics would close inside the block below", () => {
+    const text = `Renamed old_name in the notes\n\n${fence}diff\n- keep_it\n${fence}`;
+    expect(defuseStrayMarkup(text)).toBe(`Renamed old\\_name in the notes\n\n${fence}diff\n- keep_it\n${fence}`);
+  });
+
+  it("does the same for every marker that has to close: bold, underline, strikethrough, spoiler, link", () => {
+    for (const marker of ["**", "__", "~~", "||"]) {
+      const out = defuseStrayMarkup(`left ${marker}open\n\n${block}`);
+      expect(out.endsWith(block)).toBe(true);
+      expect(out).not.toContain(`left ${marker}open`);
+    }
+    expect(defuseStrayMarkup(`see [the notes\n\n${block}`)).toBe(`see \\[the notes\n\n${block}`);
+  });
+
+  it("leaves markup that closes where it opens, and tokens Discord takes whole, exactly as written", () => {
+    const untouched = [
+      "**bold**, *soft*, _soft_, __under__, ~~gone~~, ||hidden||, `code`, ``a ` b``",
+      "- item\n* item\n  * nested",
+      "[a guide](<https://example.org/a_b>) and https://example.org/x_y and <t:1700000000:t> and <@123>",
+      "already \\*escaped\\* and \\_this\\_ too",
+      `${fence}js\nconst left_open = \`x;\n${fence}`,
+    ];
+    for (const text of untouched) expect(defuseStrayMarkup(text)).toBe(text);
+  });
+
+  it("is idempotent, so guarding at the sink after guarding a remark changes nothing", () => {
+    const samples = [
+      "a `b and c_d and **e\n\n```\nx_y\n```\n\nthen f_g `h`",
+      "snake_case_name and [x] done and 2 * 3",
+      "The chip `[Guide \\`intro\\`](#top)` loses its underline.",
+    ];
+    for (const sample of samples) {
+      const once = defuseStrayMarkup(sample);
+      expect(defuseStrayMarkup(once)).toBe(once);
+    }
+  });
+
+  it("seals each remark in the trail on its own, and still recognises the echoed answer", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("The chip `[Guide \\`intro\\`](#top)` loses its underline.");
+    status.note(block);
+    await status.settle();
+    expect(sink.messages[0]).toContain(`\\\` loses its underline.\n\n${block}`);
+
+    const echo = new StatusMessage(recordingSink(), () => 0);
+    echo.note("Renamed old_name only.");
+    echo.dropEcho("Renamed old_name only.");
+    expect(echo.hasNotes()).toBe(false);
+  });
+
+  it("seals each exchange /sync posts, since they share a message", () => {
+    const at = new Date("2026-09-13T14:32:00Z");
+    const out = formatExchanges([
+      { at, role: "user", text: "why is `this open" },
+      { at, role: "assistant", text: block },
+    ]);
+    expect(out).toContain("why is \\`this open");
+    expect(out.endsWith(block)).toBe(true);
   });
 });
 

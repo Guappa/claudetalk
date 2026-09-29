@@ -2,6 +2,7 @@ import { redactHome } from "../displayPath.ts";
 import { count, truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 import { DISCORD_MESSAGE_LIMIT, chunkForDiscord } from "./renderer.ts";
+import { defuseStrayMarkup } from "./strayMarkup.ts";
 
 const MAX_NOTES_SHOWN = 10;
 // Discord caps a message at 2000, and the log has to stay under it however long a turn runs.
@@ -85,9 +86,9 @@ function tidy(text: string): string {
   return redactHome(text).replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-// Whitespace never decides whether two texts are the same remark.
+// Whitespace and the escapes the markup guard adds never decide whether two texts are the same remark.
 function comparable(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  return text.replace(/\\([^0-9A-Za-z\s])/g, "$1").replace(/\s+/g, " ").trim();
 }
 
 // The trail reads in time order, like the terminal: a message is left as it stands once it is full or buried.
@@ -143,7 +144,8 @@ export class StatusMessage {
   note(text: string): void {
     const clean = tidy(text);
     if (!clean) return;
-    for (const piece of chunkForDiscord(clean, NOTE_BUDGET)) this.addNote(piece);
+    // Remarks share one message, so each is sealed on its own and none can reach into the next.
+    for (const piece of chunkForDiscord(clean, NOTE_BUDGET)) this.addNote(defuseStrayMarkup(piece));
   }
 
   private addNote(piece: string): void {

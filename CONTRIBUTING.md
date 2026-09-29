@@ -247,6 +247,15 @@ window; on Windows 11 that window is Windows Terminal, which ignores
 `-WindowStyle Hidden`, so closing it would kill the bridge. It runs as you rather
 than as SYSTEM because Claude Code's credentials live in your user's store.
 
+**Every text reaches Discord through the sink's `forDiscord`.** It redacts the
+home directory and runs `defuseStrayMarkup`, which escapes any inline marker
+that would close outside its own stretch of text. Discord closes an open
+backtick, underscore or star at the next matching one anywhere in the message,
+including inside a later code block, and did so twice in real trails before
+this guard existed. A message that joins several texts, as the trail joins
+remarks and `/sync` joins exchanges, seals each text on its own first. Posting
+around the sink, or joining texts without sealing them, brings the bug back.
+
 **Emoji appear in exactly two places, from one fixed set.** The reaction on the
 message that started a turn, and the heading of the progress message, each
 carrying the turn's state: queued, running, waiting on a person, done, stopped,

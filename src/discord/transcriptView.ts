@@ -1,5 +1,6 @@
 import type { Exchange } from "../sessions/exchanges.ts";
 import { count, truncate } from "../text.ts";
+import { defuseStrayMarkup } from "./strayMarkup.ts";
 
 const MAX_EXCHANGE_CHARS = 1200;
 // Where you left off is a glance at the last few messages; the whole run belongs in a file.
@@ -15,7 +16,8 @@ function clock(at: Date, style: ClockStyle): string {
 
 function formatExchange(exchange: Exchange, style: ClockStyle): string {
   const who = exchange.role === "user" ? "You" : "Claude";
-  return `**${who}** · terminal · ${clock(exchange.at, style)}\n${truncate(exchange.text, MAX_EXCHANGE_CHARS)}`;
+  // Several exchanges share one message, so each is sealed on its own.
+  return `**${who}** · terminal · ${clock(exchange.at, style)}\n${defuseStrayMarkup(truncate(exchange.text, MAX_EXCHANGE_CHARS))}`;
 }
 
 export function formatExchanges(exchanges: Exchange[], style: ClockStyle = "discord"): string {
