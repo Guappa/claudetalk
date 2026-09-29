@@ -32,6 +32,7 @@ import { markCaughtUp } from "../sync.ts";
 import { formatExchanges } from "../transcriptView.ts";
 import { chunkForDiscord } from "../renderer.ts";
 import { respond } from "../respond.ts";
+import { postText } from "../outgoing.ts";
 
 const RECAP_EXCHANGES = 2;
 
@@ -221,7 +222,7 @@ async function reportBack(interaction: ChatInputCommandInteraction, text: string
   try {
     await respond(interaction, { content: text, components: [] });
   } catch {
-    if (interaction.channel?.isSendable()) await interaction.channel.send(text);
+    if (interaction.channel?.isSendable()) await postText(interaction.channel, text);
   }
 }
 
@@ -337,7 +338,7 @@ export async function openConversation(
   const recent = await lastExchanges(match.transcriptPath, RECAP_EXCHANGES);
   if (recent.length > 0) {
     for (const chunk of chunkForDiscord(`Where you left off:\n\n${formatExchanges(recent)}`)) {
-      await channel.send(chunk);
+      await postText(channel, chunk);
     }
   }
   await markCaughtUp(bridge, conversation);

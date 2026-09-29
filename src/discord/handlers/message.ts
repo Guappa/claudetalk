@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Message, SendableChannels } from "discord.js";
+import { replyText } from "../outgoing.ts";
 import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
 import { resolveByChannelName } from "../../sessions/resolve.ts";
@@ -65,7 +66,7 @@ function channelNameOf(message: Message): string {
 }
 
 async function reply(message: Message, content: string): Promise<void> {
-  await message.reply({ content, allowedMentions: { repliedUser: false } });
+  await replyText(message, content);
 }
 
 // Binding a second channel to a conversation would overwrite the first one's members and settings.

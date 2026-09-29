@@ -8,6 +8,8 @@ import type {
   StringSelectMenuInteraction,
 } from "discord.js";
 
+import { forDiscord } from "./outgoing.ts";
+
 export type Respondable = ChatInputCommandInteraction | ButtonInteraction;
 type MenuInteraction = ButtonInteraction | StringSelectMenuInteraction;
 type Quiet = Respondable | StringSelectMenuInteraction | ModalSubmitInteraction;
@@ -15,10 +17,10 @@ type Quiet = Respondable | StringSelectMenuInteraction | ModalSubmitInteraction;
 // A button press is not a command, so nothing deferred it; the ack is the reply and only the presser sees it.
 export async function respondQuietly(interaction: Quiet, content: string): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+    await interaction.followUp({ content: forDiscord(content), flags: MessageFlags.Ephemeral });
     return;
   }
-  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: forDiscord(content), flags: MessageFlags.Ephemeral });
 }
 
 // Discord voids a press unanswered for three seconds, and killing a process tree can take longer.
@@ -31,7 +33,12 @@ export async function respond(
   interaction: Respondable,
   content: string | InteractionEditReplyOptions,
 ): Promise<void> {
-  await interaction.editReply(content);
+  await interaction.editReply(forDiscordReply(content));
+}
+
+function forDiscordReply(content: string | InteractionEditReplyOptions): string | InteractionEditReplyOptions {
+  if (typeof content === "string") return forDiscord(content);
+  return typeof content.content === "string" ? { ...content, content: forDiscord(content.content) } : content;
 }
 
 // A menu that has been acted on loses its controls, so nobody presses a stale one twice.
@@ -41,8 +48,8 @@ export async function settleMenu(
   components: NonNullable<InteractionUpdateOptions["components"]> = [],
 ): Promise<void> {
   if (interaction.deferred || interaction.replied) {
-    await interaction.editReply({ content, components });
+    await interaction.editReply({ content: forDiscord(content), components });
     return;
   }
-  await interaction.update({ content, components });
+  await interaction.update({ content: forDiscord(content), components });
 }

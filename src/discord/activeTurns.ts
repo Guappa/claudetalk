@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import { readJsonOr, writeJsonAtomic } from "../jsonFile.ts";
 import type { SinkAnchor } from "./messageSink.ts";
 import { errorMessage } from "../text.ts";
+import { replaceText } from "./outgoing.ts";
 
 export const INTERRUPTED =
   "**Interrupted: the bridge stopped while this was running. Send a message to continue.**";
@@ -56,7 +57,7 @@ async function markOne(client: Client, anchor: SinkAnchor): Promise<void> {
   if (!channel?.isTextBased() || !("messages" in channel)) return;
   const message = await channel.messages.fetch(anchor.messageId);
   if (message.content.includes(INTERRUPTED)) return;
-  await message.edit({ content: `${message.content}\n\n${INTERRUPTED}`, components: [] });
+  await replaceText(message, `${message.content}\n\n${INTERRUPTED}`);
 }
 
 // A progress message the previous process never finished would otherwise read as working forever.

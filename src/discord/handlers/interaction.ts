@@ -2,6 +2,7 @@ import { MessageFlags, type ChatInputCommandInteraction, type Interaction } from
 import type { Bridge } from "../../bridge.ts";
 import { canRunCommand, describeOwnersOnly } from "../../access.ts";
 import { errorMessage } from "../../text.ts";
+import { forDiscord } from "../outgoing.ts";
 import { isFromGuild } from "../gate.ts";
 import { tierOf } from "../policy.ts";
 import { handleAsk } from "../commands/ask.ts";
@@ -69,7 +70,7 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
     // A deliberate click deserves an answer; a message does not, or a stranger could make it post.
     if (interaction.isRepliable()) {
       await interaction.reply({
-        content: "You do not have access to this bridge. An owner has to give it to you.",
+        content: forDiscord("You do not have access to this bridge. An owner has to give it to you."),
         ...EPHEMERAL,
       });
     }
@@ -83,15 +84,17 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
   if (!interaction.isChatInputCommand()) return;
 
   if (!canRunCommand(tier, interaction.commandName)) {
-    await interaction.reply(describeOwnersOnly(interaction.commandName));
+    await interaction.reply(forDiscord(describeOwnersOnly(interaction.commandName)));
     return;
   }
 
   const handler = COMMANDS[interaction.commandName];
   if (!handler) {
     await interaction.reply(
-      `\`/${interaction.commandName}\` is registered with Discord but this bridge has no handler ` +
-        `for it. Restart the bridge to re-register its commands.`,
+      forDiscord(
+        `\`/${interaction.commandName}\` is registered with Discord but this bridge has no handler ` +
+          `for it. Restart the bridge to re-register its commands.`,
+      ),
     );
     return;
   }
@@ -104,8 +107,10 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
     console.error(`/${interaction.commandName} failed`, error);
     await interaction
       .editReply(
-        `\`/${interaction.commandName}\` failed: ${errorMessage(error)}. ` +
-          "Try it again; if it keeps failing, the bridge log on the host has the details.",
+        forDiscord(
+          `\`/${interaction.commandName}\` failed: ${errorMessage(error)}. ` +
+            "Try it again; if it keeps failing, the bridge log on the host has the details.",
+        ),
       )
       .catch(() => undefined);
   }
