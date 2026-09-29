@@ -96,8 +96,14 @@ a minute instead. What a conversation itself says is plain text and stays.
 **Paths are written relative to your home folder**, as `~/code/thing`, never
 absolute. An absolute path on Windows carries the account name, and a channel is
 a place other people can be invited into. Everything the bot posts goes through
-one sink that rewrites a home path, so a path Claude mentions in prose is
-covered too.
+one gate that rewrites home paths, so a path Claude mentions in prose or a
+command is covered too. The home folder of the account running the bridge is
+recognised in every spelling it appears in: either slash, the Git Bash form,
+a `%20` for a space, the Windows 8.3 short name, and the dash-flattened folder
+names Claude Code gives its projects under `~/.claude` and the temp folder.
+All of them become `~`. Any other account's home, under `C:\Users`, `/home` or
+`/Users`, has the account name replaced with `…`. Shared folders such as
+Public stay as they are.
 
 ## Messages
 

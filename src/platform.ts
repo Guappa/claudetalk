@@ -58,6 +58,20 @@ export function longTmpDir(): string {
   }
 }
 
+// Windows also spells the home folder with an 8.3 short name, and the temp folder is where that spelling surfaces.
+export function shortHomeDir(): string | null {
+  return shortPrefix(os.homedir(), os.tmpdir(), longTmpDir());
+}
+
+export function shortPrefix(longHome: string, shortPath: string, longPath: string): string | null {
+  const fold = (value: string): string => value.toLowerCase();
+  if (shortPath === longPath || !fold(longPath).startsWith(fold(longHome))) return null;
+  const tail = longPath.slice(longHome.length);
+  if (!fold(shortPath).endsWith(fold(tail))) return null;
+  const short = shortPath.slice(0, shortPath.length - tail.length);
+  return fold(short) === fold(longHome) ? null : short;
+}
+
 // Only a NAME~1 segment is expanded: resolving every path would also rewrite a symlink a project relies on.
 export function expandShortPath(target: string): string {
   if (process.platform !== "win32" || !/~\d+(?=[\\/]|$)/.test(target)) return target;
