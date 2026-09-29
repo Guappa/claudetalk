@@ -748,7 +748,7 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
       [`tail -40 "${slashed(shortHome)}/AppData/Local/Temp/claude/${flattened}/abc/tasks/x.output"`,
         `tail -40 "~/AppData/Local/Temp/claude/~-Documents-projects-ledger/abc/tasks/x.output"`],
       [`~/.claude/projects/${flattened}/memory/notes.md`, "~/.claude/projects/~-Documents-projects-ledger/memory/notes.md"],
-      [`open file:///${slashed(home).replace(" ", "%20")}/notes.md`, "open file:///~/notes.md"],
+      [`open file:///${slashed(home).replaceAll(" ", "%20")}/notes.md`, "open file:///~/notes.md"],
       [`cd ${home}\\ledger`, "cd ~\\ledger"],
     ];
     for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
@@ -3504,9 +3504,10 @@ describe("redactHome matches the home folder, not words that happen to share its
     expect(redactHome(`see ${path.join(os.homedir(), "code", "thing")}`)).toMatch(/see ~[\\/]code[\\/]thing/);
   });
 
-  it("leaves a longer name that merely starts with the home path alone", () => {
+  // A longer name is some other account at most, so it may lose its name but never becomes this home.
+  it("never mistakes a longer name that merely starts with the home path for the home itself", () => {
     const longer = `${os.homedir()}ger`;
-    expect(redactHome(longer)).toBe(longer);
+    expect(redactHome(longer)).not.toContain("~");
   });
 
   it("does not touch the home folder's bare name in prose", () => {
