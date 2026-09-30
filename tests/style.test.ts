@@ -226,6 +226,13 @@ describe("docs follow code", () => {
     expect(limit).toBeLessThan(installer.indexOf("[Service]"));
   });
 
+  // systemd signals every process of a unit by default, and the Claude Code process running the turn would end with the bridge still waiting for it.
+  it("has the Linux service signal only the bridge when it is stopped", () => {
+    const unit = read("scripts/install-autostart.sh").split("[Service]")[1]!.split("[Install]")[0]!;
+    expect(unit).toMatch(/^KillMode=mixed$/m);
+    expect(unit).toMatch(/^TimeoutStopSec=1800$/m);
+  });
+
   // The stop script finds the bridge by the same setting the bridge placed its lock with, which lives in .env.
   it("runs the stop script with the environment the bridge itself is started with", () => {
     const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts;
