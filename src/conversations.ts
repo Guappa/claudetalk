@@ -13,6 +13,8 @@ export interface Conversation {
   memberIds: string[];
   // Ad-hoc channels answer only when tagged, so shared channels stay usable.
   mentionOnly?: boolean;
+  // The channel was there before the conversation was bound to it, so who can see it is its server's to decide.
+  adopted?: boolean;
   // Set while Claude Code holds no session under this id yet, so the first turn that finds none starts it instead of resuming it.
   unstarted?: boolean;
   syncedThrough?: string;
@@ -25,6 +27,7 @@ export interface NewConversation {
   ownerId: string;
   settings?: ChannelSettings;
   mentionOnly?: boolean;
+  adopted?: boolean;
   // True for an id minted here, which Claude Code has never seen.
   fresh?: boolean;
 }
@@ -39,8 +42,14 @@ function newConversation(input: NewConversation): Conversation {
     ownerId: input.ownerId,
     memberIds: [],
     mentionOnly: input.mentionOnly,
+    adopted: input.adopted,
     unstarted: input.fresh ? true : undefined,
   };
+}
+
+// A record written before adoption was noted has only its tag-only mode to show that the channel was not made for it.
+export function channelWasThereFirst(conversation: Conversation): boolean {
+  return Boolean(conversation.adopted || conversation.mentionOnly);
 }
 
 interface StoreFile {
@@ -155,6 +164,7 @@ export class ConversationStore {
       ownerId: previous.ownerId,
       memberIds: [...previous.memberIds],
       mentionOnly: previous.mentionOnly,
+      adopted: previous.adopted,
       unstarted: true,
     };
     this.forget(previous);

@@ -346,6 +346,8 @@ export const sv: Catalog = {
       "Det här låter dem **läsa** kanalen, inklusive allt som redan sagts här. Det låter dem inte använda boten: meddelanden och kommandon från någon som inte är operatör ignoreras. `/operator add` är det som lämnar över maskinen.",
     notMember: "{{user}} är inte medlem i den här konversationen.",
     removed: "{{user}} borttagen.",
+    sharedChannel:
+      "Inget ändrades. Den här kanalen fanns före konversationen, så vem som kan se den bestäms i Discords egna kanalinställningar, inte av bryggan. `/invite` och `/uninvite` fungerar i en kanal som skapats av `/create`, `/resume` eller `/fork`.",
     summary: "Ägare: {{owner}}\nKan se den: {{watchers}}",
   },
   operators: {

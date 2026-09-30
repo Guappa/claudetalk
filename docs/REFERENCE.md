@@ -240,6 +240,11 @@ update the overwrites. This needs **Manage Roles**; without it the channel is
 created, membership recorded, and the bot says everyone can see it. Server
 administrators bypass channel permissions. That is Discord, not this bridge.
 
+A channel that was there before the conversation, one the bot was tagged in or
+one found by its name, keeps the permissions its server gave it. `/invite` and
+`/uninvite` refuse there and change nothing: replacing those permissions would
+hide the channel from everyone it was shared with.
+
 ## Context, and what it costs
 
 Anything fed into a session is written into its transcript and re-sent on every

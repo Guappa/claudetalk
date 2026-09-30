@@ -90,6 +90,7 @@ async function bindExisting(
     ownerId: message.author.id,
     // Found again, it goes on answering tags only: the channel is a shared one, and its chatter is not for the session.
     mentionOnly: startedByTag || undefined,
+    adopted: true,
   });
   await sendNotice(channel, say("binding.bound", { channel: channelNameOf(message) }));
   return bound;
@@ -109,6 +110,7 @@ async function startMentionOnly(bridge: Bridge, message: Message, channel: Senda
     channelId: message.channelId,
     ownerId: message.author.id,
     mentionOnly: true,
+    adopted: true,
     fresh: true,
   });
 }
