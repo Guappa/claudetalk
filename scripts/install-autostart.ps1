@@ -53,8 +53,8 @@ switch ($Action) {
         if (-not $isAdmin) {
             Write-Output "Registering a windowless task needs administrator rights. Asking for them now."
             # One quoted absolute path: Start-Process neither quotes a path with spaces nor honours -WorkingDirectory under RunAs.
-            $relaunch = '-NoProfile -NoExit -ExecutionPolicy Bypass -File "{0}" -Action install -TaskName "{1}"' -f
-                $PSCommandPath, $TaskName
+            $relaunch = '-NoProfile -NoExit -ExecutionPolicy Bypass -File "{0}" -Action install -TaskName "{1}" -DelaySeconds {2}' -f
+                $PSCommandPath, $TaskName, $DelaySeconds
             try {
                 Start-Process powershell -Verb RunAs -ArgumentList $relaunch
                 Write-Output "Continuing in the elevated window that just opened."

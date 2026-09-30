@@ -203,6 +203,35 @@ describe("docs follow code", () => {
     }
     expect(found).toEqual([]);
   });
+
+  // Each example is put together here in pieces, so this file does not hold the shape it tests for.
+  it("recognises the leaks the scanner exists to catch, in the spellings they arrive in", () => {
+    const shape = (label: string): RegExp => (SHAPES as Array<[string, RegExp]>).find(([name]) => name === label)![1];
+    const credential = shape("a credential");
+    expect(credential.test(["sk", "ant", "api03", "A".repeat(24)].join("-"))).toBe(true);
+    expect(credential.test(["sk", "proj", "B".repeat(24)].join("-"))).toBe(true);
+    expect(credential.test("the task-runner-configuration-file")).toBe(false);
+
+    const home = shape("a real home directory");
+    const account = ["C:", "Users", "Some Body", "notes"];
+    expect(home.test(account.join("\\"))).toBe(true);
+    expect(home.test(account.join("\\\\"))).toBe(true);
+    expect(home.test(account.join("/"))).toBe(true);
+  });
+
+  // systemd reads the start limit only under [Unit]; under [Service] it is ignored and a bad token restarts forever.
+  it("puts the restart limit of the Linux service where systemd reads it", () => {
+    const installer = read("scripts/install-autostart.sh");
+    const limit = installer.indexOf("StartLimitBurst=");
+    expect(limit).toBeGreaterThan(installer.indexOf("[Unit]"));
+    expect(limit).toBeLessThan(installer.indexOf("[Service]"));
+  });
+
+  // The stop script finds the bridge by the same setting the bridge placed its lock with, which lives in .env.
+  it("runs the stop script with the environment the bridge itself is started with", () => {
+    const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts;
+    for (const name of ["dev", "stop", "stop:now"]) expect(scripts[name], name).toContain("--env-file-if-exists=.env");
+  });
 });
 
 describe("what the bridge says lives in the catalog", () => {

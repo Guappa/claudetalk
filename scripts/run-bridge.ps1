@@ -18,9 +18,9 @@ if ((Test-Path -LiteralPath $logPath) -and ((Get-Item -LiteralPath $logPath).Len
     Move-Item -LiteralPath $logPath -Destination "$logPath.1" -Force
 }
 
-# Appending through cmd leaves the log readable while the bridge runs; Add-Content locks it.
+# Appended through cmd so the log stays readable while the bridge runs, redirect first because cmd reads a digit straight before >> as a handle number and eats it.
 function Write-Log([string]$Message) {
-    & cmd.exe /c "echo $Message>> `"$logPath`"" | Out-Null
+    & cmd.exe /c ">> `"$logPath`" echo $Message" | Out-Null
 }
 
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
