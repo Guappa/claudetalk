@@ -340,14 +340,14 @@ refuses naming the pid and directory; close that terminal or switch it to
 another conversation. Every path that spends a turn is checked the same way.
 Claude Code refuses this itself as well, so a race that gets past the check is
 still caught. A turn this bridge is already running is not a collision: a
-second message sent mid-turn queues rather than being turned away.
+second message sent mid-turn joins it or queues rather than being turned away.
 
 ### Watching it
 
 While a turn runs, one message is kept updated with how long it has been going,
 how many steps it has taken, and what Claude has said along the way. The message
 that started the turn carries one reaction from the bot, changed as the turn
-moves: eyes while it works, a clock while it is queued behind another turn, a
+moves: eyes while it works, a clock while it waits on another turn, a
 question mark while it waits on you, then a tick, a stop sign or a cross for
 finished, stopped or failed. The heading carries the same state in front of the
 verb, an hourglass while working. Those are the only emoji the bridge uses.
@@ -505,12 +505,26 @@ conversation from where the transcript ends.
 
 ### Messages sent while it runs
 
-A message sent mid-turn is queued and runs when the current one finishes. The
-bot says how many are ahead of it, and `/queue` says so on demand. Five is the
-ceiling; past that it refuses and points at `/stop`, rather than letting a
-mistyped burst pile up turns you no longer want. A turn that fails does not
-block what is queued behind it, and a queued message checks for drift only once
-the turn ahead has ended and been marked seen.
+A plain message sent mid-turn is handed to the running turn, the way the
+terminal takes one typed while Claude works. Claude takes it up at its next
+step, between two tool calls, without what it is doing being cut short, and
+answers it as part of the same turn: there is no second trail and no separate
+reply. Your message carries a clock until it is taken up, then eyes, then
+whatever the turn ends as. The notice that says it was handed over has a **Send
+now** button, which interrupts what Claude is doing so the message runs at once
+as the next turn. It only does that while the message is still waiting; once
+taken up there is nothing to hurry, and the button says so. A turn that ends
+with a message still waiting runs it next without being asked.
+
+What is not a plain message still queues and runs as its own turn when the
+current one finishes: a slash command, anything started by a bridge command
+such as `/run` or `/ask`, and a message that arrives before the turn is under
+way or as it is ending. The bot says how many are ahead of it, and `/queue`
+says so on demand. Five is the ceiling; past that it refuses and points at
+`/stop`, rather than letting a mistyped burst pile up turns you no longer want.
+A turn that fails does not block what is queued behind it, and a queued message
+checks for drift only once the turn ahead has ended and been marked seen.
+**Stop** ends the turn and with it any message that joined it.
 
 ### Branching it
 

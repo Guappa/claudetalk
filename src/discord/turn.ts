@@ -16,6 +16,7 @@ export interface ConversationTurn {
   onSessionId?: (sessionId: string) => void;
   onState?: StateMarker;
   asked?: string;
+  foldable?: boolean;
 }
 
 // The only door into spending a turn, so none can skip the preflight or the catch-up that follows.
@@ -47,6 +48,7 @@ export async function runConversationTurn(
       onSessionId: turn.onSessionId,
       onState: turn.onState,
       asked: turn.asked,
+      foldable: turn.foldable,
       // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
       beforeTurn: async () => {
         const drift = await pendingDrift(conversation, await bridge.sessions.find(conversation.sessionId));

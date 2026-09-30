@@ -42,7 +42,7 @@ export type ClaudeEvent =
   | { type: "system"; subtype: "task_notification"; status: string }
   | { type: "system"; subtype: string }
   | { type: "assistant"; message: { content: ContentBlock[] }; parent_tool_use_id?: string | null }
-  | { type: "user"; message: { content: ContentBlock[] }; parent_tool_use_id?: string | null }
+  | { type: "user"; message: { content: ContentBlock[] }; parent_tool_use_id?: string | null; uuid?: string; isReplay?: boolean }
   | { type: "rate_limit_event"; rate_limit_info: unknown }
   | { type: "result"; subtype: string; is_error: boolean; total_cost_usd: number; result?: string; usage: TokenUsage };
 
@@ -155,6 +155,11 @@ export function agentEvent(event: ClaudeEvent): AgentEvent | null {
     };
   }
   return null;
+}
+
+// With replay on, the session echoes each message from its input at the moment it takes it up.
+export function replayed(event: ClaudeEvent): string | null {
+  return event.type === "user" && event.isReplay === true && typeof event.uuid === "string" ? event.uuid : null;
 }
 
 // Set on everything an agent says or does; null or absent on the session's own messages.
