@@ -93,7 +93,7 @@ import {
 } from "../src/claude/pluginCatalog.ts";
 import {
   CLEAR_CANCEL,
-  CLEAR_CONFIRM,
+  clearConfirmId,
   RUN_CANCEL,
   RUN_CONFIRM,
   PLUGIN_SELECT,
@@ -4678,7 +4678,7 @@ describe("unbind offers to delete the channel", () => {
 
 describe("clear asks before starting over", () => {
   it("round-trips both answers", () => {
-    expect(parseCustomId(CLEAR_CONFIRM)).toEqual({ kind: "clear-confirm" });
+    expect(parseCustomId(clearConfirmId("s1"))).toEqual({ kind: "clear-confirm", sessionId: "s1" });
     expect(parseCustomId(CLEAR_CANCEL)).toEqual({ kind: "clear-cancel" });
   });
 

@@ -546,6 +546,9 @@ checks for drift only once the turn ahead has ended and been marked seen.
 channel, and leaves this channel exactly as it was. The branch is a real
 conversation: it appears in `/sessions`, resumes from the CLI, and carries the
 model and effort of the one it came from. Claude Code mints its session id.
+If the branch's first turn cannot start, because the conversation is open in a
+terminal, held by a background agent, or the bridge is shutting down, nothing
+is branched and the channel made for it is removed again.
 
 ## Compaction and context
 

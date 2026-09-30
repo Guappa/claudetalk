@@ -121,6 +121,26 @@ export class ConversationStore {
     await this.flush();
   }
 
+  // One write for the whole exchange, so a failure part-way cannot leave the channel bound to nothing, or the new conversation without its members.
+  async startOver(previous: Conversation, sessionId: string): Promise<Conversation> {
+    const fresh: Conversation = {
+      sessionId,
+      cwd: previous.cwd,
+      boundAt: new Date().toISOString(),
+      settings: { ...previous.settings },
+      channels: { ...previous.channels },
+      ownerId: previous.ownerId,
+      memberIds: [...previous.memberIds],
+      mentionOnly: previous.mentionOnly,
+    };
+    this.forget(previous);
+    this.data.conversations[sessionId] = fresh;
+    this.data.channelIndex[fresh.channels.text] = sessionId;
+    if (fresh.channels.voice) this.data.channelIndex[fresh.channels.voice] = sessionId;
+    await this.flush();
+    return fresh;
+  }
+
   async unbind(channelId: string): Promise<void> {
     const sessionId = this.data.channelIndex[channelId];
     delete this.data.channelIndex[channelId];

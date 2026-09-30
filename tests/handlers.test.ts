@@ -1,13 +1,16 @@
 import os from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleAsk } from "../src/discord/commands/ask.ts";
+import { handleClear } from "../src/discord/commands/clear.ts";
+import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
 import { handleSetting } from "../src/discord/commands/settings.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
-import { UNBIND_DELETE, UNBIND_KEEP } from "../src/discord/menus.ts";
+import { UNBIND_DELETE, UNBIND_KEEP, createResumeId } from "../src/discord/menus.ts";
+import type { SessionRecord } from "../src/sessions/index.ts";
 import { OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
-import { fakeChannel, fakeCommand, fakeMessage, fakePress } from "./helpers/discord.ts";
+import { fakeChannel, fakeCommand, fakeGuild, fakeMessage, fakePress } from "./helpers/discord.ts";
 import { record } from "./helpers/records.ts";
 import { quietSink } from "./helpers/sinks.ts";
 
@@ -15,6 +18,7 @@ interface Asked {
   sessionId: string;
   prompt: string;
   resume: boolean;
+  fork?: boolean;
   name?: string;
   settings: Record<string, string | undefined>;
 }
@@ -37,7 +41,8 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
         handOver: () => null,
         interrupt: async () => false,
         done: new Promise((resolve) => {
-          const finish = (): void => resolve({ ok: true, text: `echo ${request.prompt}` });
+          const minted = request.fork ? `fork-of-${request.sessionId}` : undefined;
+          const finish = (): void => resolve({ ok: true, text: `echo ${request.prompt}`, sessionId: minted });
           if (request.prompt.startsWith("hold")) held.set(request.prompt, finish);
           else setTimeout(finish, 5);
         }),
@@ -200,6 +205,115 @@ describe("/model", () => {
     held.get("hold the first")?.();
     await Promise.all([first, second]);
     expect(asked.map((turn) => turn.settings.model)).toEqual([undefined, "haiku"]);
+  });
+});
+
+describe("/clear", () => {
+  const cleared = async (channelId: string) => {
+    const bridge = await testBridge();
+    const place = fakeChannel(channelId);
+    const bound = await bridge.store.bindNew({
+      sessionId: SESSION,
+      cwd: bridge.config.projectsRoot,
+      channelId,
+      ownerId: OWNER,
+      settings: { model: "haiku" },
+    });
+    await bridge.store.setMembers(SESSION, [OPERATOR]);
+    const command = fakeCommand(place, OWNER);
+    await handleClear(bridge, command.interaction);
+    return { bridge, place, bound, startOver: command.controls()[0]! };
+  };
+
+  it("starts the channel over once, with what it had, however often Start over is pressed", async () => {
+    const { bridge, place, bound, startOver } = await cleared("k1");
+    const first = fakePress(place, OWNER, startOver);
+    const second = fakePress(place, OWNER, startOver);
+    await Promise.all([handleButton(bridge, first.interaction), handleButton(bridge, second.interaction)]);
+
+    const fresh = bridge.store.byChannel("k1")!;
+    expect(fresh.sessionId).not.toBe(SESSION);
+    expect(fresh).toMatchObject({ cwd: bound.cwd, ownerId: OWNER, memberIds: [OPERATOR], settings: { model: "haiku" } });
+    expect(bridge.store.bySession(SESSION)).toBeUndefined();
+    expect(asked.map((turn) => [turn.sessionId, turn.resume])).toEqual([[fresh.sessionId, false]]);
+    expect(second.replies.at(-1)).toContain("nothing was started over");
+  });
+
+  it("leaves the conversation alone when a turn started there after the question was put", async () => {
+    const { bridge, place, bound, startOver } = await cleared("k2");
+    const running = bridge.flow.run(SESSION, bound.cwd, "hold on to it", {}, quietSink(), { resume: true });
+    await vi.waitFor(() => expect(held.has("hold on to it")).toBe(true));
+
+    const press = fakePress(place, OWNER, startOver);
+    await handleButton(bridge, press.interaction);
+    expect(press.replies.at(-1)).toContain("A turn is running here");
+    expect(bridge.store.byChannel("k2")).toBe(bound);
+
+    held.get("hold on to it")?.();
+    await running;
+  });
+});
+
+describe("/resume", () => {
+  it("leaves one channel when the same conversation is opened from two places at once", async () => {
+    const known = record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() });
+    const bridge = await testBridge([known]);
+    const server = fakeGuild();
+    const one = fakeCommand(fakeChannel("r1"), OWNER, { name: SESSION }, server.guild);
+    const two = fakeCommand(fakeChannel("r2"), OPERATOR, { name: SESSION }, server.guild);
+    await Promise.all([handleResume(bridge, one.interaction), handleResume(bridge, two.interaction)]);
+
+    const standing = server.made.filter((channel) => !channel.wasDeleted()).map((channel) => channel.channel.id);
+    expect(server.made).toHaveLength(2);
+    expect(standing).toEqual([bridge.store.bySession(SESSION)?.channels.text]);
+    const answers = [one, two].map((command) => command.replies.at(-1) ?? "");
+    expect(answers.filter((answer) => answer.includes("is already open"))).toHaveLength(1);
+    expect(answers.filter((answer) => answer.startsWith("Opened"))).toHaveLength(1);
+  });
+
+  it("does not act on a Resume button once the question it belongs to has expired", async () => {
+    const known = record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() });
+    const bridge = await testBridge([known]);
+    const server = fakeGuild();
+    const press = fakePress(fakeChannel("r3"), OWNER, createResumeId(SESSION), server.guild);
+    await handleButton(bridge, press.interaction);
+
+    expect(press.replies.at(-1)).toContain("too old to act on");
+    expect(server.made).toEqual([]);
+    expect(bridge.store.bySession(SESSION)).toBeUndefined();
+  });
+});
+
+describe("/fork", () => {
+  const sourced = async (channelId: string, whileMaking?: (records: SessionRecord[]) => void) => {
+    const records = [record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() })];
+    const bridge = await testBridge(records);
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId, ownerId: OWNER });
+    const server = fakeGuild(() => whileMaking?.(records));
+    const command = fakeCommand(fakeChannel(channelId), OWNER, {}, server.guild);
+    await handleFork(bridge, command.interaction);
+    return { bridge, server, command };
+  };
+
+  it("binds the branch Claude Code minted to the channel made for it", async () => {
+    const { bridge, server, command } = await sourced("f1");
+
+    expect(asked.map((turn) => [turn.sessionId, turn.fork])).toEqual([[SESSION, true]]);
+    expect(bridge.store.byChannel(server.made[0]!.channel.id)?.sessionId).toBe(`fork-of-${SESSION}`);
+    expect(bridge.store.byChannel("f1")?.sessionId).toBe(SESSION);
+    expect(command.replies.at(-1)).toContain("Branched **ledger notes**");
+  });
+
+  it("says nothing was branched, and removes the channel, when the conversation was taken while the channel was made", async () => {
+    const { bridge, server, command } = await sourced("f2", (records) => {
+      records[0] = { ...records[0]!, live: { pid: 4321, cwd: os.tmpdir(), kind: "interactive", sessionId: SESSION } };
+    });
+
+    expect(asked).toEqual([]);
+    expect(server.made[0]!.wasDeleted()).toBe(true);
+    expect(bridge.store.byChannel(server.made[0]!.channel.id)).toBeUndefined();
+    expect(command.replies.at(-1)).toContain("Nothing was branched");
+    expect(command.replies.at(-1)).not.toContain("did not report");
   });
 });
 

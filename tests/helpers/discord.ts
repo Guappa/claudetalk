@@ -1,4 +1,4 @@
-import type { ButtonInteraction, ChatInputCommandInteraction, Message, TextChannel } from "discord.js";
+import type { ButtonInteraction, ChatInputCommandInteraction, Guild, Message, TextChannel } from "discord.js";
 import { GUILD } from "./bridge.ts";
 
 const BOT = "300000000000000001";
@@ -63,6 +63,30 @@ export function fakeChannel(id: string, name = "general"): FakeChannel {
   return { channel: channel as unknown as TextChannel, posted, earlier, wasDeleted: () => deleted };
 }
 
+export interface FakeGuild {
+  guild: Guild;
+  // Every channel the guild was asked to make, in order.
+  made: FakeChannel[];
+}
+
+// What a test passes in runs while a channel is being made, which is where it puts whatever happens meanwhile.
+export function fakeGuild(whileMaking: () => void = () => undefined): FakeGuild {
+  const made: FakeChannel[] = [];
+  const guild = {
+    roles: { everyone: { id: "400000000000000002" } },
+    channels: {
+      create: async ({ name }: { name: string }) => {
+        const channel = fakeChannel(`made-${made.length + 1}`, name);
+        made.push(channel);
+        await Promise.resolve();
+        whileMaking();
+        return channel.channel;
+      },
+    },
+  };
+  return { guild: guild as unknown as Guild, made };
+}
+
 export interface FakeCommand {
   interaction: ChatInputCommandInteraction;
   replies: string[];
@@ -109,12 +133,13 @@ export interface FakePress {
   replies: string[];
 }
 
-export function fakePress(place: FakeChannel, userId: string, customId: string): FakePress {
+export function fakePress(place: FakeChannel, userId: string, customId: string, guild: unknown = null): FakePress {
   const replies: string[] = [];
   const interaction = {
     customId,
     channelId: place.channel.id,
     channel: place.channel,
+    guild,
     user: { id: userId },
     client: { user: { id: BOT } },
     message: { id: `${place.channel.id}-reply` },
