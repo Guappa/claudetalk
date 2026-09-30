@@ -110,7 +110,7 @@ import {
   questionSubmitId,
   skillSelectId,
 } from "../src/discord/menus.ts";
-import { describeDefault, parseHostDefaults } from "../src/claude/hostSettings.ts";
+import { describeDefault, parseHostDefaults, readHostDefaults } from "../src/claude/hostSettings.ts";
 import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/purge.ts";
 import { displayPath, homePatterns, redactHome, redactPaths } from "../src/displayPath.ts";
 import { shortPrefix } from "../src/platform.ts";
@@ -4413,6 +4413,24 @@ describe("host defaults", () => {
       model: "opus",
       effort: "high",
     });
+  });
+
+  // Claude Code lays a folder's settings over the account's, so the account's file alone can name a model no turn there runs with.
+  it("lays the folder's own settings over the account's, the local file last", async () => {
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "host-defaults-"));
+    const account = path.join(folder, "account.json");
+    await fs.writeFile(account, JSON.stringify({ model: "opus", effortLevel: "high" }));
+    expect(await readHostDefaults(folder, account)).toEqual({ model: "opus", effort: "high" });
+
+    await fs.mkdir(path.join(folder, ".claude"));
+    await fs.writeFile(path.join(folder, ".claude", "settings.json"), JSON.stringify({ model: "sonnet" }));
+    expect(await readHostDefaults(folder, account)).toEqual({ model: "sonnet", effort: "high" });
+
+    await fs.writeFile(
+      path.join(folder, ".claude", "settings.local.json"),
+      JSON.stringify({ model: "haiku", effortLevel: "low" }),
+    );
+    expect(await readHostDefaults(folder, account)).toEqual({ model: "haiku", effort: "low" });
   });
 
   it("treats a missing key as no host default, not as an error", () => {

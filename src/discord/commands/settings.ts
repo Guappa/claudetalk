@@ -108,7 +108,8 @@ claude --resume ${conversation.sessionId}
 export async function handleWhoami(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
-  await respond(interaction, { embeds: [bindingEmbed(bridge.language.say, conversation, await readHostDefaults())] });
+  const defaults = await readHostDefaults(conversation.cwd);
+  await respond(interaction, { embeds: [bindingEmbed(bridge.language.say, conversation, defaults)] });
 }
 
 export async function handleSetting(
@@ -129,7 +130,7 @@ export async function handleSetting(
         ? say("settings.current", { setting: key, value: current })
         : say("settings.notOverridden", {
             setting: key,
-            fallback: describeDefault(say, undefined, (await readHostDefaults())[key]),
+            fallback: describeDefault(say, undefined, (await readHostDefaults(conversation.cwd))[key]),
           }),
     );
     return;
