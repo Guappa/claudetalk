@@ -5,6 +5,7 @@ import { outboxRelative } from "../discord/outbox.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
 import { HeldPrompt } from "./heldPrompt.ts";
+import { APPROVAL_REFUSED, QUESTIONS_UNANSWERED } from "./prompts.ts";
 import { QUESTION_TOOL, parseQuestions, type AskQuestions } from "./questions.ts";
 
 export interface ChannelSettings {
@@ -124,8 +125,25 @@ interface Gates {
   askQuestions?: AskQuestions;
 }
 
+async function decide(
+  gates: Gates,
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): Promise<HookOutput | { continue: true }> {
+  if (toolName === QUESTION_TOOL && gates.askQuestions) {
+    const outcome = await gates.askQuestions(parseQuestions(toolInput));
+    return outcome.answered
+      ? allowed("Answered from Discord.", { ...toolInput, answers: outcome.answers })
+      : denied(outcome.reason);
+  }
+
+  if (!gates.approve || UNGATED_TOOLS.has(toolName)) return { continue: true };
+  const decision = await gates.approve(toolName, toolInput);
+  return decision.allow ? allowed("Approved from Discord.") : denied(decision.reason);
+}
+
 // A permission mode cannot hold the gate: the host's own allow rules are consulted first, a hook is not.
-function gate(gates: Gates): NonNullable<Options["hooks"]> {
+export function gate(gates: Gates): NonNullable<Options["hooks"]> {
   return {
     PreToolUse: [
       {
@@ -133,17 +151,13 @@ function gate(gates: Gates): NonNullable<Options["hooks"]> {
           async (input) => {
             const toolName = String((input as { tool_name?: unknown }).tool_name ?? "");
             const toolInput = ((input as { tool_input?: unknown }).tool_input ?? {}) as Record<string, unknown>;
-
-            if (toolName === QUESTION_TOOL && gates.askQuestions) {
-              const outcome = await gates.askQuestions(parseQuestions(toolInput));
-              return outcome.answered
-                ? allowed("Answered from Discord.", { ...toolInput, answers: outcome.answers })
-                : denied(outcome.reason);
+            // Claude Code takes a hook that throws for one with no opinion and runs the tool, so a gate that cannot answer has to refuse.
+            try {
+              return await decide(gates, toolName, toolInput);
+            } catch (error) {
+              console.error(`the gate for ${toolName} failed and refused it`, error);
+              return denied(toolName === QUESTION_TOOL ? QUESTIONS_UNANSWERED.unshown : APPROVAL_REFUSED.failed);
             }
-
-            if (!gates.approve || UNGATED_TOOLS.has(toolName)) return { continue: true };
-            const decision = await gates.approve(toolName, toolInput);
-            return decision.allow ? allowed("Approved from Discord.") : denied(decision.reason);
           },
         ],
       },

@@ -7,6 +7,8 @@ import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 
 export type ApprovalChoice = "approve" | "deny" | "approve-all";
+// What a person chose, or that the turn was over before anyone did.
+type Settlement = ApprovalChoice | "ended";
 
 // Long enough to answer from a phone, short enough that a forgotten prompt does not hold a turn open.
 const APPROVAL_TIMEOUT_MS = 5 * 60_000;
@@ -15,7 +17,7 @@ const DETAIL_LIMIT = 900;
 interface Pending {
   turnId: string;
   ownerIds: string[];
-  settle: (choice: ApprovalChoice) => void;
+  settle: (choice: Settlement) => void;
 }
 
 function detail(input: Record<string, unknown>): string {
@@ -38,7 +40,8 @@ function approvalActions(say: Say, id: string): SinkAction[] {
   ];
 }
 
-function describeChoice(say: Say, choice: ApprovalChoice, expired = false): string {
+function describeChoice(say: Say, choice: Settlement, expired = false): string {
+  if (choice === "ended") return say("approvals.ended");
   if (choice === "approve") return say("approvals.approvedOnce");
   if (choice === "approve-all") return say("approvals.approvedRest");
   return expired ? say("approvals.expired", { minutes: APPROVAL_TIMEOUT_MS / 60_000 }) : say("approvals.denied");
@@ -72,7 +75,7 @@ export class ApprovalPrompts {
     if (!sink.ask) return { allow: false, reason: APPROVAL_REFUSED.unaskable };
 
     const id = randomUUID();
-    const { promise: answered, resolve: settle } = Promise.withResolvers<ApprovalChoice>();
+    const { promise: answered, resolve: settle } = Promise.withResolvers<Settlement>();
 
     this.pending.set(id, { turnId, ownerIds, settle });
     let expired = false;
@@ -83,14 +86,21 @@ export class ApprovalPrompts {
     }, APPROVAL_TIMEOUT_MS);
     timer.unref();
 
-    const handle = await sink.ask(describeRequest(say, toolName, input), approvalActions(say, id));
+    // A prompt that never reached Discord can never be answered, so it is refused now and nothing is left waiting on it.
+    const handle = await sink.ask(describeRequest(say, toolName, input), approvalActions(say, id)).catch(() => null);
+    if (!handle) {
+      this.pending.delete(id);
+      clearTimeout(timer);
+      return { allow: false, reason: APPROVAL_REFUSED.unshown };
+    }
     const choice = await answered;
     clearTimeout(timer);
 
     if (choice === "approve-all") this.approveAll.add(turnId);
     await handle.close(describeChoice(say, choice, expired));
 
-    if (choice !== "deny") return { allow: true };
+    if (choice === "approve" || choice === "approve-all") return { allow: true };
+    if (choice === "ended") return { allow: false, reason: APPROVAL_REFUSED.ended };
     return { allow: false, reason: expired ? APPROVAL_REFUSED.expired : APPROVAL_REFUSED.denied };
   }
 
@@ -100,7 +110,7 @@ export class ApprovalPrompts {
     for (const [id, waiting] of this.pending) {
       if (waiting.turnId !== turnId) continue;
       this.pending.delete(id);
-      waiting.settle("deny");
+      waiting.settle("ended");
     }
   }
 }

@@ -183,6 +183,7 @@ export const sv: Catalog = {
     approvedRest: "Godkänt för resten av den här omgången.",
     approvedRestQuiet: "Godkänt, och resten av den här omgången frågar inte igen.",
     denied: "Nekat från Discord.",
+    ended: "Omgången tog slut innan detta besvarades.",
     expired: "Inget svar på {{minutes}} minuter, så det nekades.",
     stale: "Den förfrågan är redan besvarad, har gått ut, eller är från före en omstart.",
     ownersOnly: "Bara en ägare av den här bryggan kan svara på en behörighetsförfrågan.",

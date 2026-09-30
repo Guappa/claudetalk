@@ -180,6 +180,7 @@ export const en = {
     approvedRest: "Approved for the rest of this turn.",
     approvedRestQuiet: "Approved, and the rest of this turn will not ask again.",
     denied: "Denied from Discord.",
+    ended: "The turn ended before this was answered.",
     expired: "No answer in {{minutes}} minutes, so it was denied.",
     stale: "That request is already answered, expired, or from before a restart.",
     ownersOnly: "Only an owner of this bridge can answer a permission request.",

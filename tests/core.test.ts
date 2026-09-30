@@ -16,7 +16,7 @@ import {
   turnSpawnOptions,
 } from "../src/platform.ts";
 import { detectClaudeError } from "../src/claude/errors.ts";
-import { buildOptions, bridgeSystemNote, resultError } from "../src/claude/runner.ts";
+import { buildOptions, bridgeSystemNote, gate, resultError } from "../src/claude/runner.ts";
 import { scanTranscript } from "../src/sessions/transcriptScanner.ts";
 import { parseAgentsJson } from "../src/sessions/activeSessions.ts";
 import { resolveByChannelName, resolveByFolder, resolveByName } from "../src/sessions/resolve.ts";
@@ -1280,6 +1280,49 @@ describe("ApprovalPrompts", () => {
     expect(asks).toBe(2);
   });
 
+  // Claude Code runs the tool when the hook throws, so a prompt that failed to post once let a command run unapproved.
+  it("denies when the prompt cannot be posted, and leaves nothing waiting on it", async () => {
+    const prompts = new ApprovalPrompts();
+    const sink = { ...quietSink(), ask: async () => Promise.reject(new Error("Missing Permissions")) };
+    const decision = await prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "rm -rf /" });
+    expect(decision).toEqual({ allow: false, reason: expect.stringContaining("could not be shown") });
+  });
+
+  it("refuses a tool when the gate itself fails, whatever failed inside it", async () => {
+    const hooks = gate({
+      approve: async () => {
+        throw new Error("boom");
+      },
+    });
+    const hook = hooks.PreToolUse![0]!.hooks[0]!;
+    const output = await hook({ tool_name: "Bash", tool_input: { command: "ls" } } as never, undefined, {
+      signal: new AbortController().signal,
+    });
+    expect(output).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
+
+    const asking = gate({
+      askQuestions: async () => {
+        throw new Error("boom");
+      },
+    });
+    const answer = await asking.PreToolUse![0]!.hooks[0]!({ tool_name: "AskUserQuestion", tool_input: {} } as never, undefined, {
+      signal: new AbortController().signal,
+    });
+    expect(answer).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
+  });
+
+  // It used to read "Denied from Discord." when nobody had denied anything.
+  it("closes a prompt its turn outlived as ended, not as denied", async () => {
+    const prompts = new ApprovalPrompts();
+    const closed: string[] = [];
+    const sink = { ...quietSink(), ask: async () => ({ close: async (outcome: string) => void closed.push(outcome) }) };
+    const asking = prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "ls" });
+    await wait(5);
+    prompts.finish("turn-1");
+    expect(await asking).toEqual({ allow: false, reason: expect.stringContaining("turn ended") });
+    expect(closed).toEqual(["The turn ended before this was answered."]);
+  });
+
   it("denies when the conversation has no way to show buttons", async () => {
     const prompts = new ApprovalPrompts();
     const decision = await prompts.ask(say, "turn-1", quietSink(), [OWNER], "Bash", { command: "ls" });
@@ -1419,6 +1462,13 @@ describe("QuestionPrompts", () => {
 
     expect(prompts.submit(say, askId)).toContain("already answered");
     expect(prompts.pick(say, askId, 0, ["0"])).toContain("already answered");
+  });
+
+  it("continues without an answer when the questions cannot be posted", async () => {
+    const prompts = new QuestionPrompts();
+    const sink = { ...quietSink(), askWithMenus: async () => Promise.reject(new Error("Unknown Channel")) };
+    const outcome = await prompts.ask(say, "turn-1", sink, [library]);
+    expect(outcome).toEqual({ answered: false, reason: expect.stringContaining("could not be shown") });
   });
 
   it("continues without an answer when the conversation cannot show menus", async () => {
