@@ -15,9 +15,9 @@ import { bridgeVersion } from "./version.ts";
 
 const config = loadConfig();
 const lockPath = path.join(path.dirname(config.bindingsPath), "bridge.lock");
-// A request left over from a previous run would stop this one on its first tick.
-await takeStopRequest(lockPath);
 const lock = await acquireInstanceLock(lockPath);
+// A request left over from a previous run would stop this one on its first tick; cleared only once the lock is ours, or a start that is refused would eat the running bridge's.
+await takeStopRequest(lockPath);
 
 console.log(`Owners: ${config.ownerIds.join(", ")}.`);
 

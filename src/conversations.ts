@@ -1,5 +1,5 @@
 import type { ChannelSettings } from "./claude/runner.ts";
-import { readJsonOr, writeJsonAtomic } from "./jsonFile.ts";
+import { orderedWriter, readStore } from "./jsonFile.ts";
 
 export type ChannelRole = "text" | "voice";
 
@@ -50,13 +50,15 @@ function emptyStore(): StoreFile {
 export class ConversationStore {
   private data: StoreFile = emptyStore();
   private readonly filePath: string;
+  private readonly write: (value: unknown) => Promise<void>;
 
   constructor(filePath: string) {
     this.filePath = filePath;
+    this.write = orderedWriter(filePath);
   }
 
   async load(): Promise<void> {
-    const file = await readJsonOr<Partial<StoreFile>>(this.filePath, emptyStore);
+    const file = await readStore<Partial<StoreFile>>(this.filePath, emptyStore);
     const conversations = file.conversations ?? {};
     // A store written before members and owners existed loads with them empty rather than undefined.
     for (const conversation of Object.values(conversations)) {
@@ -125,10 +127,18 @@ export class ConversationStore {
 
     const conversation = this.data.conversations[sessionId];
     if (conversation) {
-      if (conversation.channels.text === channelId) delete this.data.conversations[sessionId];
+      if (conversation.channels.text === channelId) this.forget(conversation);
       else if (conversation.channels.voice === channelId) delete conversation.channels.voice;
     }
     await this.flush();
+  }
+
+  // Every channel that pointed at it goes with it, or one left behind would route into whatever is bound under the same session next.
+  private forget(conversation: Conversation): void {
+    delete this.data.conversations[conversation.sessionId];
+    for (const [channelId, sessionId] of Object.entries(this.data.channelIndex)) {
+      if (sessionId === conversation.sessionId) delete this.data.channelIndex[channelId];
+    }
   }
 
   private require(sessionId: string, action: string): Conversation {
@@ -138,6 +148,6 @@ export class ConversationStore {
   }
 
   private async flush(): Promise<void> {
-    await writeJsonAtomic(this.filePath, this.data);
+    await this.write(this.data);
   }
 }
