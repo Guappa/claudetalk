@@ -17,7 +17,7 @@ import {
   turnSpawnOptions,
 } from "../src/platform.ts";
 import { detectClaudeError } from "../src/claude/errors.ts";
-import { buildOptions, bridgeSystemNote, gate, resultError } from "../src/claude/runner.ts";
+import { buildOptions, bridgeSystemNote, foldResult, gate, resultError } from "../src/claude/runner.ts";
 import { scanTranscript } from "../src/sessions/transcriptScanner.ts";
 import { parseAgentsJson } from "../src/sessions/activeSessions.ts";
 import { resolveByChannelName, resolveByFolder, resolveByName } from "../src/sessions/resolve.ts";
@@ -1754,6 +1754,57 @@ describe("HeldPrompt", () => {
       kind: "ended",
       subtype: "error_max_turns",
       text: "hit the limit\ntwice",
+    });
+  });
+
+  it("sends nothing when it is closed before the handshake, since that is a turn stopped before it began", async () => {
+    const held = new HeldPrompt("hello");
+    const stream = held.stream();
+    held.close();
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  describe("results from one process that answers several turns", () => {
+    const tokens = (input: number, output: number) => ({
+      input_tokens: input,
+      output_tokens: output,
+      cache_read_input_tokens: 10,
+      cache_creation_input_tokens: 1,
+    });
+
+    it("lets the latest answer stand, an empty one included, and adds the tokens up", () => {
+      const outcome = { text: "" };
+      expect(
+        foldResult(outcome, {
+          subtype: "success",
+          is_error: false,
+          result: "first",
+          usage: tokens(1000, 200),
+          total_cost_usd: 0.1,
+        }),
+      ).toBeNull();
+      expect(
+        foldResult(outcome, { subtype: "success", is_error: false, result: "", usage: tokens(50, 5), total_cost_usd: 0.12 }),
+      ).toBeNull();
+
+      expect(outcome).toEqual({
+        text: "",
+        usage: { input_tokens: 1050, output_tokens: 205, cache_read_input_tokens: 20, cache_creation_input_tokens: 2 },
+        sessionCostUsd: 0.12,
+      });
+    });
+
+    // A plan limit or an API error arrives as a success that is an error, with the reason as its text.
+    it("takes Claude Code's own reason when the result is a success that is an error", () => {
+      const outcome = { text: "earlier answer" };
+      const limit = { subtype: "success", is_error: true, result: "You've hit your session limit" };
+      expect(foldResult(outcome, limit)).toEqual({ kind: "reported", text: "You've hit your session limit" });
+      expect(outcome.text).toBe("earlier answer");
+    });
+
+    it("words a failure subtype from the errors it carries", () => {
+      const failed = { subtype: "error_max_turns", is_error: true, errors: ["hit the limit"] };
+      expect(foldResult({ text: "" }, failed)).toEqual({ kind: "ended", subtype: "error_max_turns", text: "hit the limit" });
     });
   });
 

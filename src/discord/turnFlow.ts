@@ -148,6 +148,8 @@ function failureDetail(say: Say, error: Exclude<ClaudeError, { kind: "session-bu
         : say("turn.errors.ended", { subtype: error.subtype });
     case "could-not-run":
       return say("turn.errors.couldNotRun", { error: error.message });
+    case "reported":
+      return error.text || say("turn.errors.unexplained");
   }
 }
 
@@ -505,6 +507,8 @@ export class TurnFlow {
       if (!result.ok) {
         // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
         const stopped = this.stopping.has(sessionId);
+        // Claude Code says its own reason as the turn's last remark too, and once is enough.
+        if (result.error.kind === "reported") status.dropEcho(result.error.text);
         const outcome = stopped ? say("trail.answerStopped") : describeFailure(say, result.error);
         await conclude(say, status, sink, [outcome], stopped ? "stopped" : "failed").catch(reportUnposted(sessionId));
         await options.onState?.(stopped ? "stopped" : "failed");

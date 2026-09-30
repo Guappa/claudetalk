@@ -67,7 +67,8 @@ export class HeldPrompt {
 
   async *stream(): AsyncGenerator<SDKUserMessage> {
     await this.started;
-    if (this.restart) return;
+    // Closed before the handshake is a turn stopped before it began, and the prompt must not reach a process that is still dying.
+    if (this.restart || this.closed) return;
     yield userMessage(this.prompt);
     while (!this.closed) {
       await Promise.race([this.released, this.arrival.promise]);
