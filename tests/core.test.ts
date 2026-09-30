@@ -2413,7 +2413,7 @@ describe("/run finds a conversation's commands", () => {
     command("doctor", "Check the install", { builtin: true }),
     command("model", "Switch model", { builtin: true }),
   ];
-  const runnable = (name: string) => classifyPrompt(`/${name}`, ["doctor"]).kind === "passthrough";
+  const runnable = (name: string) => classifyPrompt(`/${name}`, ["doctor"], []).kind === "passthrough";
 
   it("reads the list the session sends, tidying what a label cannot hold", () => {
     const event = {
@@ -2477,17 +2477,17 @@ describe("/run finds a conversation's commands", () => {
   // Someone used to the terminal types the command; there it asks before starting, here it would not.
   it("turns away a typed command that asks first in a terminal, and says how to run it here", () => {
     for (const typed of ["/code-review ultra", "/review ultra --fix 12", "/ultrareview 12", "/CODE-REVIEW Ultra"]) {
-      expect(classifyPrompt(typed, []).kind).toBe("asks-first");
+      expect(classifyPrompt(typed, [], []).kind).toBe("asks-first");
     }
-    const ultra = classifyPrompt("/code-review ultra --fix", []);
+    const ultra = classifyPrompt("/code-review ultra --fix", [], []);
     expect(ultra.kind === "asks-first" && describeNotRun(say, ultra)).toContain("`/run command:code-review args:ultra --fix`");
     expect(ultra.kind === "asks-first" && describeNotRun(say, ultra)).toContain("billed");
     expect(ultra.kind === "asks-first" && describeNotRun(say, ultra)).toContain("waits for you to press Run");
-    const bare = classifyPrompt("/ultrareview", []);
+    const bare = classifyPrompt("/ultrareview", [], []);
     expect(bare.kind === "asks-first" && describeNotRun(say, bare)).toContain("`/run command:ultrareview`");
 
     for (const typed of ["/code-review", "/code-review high --fix", "/code-review ultrawide", "/review 12"]) {
-      expect(classifyPrompt(typed, []).kind).toBe("passthrough");
+      expect(classifyPrompt(typed, [], []).kind).toBe("passthrough");
     }
   });
 
@@ -2902,35 +2902,62 @@ describe("classifyPrompt", () => {
   const terminalOnly = ["doctor", "color", "reload-plugins"];
 
   it("treats ordinary text as a turn", () => {
-    expect(classifyPrompt("what does this repo do?", terminalOnly).kind).toBe("turn");
+    expect(classifyPrompt("what does this repo do?", terminalOnly, []).kind).toBe("turn");
   });
 
   it("passes a Claude Code slash command through", () => {
-    expect(classifyPrompt("/compact", terminalOnly).kind).toBe("passthrough");
+    expect(classifyPrompt("/compact", terminalOnly, []).kind).toBe("passthrough");
   });
 
   it("passes a namespaced skill command through", () => {
-    expect(classifyPrompt("/superpowers:brainstorming", terminalOnly).kind).toBe("passthrough");
+    expect(classifyPrompt("/superpowers:brainstorming", terminalOnly, []).kind).toBe("passthrough");
   });
 
   it("rejects a terminal-only command with an explanation", () => {
-    const result = classifyPrompt("/doctor", terminalOnly);
+    const result = classifyPrompt("/doctor", terminalOnly, []);
     expect(result.kind).toBe("terminal-only");
     expect(result.kind === "terminal-only" && describeNotRun(say, result)).toContain("doctor");
   });
 
   it("refuses to pass through /model, which would silently revert", () => {
-    const result = classifyPrompt("/model opus", terminalOnly);
+    const result = classifyPrompt("/model opus", terminalOnly, []);
     expect(result.kind).toBe("bridge-owned");
     expect(result.kind === "bridge-owned" && describeNotRun(say, result)).toContain("/model");
   });
 
   it("refuses to pass through /effort for the same reason", () => {
-    expect(classifyPrompt("/effort high", terminalOnly).kind).toBe("bridge-owned");
+    expect(classifyPrompt("/effort high", terminalOnly, []).kind).toBe("bridge-owned");
   });
 
   it("does not treat a path at the start of a message as a command", () => {
-    expect(classifyPrompt("/home/u/x is the path", terminalOnly).kind).toBe("turn");
+    expect(classifyPrompt("/home/u/x is the path", terminalOnly, []).kind).toBe("turn");
+  });
+
+  describe("a command typed by one of its other names", () => {
+    const listed = (name: string, aliases: string[]) => ({ name, aliases, description: "", argumentHint: "", builtin: true });
+    const known = [listed("clear", ["reset", "new"]), listed("doctor", ["checkup"]), listed("code-review", ["review"])];
+
+    it("is judged as the command it stands for", () => {
+      expect(classifyPrompt("/reset", terminalOnly, known).kind).toBe("ambiguous");
+      expect(classifyPrompt("/new", terminalOnly, known).kind).toBe("ambiguous");
+      expect(classifyPrompt("/checkup", terminalOnly, known).kind).toBe("terminal-only");
+      const review = classifyPrompt("/review ultra --fix", terminalOnly, known);
+      expect(review.kind === "asks-first" && describeNotRun(say, review)).toContain(
+        "`/run command:code-review args:ultra --fix`",
+      );
+    });
+
+    // A conversation opened with /resume has no list until its first turn, and /reset there would start a session the channel cannot see.
+    it("is still recognised before the folder's command list has been learned", () => {
+      expect(classifyPrompt("/reset", terminalOnly, []).kind).toBe("ambiguous");
+      expect(classifyPrompt("/new", terminalOnly, []).kind).toBe("ambiguous");
+      expect(classifyPrompt("/review ultra", terminalOnly, []).kind).toBe("asks-first");
+    });
+
+    it("belongs to the command that has it as its own name before it is anyone's alias", () => {
+      const withOwn = [...known, listed("new", [])];
+      expect(classifyPrompt("/new", terminalOnly, withOwn)).toEqual({ kind: "passthrough", command: "new" });
+    });
   });
 });
 
@@ -3771,7 +3798,7 @@ describe("purge", () => {
 
 describe("/clear is not passed through", () => {
   it("points at the bridge's own command instead of starting a session the channel cannot see", () => {
-    const result = classifyPrompt("/clear", ["doctor"]);
+    const result = classifyPrompt("/clear", ["doctor"], []);
     expect(result.kind).toBe("ambiguous");
     expect(result.kind === "ambiguous" && describeNotRun(say, result)).toContain("own `/clear` command");
     expect(result.kind === "ambiguous" && describeNotRun(say, result)).toContain("/purge");

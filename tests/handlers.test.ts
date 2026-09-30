@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
@@ -79,6 +80,74 @@ describe("a message in a channel that holds no conversation", () => {
     expect(asked).toEqual([]);
     expect(place.posted).toEqual([]);
     expect(bridge.store.byChannel("m2")).toBeUndefined();
+  });
+});
+
+describe("a command typed as a message", () => {
+  const explained = "applies to one process";
+
+  it("is explained when it was typed to the bot", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("t1");
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "/model opus", mentionsBot: true }).message);
+
+    expect(place.posted.join("\n")).toContain(explained);
+    expect(asked).toEqual([]);
+    expect(bridge.store.byChannel("t1")).toBeUndefined();
+  });
+
+  it("gets no answer in a channel the bot is not part of", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("t2");
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "/model opus" }).message);
+
+    expect(place.posted).toEqual([]);
+  });
+
+  it("gets no answer when it was a reply to another person in a conversation's channel", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("t3");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "t3", ownerId: OWNER });
+    const theirs = fakeMessage(place, { authorId: STRANGER, content: "which model is this on?" }).message;
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "/model opus", repliedTo: theirs }).message);
+
+    expect(place.posted).toEqual([]);
+    expect(asked).toEqual([]);
+  });
+
+  it("is refused by the name it stands for, so /reset cannot start a session the channel never sees", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("t4");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "t4", ownerId: OWNER });
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "/reset" }).message);
+
+    expect(place.posted.join("\n")).toContain("Use this bot's own `/clear` command");
+    expect(asked).toEqual([]);
+  });
+});
+
+describe("/ask", () => {
+  const bound = async (channelId: string) => {
+    const bridge = await testBridge();
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId, ownerId: OWNER });
+    return bridge;
+  };
+
+  // With no context in front of it, the prompt is the first thing Claude Code reads.
+  it("holds a command in the prompt to what a typed one is held to", async () => {
+    const bridge = await bound("a1");
+    const command = fakeCommand(fakeChannel("a1"), OWNER, { prompt: "/review ultra" });
+    await handleAsk(bridge, command.interaction);
+
+    expect(command.replies.at(-1)).toContain("`/code-review ultra` was not run");
+    expect(asked).toEqual([]);
+  });
+
+  it("passes on a command that a typed message would pass on", async () => {
+    const bridge = await bound("a2");
+    await handleAsk(bridge, fakeCommand(fakeChannel("a2"), OWNER, { prompt: "/compact" }).interaction);
+
+    expect(asked.map((turn) => turn.prompt)).toEqual(["/compact"]);
   });
 });
 

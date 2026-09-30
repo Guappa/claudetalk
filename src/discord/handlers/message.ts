@@ -20,7 +20,7 @@ import { runConversationTurn } from "../turn.ts";
 import { reactionMarker } from "../reactions.ts";
 import { isFromGuild, isMessageInScope } from "../gate.ts";
 import { toChannelName } from "../channelName.ts";
-import { addressesBot, addressesSomeoneElse, shouldQuoteReplied, type Addressing } from "../addressing.ts";
+import { addressesBot, isForBot, shouldQuoteReplied, type Addressing } from "../addressing.ts";
 import { adHocWorkingDir, tierOf } from "../policy.ts";
 import {
   attributionOnly,
@@ -106,23 +106,14 @@ async function startMentionOnly(bridge: Bridge, message: Message, channel: Senda
   });
 }
 
-// Which conversation a message belongs to: the channel's own, one named like the channel, or a new ad-hoc one.
+// Which conversation a message for the bot belongs to: the channel's own, one named like the channel, or a new ad-hoc one.
 async function targetFor(
   bridge: Bridge,
   message: Message,
   channel: SendableChannels,
-  addressing: Addressing,
+  existing: Conversation | undefined,
 ): Promise<Target | null> {
-  const existing = bridge.store.byChannel(message.channelId);
-  const addressed = addressesBot(addressing);
-
-  if (existing) {
-    if (existing.mentionOnly && !addressed) return null;
-    if (addressesSomeoneElse(addressing)) return null;
-    return { conversation: existing, isFirstTurn: false };
-  }
-
-  if (!addressed) return null;
+  if (existing) return { conversation: existing, isFirstTurn: false };
 
   const parentId = "parentId" in channel ? channel.parentId : null;
   if (isMessageInScope(bridge.config, parentId, false)) {
@@ -202,13 +193,6 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
   const prompt = stripBotMention(message.content, botUserId);
   if (nothingToSend(prompt, message.attachments.size)) return;
 
-  const existing = bridge.store.byChannel(message.channelId);
-  const classification = classifyPrompt(prompt, bridge.capabilities.terminalOnly(existing?.sessionId ?? ""));
-  if (classification.kind !== "turn" && classification.kind !== "passthrough") {
-    await sendNotice(channel, describeNotRun(bridge.language.say, classification));
-    return;
-  }
-
   const replied = await repliedTo(message);
   const addressing: Addressing = {
     mentionsBot: message.mentions.users.has(botUserId),
@@ -216,8 +200,21 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
     botUserId,
     authorId: message.author.id,
   };
+  const existing = bridge.store.byChannel(message.channelId);
+  // Decided before anything is said: a command typed to somebody else, or in a channel the bot is not part of, gets no answer from it.
+  if (!isForBot(existing, addressing)) return;
 
-  const target = await targetFor(bridge, message, channel, addressing);
+  const classification = classifyPrompt(
+    prompt,
+    bridge.capabilities.terminalOnly(existing?.sessionId ?? ""),
+    existing ? bridge.capabilities.commands(existing.cwd) : [],
+  );
+  if (classification.kind !== "turn" && classification.kind !== "passthrough") {
+    await sendNotice(channel, describeNotRun(bridge.language.say, classification));
+    return;
+  }
+
+  const target = await targetFor(bridge, message, channel, existing);
   if (!target) return;
   const ran = await runTurn(
     bridge,

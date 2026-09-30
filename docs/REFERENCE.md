@@ -330,6 +330,15 @@ channel could never reach. The bridge refuses it and points at its own
 they apply to one process and every message here runs a new one; the bridge
 stores them per conversation instead.
 
+A command is judged by the name it goes by, whichever of its names was typed,
+so an alias meets the same rule: `/reset` and `/new` are refused the way
+`/clear` is, `/checkup` the way `/doctor` is, and `/review ultra` the way
+`/code-review ultra` is. The aliases come from the same list Claude Code
+reports for the folder. `/ask` with no context is held to all of it too, since
+its prompt then reaches the session exactly as a typed message would. A refusal
+is only posted when the message was for the bot: a command typed in a channel
+it is not part of, or as a reply to another person, gets no answer.
+
 ## A turn, start to finish
 
 ### Who may drive it
