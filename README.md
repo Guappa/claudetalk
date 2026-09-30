@@ -194,6 +194,61 @@ mid-turn is marked as interrupted the next time it starts.
 Both platforms run the bridge straight from `src/`. Node strips the types, so
 there is no build step.
 
+### In a container
+
+For an always-on Linux box, a Raspberry Pi or a NAS, there is an image instead
+of a clone: `ghcr.io/guappa/claudetalk`, tagged by version and `latest`, built
+for amd64 and arm64 on every tag. It holds the bridge, Node, git and the build
+of Claude Code the Agent SDK ships, and nothing else; the `claude` on its PATH
+is that same build.
+
+```bash
+docker volume create claudetalk-data claudetalk-claude
+docker run -d --name claudetalk --restart unless-stopped --stop-timeout 1800 \
+  --user "$(id -u):0" \
+  -e DISCORD_BOT_TOKEN=... -e DISCORD_GUILD_ID=... -e DISCORD_OWNER_IDS=... \
+  -v claudetalk-data:/app/data \
+  -v claudetalk-claude:/home/node/.claude \
+  -v /srv/projects:/projects \
+  ghcr.io/guappa/claudetalk:latest
+docker exec -it claudetalk claude auth login
+```
+
+The three mounts are the bridge's state (`/app/data`), Claude Code's sign-in
+and conversations (`/home/node/.claude`) and the folder the conversations work
+in (`/projects`, which is `PROJECTS_ROOT` inside the image). The sign-in is done
+once, inside the container, with the command above; it stays in its volume.
+The image runs as uid 1000; `--user` runs it as you instead, so the files Claude
+writes into your projects are yours, and the `0` is the group that lets any uid
+write the image's own folders. Files a session leaves for Discord go in
+`.discord-outbox/` inside its project folder, so they need no mount of their
+own. Any other setting from the table above is passed with `-e`. Logs are
+`docker logs claudetalk`. `docker stop` is the same drain as `npm run stop`, so
+give it the same ceiling the services get; Docker's default grace is ten
+seconds and would kill a turn mid-flight.
+
+What is different inside a container, said plainly:
+
+- The conversations are a fresh set. Nothing from a terminal on the host is
+  seen, and `/sessions` lists only what the bridge made, because the container
+  has its own `~/.claude` and its own paths.
+- Claude runs your projects' commands with the tools in the image, which are
+  git and Node. For anything else, extend it:
+
+  ```dockerfile
+  FROM ghcr.io/guappa/claudetalk:0.22.0
+  USER root
+  RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
+  USER 1000:0
+  ```
+
+- The container is a fence, not a sandbox. It limits what a session can reach
+  to what you mount into it and to the network; within that it runs with the
+  same rights as on a host, and nothing asks before a command runs unless the
+  approval gate is on. What is mounted is fully exposed: the projects, and the
+  sign-in in `~/.claude`. Do not mount the Docker socket, and do not run it as
+  root.
+
 ## Commands
 
 `/create` makes a channel and starts a conversation in it. `/resume` does the
