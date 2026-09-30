@@ -6,7 +6,8 @@ import { describeUnread, formatExchanges, latestThatFit } from "../transcriptVie
 import { DISCORD_MESSAGE_LIMIT } from "../renderer.ts";
 import { respond } from "../respond.ts";
 
-const HEADER_ROOM = 120;
+// The blank line between the header and the exchanges, and what the gate may add to either.
+const HEADER_SLACK = 20;
 
 export async function handleSync(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
@@ -30,7 +31,9 @@ export async function handleSync(bridge: Bridge, interaction: ChatInputCommandIn
     return;
   }
 
-  const recent = latestThatFit(say, drift, DISCORD_MESSAGE_LIMIT - HEADER_ROOM);
+  // Measured, not assumed: the header's length depends on the language and on whether it has to say the count is partial.
+  const header = Math.max(counted("sync.all").length, counted("sync.latest").length);
+  const recent = latestThatFit(say, drift, DISCORD_MESSAGE_LIMIT - header - HEADER_SLACK);
   const view = formatExchanges(say, recent);
   if (recent.length === drift.length) {
     await respond(interaction, `${counted("sync.all")}\n\n${view}`);

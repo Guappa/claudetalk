@@ -623,6 +623,56 @@ describe("chunkForDiscord", () => {
     const quoted = chunkForDiscord(`\`\`\`md\n\`\`\`python\n${"print(1)\n".repeat(300)}\`\`\``);
     expect(quoted.every((chunk) => chunk.startsWith("```md") && chunk.endsWith("```"))).toBe(true);
   });
+
+  // Markdown that itself holds a code block is shown inside a longer fence, which a shorter one inside it does not close.
+  it("closes a fence only on a line of at least as many backticks as opened it", () => {
+    const shown = ["Put this in README.md:", "````md", "## Usage", "```bash", "npm run stop", "```", "````", "That is all."].join(
+      "\n",
+    );
+    expect(chunkForDiscord(shown)).toEqual([shown]);
+
+    const table = "| a | b |\n|---|---|\n| 1 | 2 |";
+    expect(convertTables(`${shown}\n${table}`)).toBe(`${shown}\n- **1**: 2`);
+    const quoted = ["````md", table, "````"].join("\n");
+    expect(convertTables(quoted)).toBe(quoted);
+
+    const inner = "```sh\nls\n```\n".repeat(200);
+    const long = chunkForDiscord(["````md", `${inner}\`\`\`\``, "after"].join("\n"));
+    expect(long.length).toBeGreaterThan(1);
+    expect(long.slice(0, -1).every((chunk) => chunk.startsWith("````md") && chunk.endsWith("````"))).toBe(true);
+    expect(long.at(-1)?.endsWith("after")).toBe(true);
+  });
+
+  // The opener is carried into every later chunk, so a line of content that merely starts with a fence must not be carried whole.
+  it("carries only a fence and its language into the next chunk, however long the line that opened it", () => {
+    const body = "x".repeat(3000);
+    const pieces = chunkForDiscord(["```".concat(body), "last line"].join("\n"));
+    expect(pieces.every((piece) => piece.length <= DISCORD_MESSAGE_LIMIT)).toBe(true);
+    expect(pieces.join("").split("x").length - 1).toBe(3000);
+
+    const tagged = chunkForDiscord(["```python", "print(1)\n".repeat(400).trimEnd(), "```"].join("\n"));
+    expect(tagged.every((piece) => piece.startsWith("```python\n"))).toBe(true);
+  });
+});
+
+describe("an answer with a very long line that starts a fence", () => {
+  // The split is tightened when prose grows under escaping, and a limit that leaves such a line no room would never advance.
+  it("is split, and every piece fits, where the prose around it grows when escaped", () => {
+    const prose = Array.from({ length: 12 }, () => "the x_y_z and a_b_c of 2 * 3 [ then".repeat(4)).join("\n");
+    for (const width of [1000, 1300, 1647, 1690, 3000]) {
+      const pieces = splitForDiscord([prose, "```".concat("x".repeat(width)), "done"].join("\n"));
+      expect(
+        pieces.every((piece) => forDiscord(piece).length <= DISCORD_MESSAGE_LIMIT),
+        String(width),
+      ).toBe(true);
+      expect(pieces.join("").split("x").length - 1, String(width)).toBeGreaterThanOrEqual(width);
+    }
+  });
+
+  it("leaves the room it is asked to, for a heading that goes above the first piece", () => {
+    const answer = Array.from({ length: 60 }, (_, index) => `Point ${index + 1}: `.padEnd(99, "y")).join("\n");
+    expect(splitForDiscord(answer, 1900).every((piece) => forDiscord(piece).length <= 1900)).toBe(true);
+  });
 });
 
 describe("splitForDiscord", () => {
@@ -2868,6 +2918,29 @@ describe("repo links", () => {
     expect(linkPlain("See [the book](https://example.org/wiki/Ledger_(book)).")).toBe(
       "See [the book](<https://example.org/wiki/Ledger_(book)>).",
     );
+  });
+
+  it("keeps any bracket the url itself opened, and still leaves out one that wraps it", () => {
+    expect(linkPlain("GET https://api.example.com/v1/users/{id}")).toBe("GET <https://api.example.com/v1/users/{id}>");
+    expect(linkPlain("Listening on http://[::1]")).toBe("Listening on <http://[::1]>");
+    expect(linkPlain("See docs.example.com/api/{version}.")).toBe(
+      "See [docs.example.com/api/{version}](<https://docs.example.com/api/{version}>).",
+    );
+    expect(linkPlain("{at https://example.com/d}")).toBe("{at <https://example.com/d>}");
+  });
+
+  // A trail's remarks pass the gate when they are noted and are linked afterwards, so an escape is already in the text by then.
+  it("does not escape again what the gate escaped already, and keeps the escape out of the address", () => {
+    expect(linkPlain(forDiscord("Cloning github.com/acme/my_repo now."))).toBe(
+      "Cloning [github.com/acme/my\\_repo](<https://github.com/acme/my_repo>) now.",
+    );
+  });
+
+  it("writes a folder above the working directory into a file link as a url holds it", () => {
+    const inFolder = (prefix: string) => referenceLinks(base, { ...verified, prefix }).file("README.md", "3");
+    expect(inFolder("my app/")).toBe(`${base}/blob/${verified.head}/my%20app/README.md#L3`);
+    expect(inFolder("C#/what?/")).toBe(`${base}/blob/${verified.head}/C%23/what%3F/README.md#L3`);
+    expect(inFolder("packages/app/")).toBe(`${base}/blob/${verified.head}/packages/app/README.md#L3`);
   });
 
   // Discord draws __init__ inside link text as underline, and the reader sees a file called init.

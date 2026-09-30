@@ -1,10 +1,13 @@
+import fs from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleClear } from "../src/discord/commands/clear.ts";
 import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
 import { handleSetting } from "../src/discord/commands/settings.ts";
+import { handleSync } from "../src/discord/commands/sync.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
 import { UNBIND_DELETE, UNBIND_KEEP, createResumeId } from "../src/discord/menus.ts";
@@ -253,6 +256,36 @@ describe("/ask", () => {
     const none = fakeCommand(place, OWNER, { prompt: "and now?", context: 1 });
     await handleAsk(bridge, none.interaction);
     expect(none.replies).toEqual(["Asking with no extra context."]);
+  });
+});
+
+describe("/sync", () => {
+  const entry = (record: Record<string, unknown>): string => `${JSON.stringify(record)}\n`;
+  const said = (minute: number, text: string): string =>
+    entry({ type: "user", timestamp: `2026-09-13T10:${String(minute).padStart(2, "0")}:00.000Z`, message: { content: text } });
+
+  // The header grows when the count is only partial, and what is shown beneath it has to give way.
+  it("fits in one message when it also has to say the count is only the most recent", async () => {
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "sync-long-"));
+    const transcriptPath = path.join(folder, "session.jsonl");
+    const bulk = entry({
+      type: "assistant",
+      timestamp: "2026-09-13T10:05:00.000Z",
+      message: { content: [{ type: "tool_use", name: "x".repeat(1_700_000) }] },
+    });
+    const recent = Array.from({ length: 3 }, (_, index) => said(10 + index, `${index + 1}: ${"word ".repeat(178)}`)).join("");
+    await fs.writeFile(transcriptPath, said(1, "long ago") + bulk + bulk + recent);
+
+    const bridge = await testBridge([record({ sessionId: SESSION, cwd: folder, transcriptPath, lastActivity: new Date() })]);
+    const bound = await bridge.store.bindNew({ sessionId: SESSION, cwd: folder, channelId: "y1", ownerId: OWNER });
+    await bridge.store.markSynced(bound.sessionId, "2026-09-13T10:00:00.000Z");
+    const command = fakeCommand(fakeChannel("y1"), OWNER);
+    await handleSync(bridge, command.interaction);
+
+    const reply = command.replies.at(-1)!;
+    expect(reply).toContain("That counts only the most recent");
+    expect(reply.length).toBeLessThanOrEqual(2000);
+    expect(bridge.store.byChannel("y1")?.syncedThrough).toBe("2026-09-13T10:12:00.000Z");
   });
 });
 
