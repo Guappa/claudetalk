@@ -1,7 +1,7 @@
 import type { ButtonInteraction, ChatInputCommandInteraction, Message, TextChannel } from "discord.js";
 import { GUILD } from "./bridge.ts";
 
-export const BOT = "300000000000000001";
+const BOT = "300000000000000001";
 
 interface Payload {
   content?: string;

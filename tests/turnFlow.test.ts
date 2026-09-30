@@ -415,6 +415,17 @@ describe("TurnFlow", () => {
     expect(shown).not.toContain("Try sending");
   });
 
+  it("points at /clear when the session a channel is bound to does not exist, since sending again cannot help", async () => {
+    endings.set("bound to nothing", { ok: false, text: "", error: { kind: "unknown-session" } });
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s27", cwd, "bound to nothing", {}, sink, { resume: true });
+
+    const shown = sink.messages.join("\n");
+    expect(shown).toContain("Run `/clear` to start a fresh conversation in this channel.");
+    expect(shown).not.toContain("Try sending");
+  });
+
   describe("a stop that lands at an awkward moment", () => {
     const held = (): { wait: Promise<void>; release: () => void } => {
       const gate = Promise.withResolvers<void>();
