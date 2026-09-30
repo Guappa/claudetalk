@@ -1,14 +1,14 @@
-interface QuestionOption {
-  label: string;
-  description: string;
-  preview?: string;
-}
-
 export interface Question {
   question: string;
   header: string;
   options: QuestionOption[];
   multiSelect: boolean;
+}
+
+interface QuestionOption {
+  label: string;
+  description: string;
+  preview?: string;
 }
 
 export type QuestionAnswers = Record<string, string>;
