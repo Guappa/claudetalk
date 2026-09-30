@@ -67,9 +67,9 @@ export function commandChoices(commands: SessionCommand[], typed: string, runnab
 }
 
 // Anything the bridge would let through is offered, a command that asks first included: /run is where it gets asked.
-function runnableIn(bridge: Bridge, sessionId: string): (name: string) => boolean {
+function runnableIn(bridge: Bridge, sessionId: string, known: SessionCommand[]): (name: string) => boolean {
   const terminalOnly = bridge.capabilities.terminalOnly(sessionId);
-  return (name) => ["passthrough", "asks-first"].includes(classifyPrompt(`/${name}`, terminalOnly).kind);
+  return (name) => ["passthrough", "asks-first"].includes(classifyPrompt(`/${name}`, terminalOnly, known).kind);
 }
 
 export async function suggestCommands(bridge: Bridge, interaction: AutocompleteInteraction): Promise<void> {
@@ -84,7 +84,7 @@ export async function suggestCommands(bridge: Bridge, interaction: AutocompleteI
     return;
   }
   await interaction.respond(
-    commandChoices(commands, interaction.options.getFocused(), runnableIn(bridge, conversation.sessionId)),
+    commandChoices(commands, interaction.options.getFocused(), runnableIn(bridge, conversation.sessionId, commands)),
   );
 }
 
@@ -100,7 +100,7 @@ export function refusal(
 ): string | null {
   if (command === NO_LIST) return say("run.noListYet");
   if (!NAME.test(command)) return say("run.notAName", { command: truncate(command, 60) });
-  const classified = classifyPrompt(prompt, terminalOnly);
+  const classified = classifyPrompt(prompt, terminalOnly, known);
   if (classified.kind === "terminal-only" || classified.kind === "bridge-owned" || classified.kind === "ambiguous") {
     return describeNotRun(say, classified);
   }
@@ -135,7 +135,7 @@ export async function handleRun(bridge: Bridge, interaction: ChatInputCommandInt
     return;
   }
 
-  const classified = classifyPrompt(prompt, terminalOnly);
+  const classified = classifyPrompt(prompt, terminalOnly, known);
   const caution = classified.kind === "asks-first" ? say(classified.caution) : null;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

@@ -19,6 +19,12 @@ export function addressesBot(addressing: Addressing): boolean {
   return addressing.repliedAuthorId === addressing.botUserId;
 }
 
+// A conversation's own channel hears everything not aimed at somebody else; any other channel, and one that only answers tags, hears only what addresses the bot.
+export function isForBot(bound: { mentionOnly?: boolean } | undefined, addressing: Addressing): boolean {
+  if (!bound || bound.mentionOnly) return addressesBot(addressing);
+  return !addressesSomeoneElse(addressing);
+}
+
 // A reply to the bot needs no quoting: that message is already in the session's own history.
 export function shouldQuoteReplied(addressing: Addressing): boolean {
   if (addressing.repliedAuthorId === null) return false;

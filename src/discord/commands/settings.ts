@@ -1,6 +1,7 @@
 import type { ChatInputCommandInteraction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
+import type { SessionCommand } from "../../claude/events.ts";
 import { requireConversation } from "../binding.ts";
 import { describeDefault, readHostDefaults, type HostDefaults } from "../../claude/hostSettings.ts";
 import { displayPath } from "../../displayPath.ts";
@@ -19,10 +20,22 @@ type Ambiguous = keyof typeof AMBIGUOUS;
 type Caution = "typed.billedReview";
 // In a terminal these ask before they act; typed here they would act on their flags alone.
 const ASKS_FIRST: ReadonlyArray<{ commands: string[]; when: RegExp; caution: Caution }> = [
-  { commands: ["code-review", "review"], when: /(?:^|\s)ultra(?:\s|$)/i, caution: "typed.billedReview" },
+  { commands: ["code-review"], when: /(?:^|\s)ultra(?:\s|$)/i, caution: "typed.billedReview" },
   { commands: ["ultrareview"], when: /^/, caution: "typed.billedReview" },
 ];
+// The other names Claude Code gives the commands handled here, for a folder whose own list has not been learned yet.
+const ALIASES_UNLISTED = new Map([
+  ["reset", "clear"],
+  ["new", "clear"],
+  ["review", "code-review"],
+]);
 const COMMAND_PATTERN = /^\/([a-z][a-z0-9-]*(?::[a-z0-9-]+)*)(?:\s|$)/i;
+
+// A command is judged by the name it goes by, whichever of its names was typed; an alias would otherwise walk past every rule here.
+function canonicalName(typed: string, known: SessionCommand[]): string {
+  if (known.some((entry) => entry.name === typed)) return typed;
+  return known.find((entry) => entry.aliases.includes(typed))?.name ?? ALIASES_UNLISTED.get(typed) ?? typed;
+}
 
 export type PromptKind =
   | { kind: "turn" }
@@ -34,17 +47,18 @@ export type PromptKind =
 
 export type NotRunAsTyped = Exclude<PromptKind, { kind: "turn" | "passthrough" }>;
 
-export function classifyPrompt(content: string, terminalOnly: string[]): PromptKind {
-  const command = COMMAND_PATTERN.exec(content.trim())?.[1]?.toLowerCase();
-  if (!command) return { kind: "turn" };
+export function classifyPrompt(content: string, terminalOnly: string[], known: SessionCommand[]): PromptKind {
+  const typed = COMMAND_PATTERN.exec(content.trim())?.[1]?.toLowerCase();
+  if (!typed) return { kind: "turn" };
+  const command = canonicalName(typed, known);
 
   if (Object.hasOwn(AMBIGUOUS, command)) return { kind: "ambiguous", command: command as Ambiguous };
   if (BRIDGE_OWNED.has(command)) return { kind: "bridge-owned", command };
-  if (terminalOnly.includes(command)) return { kind: "terminal-only", command };
+  if (terminalOnly.includes(command) || terminalOnly.includes(typed)) return { kind: "terminal-only", command };
 
   const args = content
     .trim()
-    .slice(command.length + 1)
+    .slice(typed.length + 1)
     .trim();
   const guarded = ASKS_FIRST.find((entry) => entry.commands.includes(command) && entry.when.test(args));
   if (guarded) return { kind: "asks-first", command, args, caution: guarded.caution };
