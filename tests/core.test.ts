@@ -1791,8 +1791,27 @@ describe("repo links", () => {
     expect(linkReferences("Not a commit: `deadbee` nor cafef00d.", links)).toBe("Not a commit: `deadbee` nor cafef00d.");
   });
 
-  it("links pull request and issue numbers, branches, tags and files with their lines", () => {
-    expect(linkReferences("Landed as #8.", links)).toBe(`Landed as [#8](<${base}/issues/8>).`);
+  // "Issue #3" was once the third point someone raised, and it linked to a tracker item that had nothing to do with it.
+  it("links a number only when the words before it name a change request", () => {
+    expect(linkReferences("Landed as PR #8.", links)).toBe(`Landed as PR [#8](<${base}/issues/8>).`);
+    expect(linkReferences("Pull requests #4, #5 and #6 merged.", links)).toBe(
+      `Pull requests [#4](<${base}/issues/4>), [#5](<${base}/issues/5>) and [#6](<${base}/issues/6>) merged.`,
+    );
+    const plain = [
+      "Let me speak concretely to issue #3.",
+      "Landed as #8.",
+      "That fixes #2 on your list, and step #4 is next.",
+      "The PR covers points #1 and #2.",
+    ];
+    for (const text of plain) expect(linkReferences(text, links)).toBe(text);
+  });
+
+  it("sends a named merge request to the host's own page for one", () => {
+    const gitlab = referenceLinks("https://gitlab.com/acme/ledger", verified);
+    expect(linkReferences("MR #7 is up.", gitlab)).toBe("MR [#7](<https://gitlab.com/acme/ledger/-/merge_requests/7>) is up.");
+  });
+
+  it("links branches, tags and files with their lines", () => {
     expect(linkReferences("On `feat/drain-on-stop`, tagged `v0.14.0`.", links)).toBe(
       `On [feat/drain-on-stop](<${base}/tree/feat/drain-on-stop>), tagged [v0.14.0](<${base}/releases/tag/v0.14.0>).`,
     );

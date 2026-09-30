@@ -380,11 +380,14 @@ References in the answer become links, written so that Discord adds no embed
 beneath the message. A bare URL is kept clickable, a link Claude writes itself
 keeps its text with the target wrapped the same way, a domain name becomes a link
 to it, and when the working directory has an `origin` remote the repository's
-own references do too: commit hashes, `#` numbers for pull requests and issues,
-`!` numbers for merge requests on GitLab, branch and tag names written in code
+own references do too: commit hashes, a `#` number that the words before it
+name as a pull request or merge request, `!` numbers for merge requests on
+GitLab, branch and tag names written in code
 spans, and file paths with an optional `:line` or `:from-to`. Each repository
 reference is checked first, so a word that merely looks like a hash, or a path
-that is not in the committed tree, stays plain text. GitHub, GitLab and Bitbucket get their
+that is not in the committed tree, stays plain text. A number on its own, or
+after a word like issue, stays plain too: it is as often the third point of a
+list as an item in a tracker. GitHub, GitLab and Bitbucket get their
 own link shapes, self-hosted GitLab included; any other host gets GitHub's,
 which Gitea, Forgejo and Codeberg share. The trail gets the same links once a
 message of it is final, not on the edits in between.

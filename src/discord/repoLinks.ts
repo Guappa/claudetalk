@@ -133,6 +133,14 @@ function splitTrailing(token: string): [string, string] {
 
 const LEADING_HASH = /^([0-9a-f]{7,40})\s+(.+)$/;
 
+const NUMBER_LIST = /(?:#\d+\s*(?:,\s*and|,|and|&)\s*)+$/i;
+const CHANGE_REQUEST = /\b(?:PRs?|pull requests?|MRs?|merge requests?)\s*$/i;
+
+// A bare number is as often the third point of a list as a tracker item, so only a change request named as one links.
+function namesChangeRequest(text: string, offset: number): boolean {
+  return CHANGE_REQUEST.test(text.slice(0, offset).replace(NUMBER_LIST, ""));
+}
+
 function linkSpan(content: string, links: ReferenceLinks): string | null {
   if (HASH.test(content)) {
     const url = links.commit(content);
@@ -180,7 +188,10 @@ export function linkReferences(text: string, links: ReferenceLinks): string {
     const groups = rest.at(-1) as Record<string, string | undefined>;
     if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
     if (groups.span) return linkSpan(groups.span, links) ?? whole;
-    if (groups.issue) return link(whole, links.issue(groups.issue));
+    if (groups.issue) {
+      const named = namesChangeRequest(rest.at(-2) as string, rest.at(-3) as number);
+      return named ? link(whole, links.merge(groups.issue) ?? links.issue(groups.issue)) : whole;
+    }
     if (groups.merge) {
       const url = links.merge(groups.merge);
       return url ? link(whole, url) : whole;
