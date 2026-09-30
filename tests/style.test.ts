@@ -320,6 +320,7 @@ describe("what the bridge says lives in the catalog", () => {
   });
 
   it("reads a string, a template, a comment and a regular expression apart", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the sample is source text, template and all
     const sample = 'const first = "one two three"; // not "four five six"\nconst second = `seven ${eight("nine")} ten`; /quote"mark/.test(other);';
     expect(stringLiterals(sample).map((literal) => literal.text)).toEqual(["one two three", "nine", "seven {} ten"]);
   });

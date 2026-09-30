@@ -490,7 +490,7 @@ describe("chunkForDiscord", () => {
   });
 
   it("reopens a code fence that a split would otherwise leave dangling", () => {
-    const text = "```ts\n" + "const value = 1;\n".repeat(300) + "```";
+    const text = `\`\`\`ts\n${"const value = 1;\n".repeat(300)}\`\`\``;
     const chunks = chunkForDiscord(text);
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks[0]!.endsWith("```")).toBe(true);
@@ -3971,7 +3971,10 @@ describe("an approval belongs to the turn that asked", () => {
   it("ending one conversation's turn leaves another conversation's prompt waiting", async () => {
     const prompts = new ApprovalPrompts();
     let otherId = "";
-    const other = prompts.ask(say, "turn-b", askingSink((actions) => void (otherId = actionId(actions, "approve"))), [OWNER], "Bash", { command: "ls" });
+    const remember = askingSink((actions) => {
+      otherId = actionId(actions, "approve");
+    });
+    const other = prompts.ask(say, "turn-b", remember, [OWNER], "Bash", { command: "ls" });
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     prompts.finish("turn-a");

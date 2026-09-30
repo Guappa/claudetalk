@@ -105,7 +105,7 @@ const LANGUAGES: Record<string, string> = {
   hpp: "cpp",
 };
 
-export function languageFor(filePath: string): string {
+function languageFor(filePath: string): string {
   const extension = /\.([A-Za-z0-9]+)$/.exec(filePath)?.[1]?.toLowerCase() ?? "";
   return LANGUAGES[extension] ?? "";
 }

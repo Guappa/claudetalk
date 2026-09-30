@@ -1,4 +1,4 @@
-export interface QuestionOption {
+interface QuestionOption {
   label: string;
   description: string;
   preview?: string;
