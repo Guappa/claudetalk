@@ -5,6 +5,7 @@ import {
   type AutocompleteInteraction,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type StringSelectMenuInteraction,
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { SessionCommand } from "../../claude/events.ts";
@@ -22,6 +23,7 @@ const CHOICE_LIMIT = 25;
 const CHOICE_CHARS = 100;
 const SHOWN_PROMPT_CHARS = 300;
 const SHOWN_DESCRIPTION_CHARS = 300;
+const SHOWN_SENT_CHARS = 200;
 // Offered when no list is known yet; never a command name, so picking it explains itself.
 const NO_LIST = "-";
 const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/i;
@@ -29,11 +31,6 @@ const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/i;
 export interface CommandChoice {
   name: string;
   value: string;
-}
-
-// What was asked for, held until its Run button is pressed; a button's own id has no room for arguments.
-export interface PendingRun {
-  prompt: string;
 }
 
 function label(command: SessionCommand): string {
@@ -161,15 +158,25 @@ export async function confirmRun(bridge: Bridge, interaction: ButtonInteraction)
     await settleMenu(interaction, say("run.tooOld"));
     return;
   }
+  await runPressed(bridge, interaction, pending.prompt);
+}
+
+// A press that sends a prompt: the control gives way to what was sent, and the turn runs in the conversation the channel holds by then.
+export async function runPressed(
+  bridge: Bridge,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  prompt: string,
+): Promise<void> {
+  const say = bridge.language.say;
   const conversation = bridge.store.byChannel(interaction.channelId);
   if (!conversation || !interaction.channel?.isSendable()) {
     await settleMenu(interaction, say("common.noLongerBound"));
     return;
   }
-  await settleMenu(interaction, say("common.sent", { prompt: truncate(pending.prompt, 200) }));
+  await settleMenu(interaction, say("common.sent", { prompt: truncate(prompt, SHOWN_SENT_CHARS) }));
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,
-    prompt: pending.prompt,
+    prompt,
     sink: channelSink(interaction.channel, { latestPosts: bridge.latestPosts }),
     resume: true,
   });

@@ -213,10 +213,17 @@ export function collectReferences(text: string): References {
   return found;
 }
 
+// What is a link with no repository behind it: one written as Markdown, a bare URL, a domain name.
+function linkWithoutRepo(whole: string, groups: Record<string, string | undefined>): string | null {
+  if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
+  if (groups.url) return wrapUrl(whole);
+  if (groups.domain) return linkDomain(whole, groups.domain, groups.dpath);
+  return null;
+}
+
 export function linkReferences(text: string, links: ReferenceLinks): string {
   return text.replace(TOKENS, (whole: string, ...rest: unknown[]) => {
     const groups = rest.at(-1) as Record<string, string | undefined>;
-    if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
     if (groups.span) return linkSpan(groups.span, links) ?? whole;
     if (groups.issue) {
       const named = namesChangeRequest(rest.at(-2) as string, rest.at(-3) as number);
@@ -234,9 +241,7 @@ export function linkReferences(text: string, links: ReferenceLinks): string {
       const url = links.commit(groups.hash);
       return url ? link(whole, url) : whole;
     }
-    if (groups.url) return wrapUrl(whole);
-    if (groups.domain) return linkDomain(whole, groups.domain, groups.dpath);
-    return whole;
+    return linkWithoutRepo(whole, groups) ?? whole;
   });
 }
 
@@ -257,10 +262,7 @@ function wrapLinkTarget(whole: string, text: string | undefined, target: string 
 export function linkPlain(text: string): string {
   return text.replace(TOKENS, (whole: string, ...rest: unknown[]) => {
     const groups = rest.at(-1) as Record<string, string | undefined>;
-    if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
-    if (groups.url) return wrapUrl(whole);
-    if (groups.domain) return linkDomain(whole, groups.domain, groups.dpath);
-    return whole;
+    return linkWithoutRepo(whole, groups) ?? whole;
   });
 }
 
