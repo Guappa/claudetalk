@@ -66,7 +66,7 @@ const WINDOWS_USERS = `((?<![\\w.-])(?:[A-Za-z]:|${MOUNT}[\\\\/]+[A-Za-z](?=[\\\
 const ACCOUNT_SHAPES = [
   new RegExp(`${WINDOWS_USERS}([^\\\\/\\r\\n"'\`<>|*?:;,=+[\\]]+?)(?=[\\\\/"'\`])`, "gi"),
   new RegExp(`${WINDOWS_USERS}([^\\\\/\\s"'\`<>|*?:;,=+[\\]]+?)(?=[.,;:!?)]*(?:\\s|$))`, "gim"),
-  /((?<![\w.-])\/(?:home|Users)\/)([^/\s"'`<>]+)(?=[/"'`\s]|$)/g,
+  /((?<![\w.-])\/(?:home|Users)\/)([^/\s"'`<>]+?)(?=[/"'`]|[.,;:!?)]*(?:\s|$))/gm,
 ];
 
 // An absolute path carries the operator's account name, and Discord is not a place to put it.

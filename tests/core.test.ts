@@ -1069,6 +1069,9 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
       [`${[users, "Sam"].join("\\")}.`, `${[users, "…"].join("\\")}.`],
       [`in ${[users, "Sam"].join("\\")}, then see src/a.ts`, `in ${[users, "…"].join("\\")}, then see src/a.ts`],
       [[users, "Sam"].join("\\"), [users, "…"].join("\\")],
+      ["It is in /home/" + "sam.", "It is in /home/…."],
+      ["(/Users/" + "sam), then /home/" + "sam: done", "(/Users/…), then /home/…: done"],
+      ["/home/" + "sam.lee/x", "/home/…/x"],
     ];
     for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
   });
