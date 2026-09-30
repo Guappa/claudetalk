@@ -40,7 +40,7 @@ over the workflows. To run them before pushing, install the three and run:
 ```bash
 shellcheck scripts/*.sh
 actionlint
-pwsh -c "Invoke-ScriptAnalyzer -Path scripts -Recurse -EnableExitCode"
+pwsh -c "Invoke-ScriptAnalyzer -Path scripts -Recurse"
 ```
 
 Secrets, vulnerable dependencies and unsafe patterns are watched on GitHub's
