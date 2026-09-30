@@ -13,9 +13,12 @@ export type Language = keyof typeof LANGUAGES;
 // Looks a sentence up by its key in one language; the keys and what each takes are checked against English at compile time.
 export type Say = TFunction;
 
+// A language is added here and named in LANGUAGES; leaving one out of either is caught by a test.
+export const CATALOGS: Record<Language, object> = { en, sv };
+
 const catalog = createInstance();
 void catalog.init({
-  resources: { en: { translation: en }, sv: { translation: sv } },
+  resources: Object.fromEntries(Object.entries(CATALOGS).map(([code, translation]) => [code, { translation }])),
   lng: "en",
   fallbackLng: "en",
   interpolation: { escapeValue: false },

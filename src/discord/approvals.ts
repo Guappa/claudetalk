@@ -5,8 +5,9 @@ import { displayPath, redactHome } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
+import { approvalActionId, type ApprovalChoice } from "./menus.ts";
 
-export type ApprovalChoice = "approve" | "deny" | "approve-all";
+export type { ApprovalChoice } from "./menus.ts";
 // What a person chose, or that the turn was over or the time was up before anyone did.
 type Settlement = ApprovalChoice | "ended" | "expired";
 
@@ -34,9 +35,9 @@ export function describeRequest(say: Say, toolName: string, input: Record<string
 
 function approvalActions(say: Say, id: string): SinkAction[] {
   return [
-    { id: `approve:${id}`, label: say("approvals.approveOnce") },
-    { id: `deny:${id}`, label: say("approvals.deny"), tone: "danger" },
-    { id: `approve-all:${id}`, label: say("approvals.approveRest") },
+    { id: approvalActionId("approve", id), label: say("approvals.approveOnce") },
+    { id: approvalActionId("deny", id), label: say("approvals.deny"), tone: "danger" },
+    { id: approvalActionId("approve-all", id), label: say("approvals.approveRest") },
   ];
 }
 
@@ -70,6 +71,10 @@ export class ApprovalPrompts {
       other.settle("approve-all");
     }
     return say("approvals.approvedRestQuiet");
+  }
+
+  covers(turnId: string): boolean {
+    return this.approveAll.has(turnId);
   }
 
   // The standing approval was given for the turn as it stood. A message added to it since may be somebody else's, and is asked about afresh.

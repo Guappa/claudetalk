@@ -72,8 +72,14 @@ export type MenuAction =
   | { kind: "question-other"; askId: string; index: number }
   | { kind: "question-submit"; askId: string }
   | { kind: "question-skip"; askId: string }
-  | { kind: "approval"; id: string; choice: "approve" | "deny" | "approve-all" }
+  | { kind: "approval"; id: string; choice: ApprovalChoice }
   | { kind: "unknown" };
+
+export type ApprovalChoice = "approve" | "deny" | "approve-all";
+
+export function approvalActionId(choice: ApprovalChoice, id: string): string {
+  return `${choice}:${id}`;
+}
 
 export function pluginToggleId(id: string, enable: boolean): string {
   return `plugin:${enable ? "enable" : "disable"}:${id}`.slice(0, CUSTOM_ID_LIMIT);
@@ -136,7 +142,7 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
 
   const approval = /^(approve-all|approve|deny):(.+)$/.exec(customId);
   if (approval?.[1] && approval[2]) {
-    return { kind: "approval", id: approval[2], choice: approval[1] as "approve" | "deny" | "approve-all" };
+    return { kind: "approval", id: approval[2], choice: approval[1] as ApprovalChoice };
   }
 
   const toggle = /^plugin:(enable|disable):(.+)$/.exec(customId);

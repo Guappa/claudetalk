@@ -31,7 +31,7 @@ export function tickIntervalMs(elapsedMs: number): number {
   return 15_000;
 }
 
-// A count, not a list: it shows the turn is getting somewhere without naming every tool it touches.
+// The state a heading shows, at a glance.
 export type Mood = "working" | "done" | "stopped" | "failed";
 
 // The one place the trail uses emoji: the state at a glance, heading only, standard Unicode only.
@@ -173,10 +173,9 @@ export class StatusMessage {
 
   async start(): Promise<void> {
     this.startedAt = this.now();
-    this.lastSent = renderActivity(this.say, this.notes, 0, this.steps, "working", this.extra());
-    await this.sink.send(this.lastSent);
-    const actions = this.actions();
-    if (actions.length > 0) await this.sink.edit(this.lastSent, actions).catch(() => undefined);
+    this.lastSent = this.drawn("working");
+    // One request: an edit with nothing to edit yet posts the message, controls and all.
+    await this.sink.edit(this.lastSent, this.actions());
     this.sink.typing?.();
     this.typingTimer = setInterval(() => this.sink.typing?.(), TYPING_MS);
     this.typingTimer.unref();
@@ -274,14 +273,18 @@ export class StatusMessage {
     this.stop();
     this.rollOverOverflow("sealed");
     await this.pendingEdit;
-    const trail = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, mood, this.extra());
-    await this.sink.edit(await this.finalized(trail), []);
+    await this.sink.edit(await this.finalized(this.drawn(mood)), []);
   }
 
   // A link is longer than the reference it replaces, and the trail was measured before it was linked. One that no longer fits goes out as it was: a refused edit would leave it reading as live work, or lose what it sealed.
   private async finalized(text: string): Promise<string> {
     const linked = await this.finalize(text);
     return forDiscord(linked).length <= DISCORD_MESSAGE_LIMIT ? linked : text;
+  }
+
+  // The trail as it stands now, under a heading in the given mood.
+  private drawn(mood: Mood): string {
+    return renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, mood, this.extra());
   }
 
   stop(): void {
@@ -331,8 +334,7 @@ export class StatusMessage {
     this.chain(async () => {
       try {
         await this.sink.edit(await this.finalized(sealedText), []);
-        const live = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
-        await this.sink.continueIn!(live, this.actions());
+        await this.sink.continueIn!(this.drawn("working"), this.actions());
         await this.onContinue?.();
       } finally {
         this.moving = false;
@@ -355,7 +357,7 @@ export class StatusMessage {
     if (this.stopped) return;
 
     this.rollOverOverflow("held");
-    const text = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
+    const text = this.drawn("working");
     if (text !== this.lastSent) {
       this.lastSent = text;
       this.chain(() => this.sink.edit(text, this.actions()));

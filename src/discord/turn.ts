@@ -2,21 +2,14 @@ import type { Bridge } from "../bridge.ts";
 import type { Conversation } from "../conversations.ts";
 import type { MessageSink } from "./messageSink.ts";
 import type { SessionRecord } from "../sessions/index.ts";
-import type { StateMarker } from "./reactions.ts";
+import type { TurnOptions } from "./turnFlow.ts";
 import { markCaughtUp, newDrift } from "./sync.ts";
 import { describeDrift } from "./transcriptView.ts";
 
-export interface ConversationTurn {
-  actorId: string;
+// What a turn is given, and what of it goes to the flow as it is.
+export interface ConversationTurn extends Pick<TurnOptions, "name" | "fork" | "onSessionId" | "onState" | "asked" | "foldable"> {
   prompt: string;
   sink: MessageSink;
-  // The title the session takes if this turn turns out to be the one that starts it.
-  name?: string;
-  fork?: boolean;
-  onSessionId?: (sessionId: string) => void;
-  onState?: StateMarker;
-  asked?: string;
-  foldable?: boolean;
 }
 
 // The only door into spending a turn, so none can skip the preflight or the catch-up that follows.

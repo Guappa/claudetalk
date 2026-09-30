@@ -1,5 +1,5 @@
 import type { Client } from "discord.js";
-import { readJsonOr, writeJsonAtomic } from "../jsonFile.ts";
+import { orderedWriter, readJsonOr } from "../jsonFile.ts";
 import type { Say } from "../i18n/index.ts";
 import type { SinkAnchor } from "./messageSink.ts";
 import { errorMessage } from "../text.ts";
@@ -11,10 +11,11 @@ type Anchors = Record<string, SinkAnchor>;
 export class ActiveTurns {
   private readonly filePath: string;
   private anchors: Anchors = {};
-  private writes: Promise<void> = Promise.resolve();
+  private readonly write: (value: unknown) => Promise<void>;
 
   constructor(filePath: string) {
     this.filePath = filePath;
+    this.write = orderedWriter(filePath);
   }
 
   async load(): Promise<void> {
@@ -26,10 +27,10 @@ export class ActiveTurns {
     return this.save();
   }
 
-  clear(sessionId: string): Promise<void> {
-    if (!(sessionId in this.anchors)) return this.writes;
+  async clear(sessionId: string): Promise<void> {
+    if (!(sessionId in this.anchors)) return;
     delete this.anchors[sessionId];
-    return this.save();
+    await this.save();
   }
 
   // What the previous process was running when it died; taking them is what stops a double report.
@@ -40,13 +41,11 @@ export class ActiveTurns {
     return leftovers;
   }
 
-  // Every session shares the one file, so writes go out one at a time, and a failed one costs a log line, not a turn.
-  private save(): Promise<void> {
-    const snapshot = { ...this.anchors };
-    this.writes = this.writes
-      .then(() => writeJsonAtomic(this.filePath, snapshot))
-      .catch((error: unknown) => console.error(`could not write ${this.filePath}: ${errorMessage(error)}`));
-    return this.writes;
+  // A failed write costs a log line, not a turn.
+  private async save(): Promise<void> {
+    await this.write({ ...this.anchors }).catch((error: unknown) => {
+      console.error(`could not write ${this.filePath}: ${errorMessage(error)}`);
+    });
   }
 }
 

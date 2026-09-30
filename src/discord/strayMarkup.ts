@@ -56,8 +56,8 @@ function defuseStretch(prose: string): string {
       continue;
     }
 
-    const lineSoFar = prose.slice(prose.lastIndexOf("\n", index - 1) + 1, index);
-    if (char in OPENERS && opens(char, rest, lineSoFar)) {
+    // Looked up only for a marker: for every other character it would cost a search back to the line's start, on every text posted.
+    if (char in OPENERS && opens(char, rest, prose.slice(prose.lastIndexOf("\n", index - 1) + 1, index))) {
       const run = char === "`" ? /^`+/.exec(rest)![0] : char;
       result += run.replace(/./g, (marker) => `\\${marker}`);
       index += run.length;

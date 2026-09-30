@@ -111,7 +111,7 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
     async edit(text: string, actions: SinkAction[] = []): Promise<void> {
       const shown = forDiscord(text);
       if (!owned) {
-        owned = await post(firstSendOptions(shown));
+        owned = await post({ ...firstSendOptions(shown), components: buttonRow(actions) });
         return;
       }
       await owned.edit({ content: shown, allowedMentions, components: buttonRow(actions) });

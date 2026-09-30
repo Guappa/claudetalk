@@ -66,7 +66,6 @@ export async function clearConversation(bridge: Bridge, interaction: ButtonInter
   const channel = interaction.channel;
   if (!channel?.isSendable()) return;
   await runConversationTurn(bridge, fresh, {
-    actorId: interaction.user.id,
     prompt: HELLO_AFTER_CLEAR,
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     name: record ? displayName(record) : undefined,

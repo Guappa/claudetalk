@@ -54,6 +54,8 @@ interface LiveListing {
 export class SessionIndex {
   private readonly scanned = new Map<string, CacheEntry>();
   private live: LiveListing | null = null;
+  // The listing on its way, if one is: every look that arrives meanwhile waits for it instead of spawning its own.
+  private listing: Promise<ActiveSession[]> | null = null;
   private forgotten = 0;
   private readonly listLive: ListLive;
   private readonly root: string;
@@ -66,8 +68,15 @@ export class SessionIndex {
     this.now = now;
   }
 
-  private async liveSessions(): Promise<ActiveSession[]> {
-    if (this.live && this.now() - this.live.asked < LIVE_CACHE_MS) return this.live.sessions;
+  private liveSessions(): Promise<ActiveSession[]> {
+    if (this.live && this.now() - this.live.asked < LIVE_CACHE_MS) return Promise.resolve(this.live.sessions);
+    this.listing ??= this.list().finally(() => {
+      this.listing = null;
+    });
+    return this.listing;
+  }
+
+  private async list(): Promise<ActiveSession[]> {
     const forgotten = this.forgotten;
     const sessions = await this.listLive();
     const asked = this.now();
@@ -87,16 +96,22 @@ export class SessionIndex {
     this.forgotten += 1;
   }
 
+  // A transcript is named after its session, so the one asked for is looked for by name in each project folder, and nothing else is read.
   async find(sessionId: string): Promise<SessionRecord | null> {
-    return newestCopy(await this.build(), sessionId);
+    const file = `${sessionId}${TRANSCRIPT_SUFFIX}`;
+    const [liveBySession, dirs] = await Promise.all([this.liveBySession(), readDirSafe(this.root)]);
+    const copies = await Promise.all(dirs.map((dir) => this.recordFor(path.join(this.root, dir, file), file)));
+    const found = copies.filter((record): record is SessionRecord => record !== null);
+    const newest = newestCopy(found, sessionId);
+    return newest ? { ...newest, live: liveBySession.get(sessionId) ?? null } : null;
   }
 
   async build(): Promise<SessionRecord[]> {
     const root = this.root;
-    const liveBySession = new Map((await this.liveSessions()).map((session) => [session.sessionId, session]));
+    const [liveBySession, dirs] = await Promise.all([this.liveBySession(), readDirSafe(root)]);
     const records: SessionRecord[] = [];
 
-    for (const dir of await readDirSafe(root)) {
+    for (const dir of dirs) {
       const projectDir = path.join(root, dir);
       for (const file of await readDirSafe(projectDir)) {
         if (!file.endsWith(TRANSCRIPT_SUFFIX)) continue;
@@ -107,6 +122,10 @@ export class SessionIndex {
     }
 
     return records;
+  }
+
+  private async liveBySession(): Promise<Map<string, ActiveSession>> {
+    return new Map((await this.liveSessions()).map((session) => [session.sessionId, session]));
   }
 
   private async recordFor(transcriptPath: string, file: string): Promise<SessionRecord | null> {

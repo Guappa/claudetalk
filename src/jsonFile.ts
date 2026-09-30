@@ -35,7 +35,7 @@ export async function readStore<T>(filePath: string, fallback: () => T): Promise
 }
 
 // Written beside and renamed over, so a crash mid-write leaves the old file; the name is its own, so two writes never share one.
-export async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
+async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const temp = `${filePath}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
   try {

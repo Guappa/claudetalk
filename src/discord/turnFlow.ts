@@ -1,4 +1,11 @@
-import { runTurn, type ApproveTool, type ChannelSettings, type RunningTurn, type TurnResult } from "../claude/runner.ts";
+import {
+  runTurn,
+  type ApproveTool,
+  type ChannelSettings,
+  type RunningTurn,
+  type ToolDecision,
+  type TurnResult,
+} from "../claude/runner.ts";
 import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
@@ -28,6 +35,7 @@ import type { AskHandle, MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
 import { splitForDiscord } from "./outgoing.ts";
 import { displayPath } from "../displayPath.ts";
+import { setTimeout as wait } from "node:timers/promises";
 import { errorMessage } from "../text.ts";
 import { outboxRelative } from "./outbox.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
@@ -299,7 +307,7 @@ export class TurnFlow {
         last = this.activeCount();
         onProgress(last);
       }
-      await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
+      await wait(DRAIN_POLL_MS);
     }
   }
 
@@ -372,7 +380,7 @@ export class TurnFlow {
       turn.stop();
       return;
     }
-    const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, this.cloudGraceMs));
+    const pause = (): Promise<void> => wait(this.cloudGraceMs);
     void Promise.race([turn.stopTasks(cloud), pause()])
       .then(pause)
       .finally(() => turn.stop())
@@ -673,8 +681,11 @@ export class TurnFlow {
     onState?: StateMarker,
   ): ApproveTool | undefined {
     if (!this.config.toolApprovals) return undefined;
+    const ask = (toolName: string, input: Record<string, unknown>): Promise<ToolDecision> =>
+      this.approvals.ask(say, sessionId, sink, this.config.ownerIds, toolName, input);
+    // Once the rest of the turn is approved nobody is asked, and the eyes would flip to the question mark and back for nothing.
     return (toolName, input) =>
-      whileWaiting(onState, stillRunning, () => this.approvals.ask(say, sessionId, sink, this.config.ownerIds, toolName, input));
+      this.approvals.covers(sessionId) ? ask(toolName, input) : whileWaiting(onState, stillRunning, () => ask(toolName, input));
   }
 
   private recordSpend(sessionId: string, result: TurnResult, options: TurnOptions, resume: boolean): void {

@@ -349,21 +349,19 @@ export async function resolveReferences(cwd: string, text: string): Promise<Refe
   const [head, prefix = ""] = (placed ?? "").split("\n").reverse();
   if (!webUrl || !head) return null;
 
-  const refs = (await git(cwd, ["for-each-ref", "--format=%(refname)"])) ?? "";
+  // None of these needs another's answer, and each is a process of its own; asked at once, together they take as long as the slowest.
+  const [refs, commits, files] = await Promise.all([
+    wanted.names.size > 0 ? git(cwd, ["for-each-ref", "--format=%(refname)"]) : Promise.resolve(""),
+    wanted.hashes.size > 0 ? existingCommits(cwd, [...wanted.hashes]) : Promise.resolve(new Set<string>()),
+    wanted.files.size > 0 ? existingFiles(cwd, [...wanted.files]) : Promise.resolve(new Set<string>()),
+  ]);
   const branches = new Set<string>();
   const tags = new Set<string>();
-  for (const ref of refs.split("\n")) {
+  for (const ref of (refs ?? "").split("\n")) {
     if (ref.startsWith("refs/heads/")) branches.add(ref.slice("refs/heads/".length));
     else if (ref.startsWith("refs/remotes/origin/")) branches.add(ref.slice("refs/remotes/origin/".length));
     else if (ref.startsWith("refs/tags/")) tags.add(ref.slice("refs/tags/".length));
   }
 
-  return referenceLinks(webUrl, {
-    head,
-    prefix,
-    commits: wanted.hashes.size > 0 ? await existingCommits(cwd, [...wanted.hashes]) : new Set(),
-    branches,
-    tags,
-    files: wanted.files.size > 0 ? await existingFiles(cwd, [...wanted.files]) : new Set(),
-  });
+  return referenceLinks(webUrl, { head, prefix, commits, branches, tags, files });
 }

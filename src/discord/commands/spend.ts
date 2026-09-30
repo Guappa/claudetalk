@@ -5,6 +5,7 @@ import { describePlanUsage } from "../../claude/planUsage.ts";
 import type { Say } from "../../i18n/index.ts";
 import { requireConversation } from "../binding.ts";
 import { respond } from "../respond.ts";
+import { howLongAgo } from "../timestamps.ts";
 
 function money(say: Say, amount: number): string {
   return amount < 0.01 && amount > 0 ? say("spend.underCent") : `$${amount.toFixed(2)}`;
@@ -51,7 +52,7 @@ export async function handleSpend(bridge: Bridge, interaction: ChatInputCommandI
       describeTotals(say, "mine", mine),
       describeTotals(say, "all", all),
       describeCost(say, mine, all),
-      say("spend.footnote", { since: `<t:${Math.floor(since.getTime() / 1000)}:R>` }),
+      say("spend.footnote", { since: howLongAgo(since) }),
     ]
       .filter(Boolean)
       .join("\n"),
