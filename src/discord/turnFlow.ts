@@ -408,7 +408,7 @@ export class TurnFlow {
       await announced.promise;
       this.settingUp.add(sessionId);
       try {
-        const refusal = await options.beforeTurn?.();
+        const refusal = await this.check(say, sessionId, options);
         refused = refusal !== undefined;
         if (refusal === undefined) await this.runNow(sessionId, cwd, prompt, settings, sink, options);
         else await this.refuse(sink, refusal, options);
@@ -428,6 +428,16 @@ export class TurnFlow {
     const ran = await running;
     if (!ran) await options.onState?.("stopped");
     return ran && !refused;
+  }
+
+  // A check that failed is not a turn that ran: left to reject, the message kept its clock for good and nobody was told why.
+  private async check(say: Say, sessionId: string, options: TurnOptions): Promise<string | undefined> {
+    try {
+      return await options.beforeTurn?.();
+    } catch (error) {
+      console.error(`the check before a turn in ${sessionId} failed`, error);
+      return say("turn.checkFailed", { error: errorMessage(error) });
+    }
   }
 
   private async refuse(sink: MessageSink, refusal: string, options: TurnOptions): Promise<void> {

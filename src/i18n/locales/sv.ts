@@ -103,6 +103,8 @@ export const sv: Catalog = {
     draining:
       "Bryggan håller på att stängas av och tar inte emot något nytt. Den låter pågående omgångar bli klara först, vilket kan ta en stund; skicka detta igen när den är tillbaka.",
     failed: "Omgången misslyckades.\n```\n{{error}}\n```",
+    checkFailed:
+      "Ditt meddelande skickades inte till Claude: kontrollen före omgången misslyckades med {{error}}. Skicka det igen; om det fortsätter misslyckas finns detaljerna i bryggans logg på värddatorn.",
     heldByBackgroundAgent:
       "Den konversationen körs som en bakgrundsagent (`{{shortId}}`). Kör `/takeover` här för att stoppa den och fortsätta, eller `claude attach {{shortId}}` på värddatorn.",
     openInTerminal:

@@ -101,6 +101,8 @@ export const en = {
     draining:
       "The bridge is shutting down and takes nothing new. It lets running turns finish first, which can take a while; send this again once it is back.",
     failed: "The turn failed.\n```\n{{error}}\n```",
+    checkFailed:
+      "Your message was not sent to Claude: the check before the turn failed with {{error}}. Try sending it again; if it keeps failing, the bridge log on the host has the details.",
     heldByBackgroundAgent:
       "That conversation is running as a background agent (`{{shortId}}`). Run `/takeover` here to stop it and continue, or `claude attach {{shortId}}` on the host.",
     openInTerminal:
