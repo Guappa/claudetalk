@@ -7,7 +7,7 @@ import { questionPickId, questionSkipId, questionSubmitId } from "./menus.ts";
 import type { MessageSink, SinkAction, SinkMenu } from "./messageSink.ts";
 
 // A question deserves more thought than a permission, and a phone is often the thing answering it.
-const QUESTION_TIMEOUT_MS = 10 * 60_000;
+export const QUESTION_TIMEOUT_MS = 10 * 60_000;
 const MESSAGE_LIMIT = 1900;
 const PREVIEW_LIMIT = 300;
 

@@ -11,13 +11,13 @@ export interface Tail {
   fromStart: boolean;
 }
 
-// A tail that falls wholly inside one record has no line break before its end.
-function holdsWholeLine(text: string): boolean {
+// Claude Code ends a transcript with lines of its own bookkeeping, a title or a cost, so a whole line is not yet a whole message.
+function holdsAMessage(text: string): boolean {
   const firstBreak = text.indexOf("\n");
-  return firstBreak !== -1 && firstBreak < text.trimEnd().length;
+  return firstBreak !== -1 && /"type":\s*"(?:user|assistant)"/.test(text.slice(firstBreak));
 }
 
-// One record can be larger than the window asked for, a pasted image for one, and a tail inside it would read as an empty transcript, so it is widened until it holds a whole line.
+// One record can be larger than the window asked for, a pasted image for one, and a tail that starts inside it would read as an empty transcript, so it is widened until it holds a message whole.
 export async function readTail(transcriptPath: string, bytes: number): Promise<Tail | null> {
   const handle = await fs.open(transcriptPath, "r").catch(() => null);
   if (!handle) return null;
@@ -29,7 +29,7 @@ export async function readTail(transcriptPath: string, bytes: number): Promise<T
       const buffer = Buffer.alloc(length);
       if (length > 0) await handle.read(buffer, 0, length, size - length);
       const tail = { text: buffer.toString("utf8"), fromStart: length === size };
-      if (tail.fromStart || width >= WIDEST_TAIL_BYTES || holdsWholeLine(tail.text)) return tail;
+      if (tail.fromStart || width >= WIDEST_TAIL_BYTES || holdsAMessage(tail.text)) return tail;
     }
   } finally {
     await handle.close();

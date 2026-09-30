@@ -13,9 +13,11 @@ import {
   describeRefused,
   describeUnfetched,
   downloadAttachments,
+  keepAttachmentsAwhile,
   screenAttachments,
   sweepAttachments,
   type RemoteAttachment,
+  type SavedAttachment,
 } from "../../attachments.ts";
 import { classifyTyped, describeNotRun, isNotRun } from "../commands/settings.ts";
 import { channelSink } from "../sink.ts";
@@ -166,13 +168,34 @@ async function runTurn(
   plain: boolean,
   allowed: RemoteAttachment[],
 ): Promise<boolean> {
-  void sweepAttachments();
+  void sweepAttachments(Date.now(), bridge.heldAttachments);
 
-  const { saved, failed } = await downloadAttachments(allowed, randomUUID());
+  const turnId = randomUUID();
+  const { saved, failed } = await downloadAttachments(allowed, turnId);
   const unfetched = describeUnfetched(bridge.language.say, failed);
   if (unfetched) await reply(message, unfetched);
   if (nothingToSend(prompt, saved.length)) return false;
+  if (saved.length === 0) return await askOf(bridge, message, channel, target, prompt, context, plain, saved);
 
+  bridge.heldAttachments.add(turnId);
+  try {
+    return await askOf(bridge, message, channel, target, prompt, context, plain, saved);
+  } finally {
+    bridge.heldAttachments.delete(turnId);
+    await keepAttachmentsAwhile(turnId);
+  }
+}
+
+async function askOf(
+  bridge: Bridge,
+  message: Message,
+  channel: SendableChannels,
+  target: Target,
+  prompt: string,
+  context: BuiltContext,
+  plain: boolean,
+  saved: SavedAttachment[],
+): Promise<boolean> {
   return await runConversationTurn(bridge, target.conversation, {
     actorId: message.author.id,
     prompt: appendAttachmentPaths(composePrompt(context, prompt), saved),

@@ -70,6 +70,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     questions,
     activeTurns,
     latestPosts: new Map<string, string>(),
+    heldAttachments: new Set<string>(),
     outbox,
     flow: new TurnFlow(
       capabilities,

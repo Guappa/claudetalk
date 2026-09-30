@@ -18,9 +18,9 @@ export class ContextTracker {
     this.ceiling = ceiling;
   }
 
-  // The only trustworthy sign of where this session compacts is where it last compacted.
+  // The only trustworthy sign of where this session compacts is where it last compacted by itself, which moves down as well as up when the model changes.
   learnCeiling(preTokens: number): void {
-    if (preTokens > 0) this.ceiling = Math.max(this.ceiling ?? 0, preTokens);
+    if (preTokens > 0) this.ceiling = preTokens;
   }
 
   knownCeiling(): number | null {

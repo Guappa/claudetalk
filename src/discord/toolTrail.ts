@@ -116,7 +116,9 @@ function languageFor(filePath: string): string {
 function writeSummary(say: Say, input: Record<string, unknown>): string | null {
   const filePath = text(input.file_path);
   if (!filePath) return null;
-  const lines = text(input.content).split("\n");
+  const content = text(input.content);
+  // A file ends with a line break, which closes its last line and does not begin another.
+  const lines = content === "" ? [] : content.replace(/\r?\n$/, "").split("\n");
   const heading = say("trail.written", { path: pathHeading(filePath), count: lines.length });
   return `${heading}\n${fenced(languageFor(filePath), capped(say, lines))}`;
 }

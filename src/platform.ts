@@ -89,10 +89,15 @@ export function isWithin(parent: string, target: string): boolean {
   return relative !== ".." && !relative.startsWith(`..${path.sep}`);
 }
 
+// Null on Windows, where an account is not a number and a temp folder is not shared.
+export function ownUid(): number | null {
+  return process.getuid ? process.getuid() : null;
+}
+
 // POSIX shares one temp directory between every account, so the uid keeps the roots from colliding.
 export function attachmentsRoot(): string {
-  const owner = process.getuid ? `-${process.getuid()}` : "";
-  return path.join(longTmpDir(), `claudetalk-attachments${owner}`);
+  const uid = ownUid();
+  return path.join(longTmpDir(), `claudetalk-attachments${uid === null ? "" : `-${uid}`}`);
 }
 
 // Windows and macOS both hold one folder under many spellings; only Linux treats case as identity.

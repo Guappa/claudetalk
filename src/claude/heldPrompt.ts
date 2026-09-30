@@ -61,6 +61,8 @@ export class HeldPrompt {
     this.untaken.add(uuid);
     this.unsent.push({ ...userMessage(text), uuid, priority: "next" });
     this.clearTimer();
+    // Handed over after the answer, no result is on its way to start the clock on it.
+    if (this.answered) this.dropUntakenAfter(this.untakenGrace);
     this.arrival.resolve();
     return uuid;
   }
@@ -106,7 +108,7 @@ export class HeldPrompt {
     if (event.type === "result") {
       this.answered = true;
       // A message still waiting runs as the next turn in this same process, so the input stays open for it.
-      if (this.awaitsUntaken) this.closeAfter(this.untakenGrace);
+      if (this.awaitsUntaken) this.dropUntakenAfter(this.untakenGrace);
       else if (this.outstanding === 0) this.close();
     }
   }
@@ -116,6 +118,16 @@ export class HeldPrompt {
     this.clearTimer();
     this.start();
     this.release();
+  }
+
+  // A message the session never takes stops being a reason to hold the input; a command still running in the background goes on being one.
+  private dropUntakenAfter(ms: number): void {
+    this.clearTimer();
+    this.timer = setTimeout(() => {
+      this.untaken.clear();
+      if (this.outstanding === 0) this.close();
+    }, ms);
+    this.timer.unref();
   }
 
   private closeAfter(ms: number): void {
