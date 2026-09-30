@@ -1,16 +1,16 @@
-import { staysFenced } from "./renderer.ts";
+import { fenceAfter } from "./renderer.ts";
 
 // Discord draws no tables: two columns read well as a list, more need a monospace block to line up.
 export function convertTables(text: string): string {
   const lines = text.split("\n");
   const out: string[] = [];
-  let fenced = false;
+  let fence: string | null = null;
   let index = 0;
   while (index < lines.length) {
     const line = lines[index]!;
     const next = lines[index + 1];
     // A table quoted inside a code block is code, and a block planted inside it would end it early.
-    if (!fenced && ROW.test(line) && next !== undefined && SEPARATOR.test(next)) {
+    if (fence === null && ROW.test(line) && next !== undefined && SEPARATOR.test(next)) {
       const header = cells(line);
       const rows: string[][] = [];
       index += 2;
@@ -22,7 +22,7 @@ export function convertTables(text: string): string {
       out.push(...(header.length <= 2 ? asList(rows.length > 0 ? rows : [header]) : asBlock(header, rows)));
       continue;
     }
-    fenced = staysFenced(fenced, line);
+    fence = fenceAfter(fence, line);
     out.push(line);
     index += 1;
   }

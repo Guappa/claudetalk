@@ -87,6 +87,11 @@ export function remoteWebUrl(remote: string): string | null {
   return null;
 }
 
+// A folder name can hold a space, a hash or a question mark, each of which means something else in a URL.
+function inUrl(prefix: string): string {
+  return prefix.split("/").map(encodeURIComponent).join("/");
+}
+
 export function referenceLinks(webUrl: string, verified: Verified): ReferenceLinks {
   const shapes = shapesFor(new URL(webUrl).host);
   return {
@@ -102,7 +107,9 @@ export function referenceLinks(webUrl: string, verified: Verified): ReferenceLin
       return null;
     },
     file: (filePath, line, end) =>
-      verified.files.has(filePath) ? `${webUrl}${shapes.file(verified.head, `${verified.prefix}${filePath}`, line, end)}` : null,
+      verified.files.has(filePath)
+        ? `${webUrl}${shapes.file(verified.head, `${inUrl(verified.prefix)}${filePath}`, line, end)}`
+        : null,
   };
 }
 
@@ -129,21 +136,33 @@ const TOKENS = new RegExp(
   "g",
 );
 
-// The text is a name taken from the answer as it stands, so a marker in it, the underscores of __init__.py, is escaped to show as itself.
+// The text is a name taken from the answer as it stands, so a marker in it, the underscores of __init__.py, is escaped to show as itself. A trail's text has been through the gate once already, and a marker it escaped there is left as it is.
 function link(text: string, url: string): string {
-  return `[${text.replace(/[\\*_~`|]/g, "\\$&")}](<${url}>)`;
+  return `[${text.replace(/(?<!\\)[*_~`|]/g, "\\$&")}](<${url}>)`;
+}
+
+// The gate's escapes belong to the text a reader sees, never to the address behind it.
+function unescaped(text: string): string {
+  return text.replace(/\\([^0-9A-Za-z\s])/g, "$1");
 }
 
 function count(text: string, char: string): number {
   return text.split(char).length - 1;
 }
 
+const OPENED_BY = new Map([
+  [")", "("],
+  ["]", "["],
+  ["}", "{"],
+]);
+
 // A link's target never keeps the sentence's own punctuation or the markup around it; a closing bracket stays only where the target opened it.
 function splitTrailing(token: string): [string, string] {
   let end = token.length;
   while (end > 0 && SELDOM_ENDS_A_URL.has(token[end - 1]!)) {
     const kept = token.slice(0, end);
-    if (token[end - 1] === ")" && count(kept, "(") >= count(kept, ")")) break;
+    const opener = OPENED_BY.get(token[end - 1]!);
+    if (opener && count(kept, opener) >= count(kept, token[end - 1]!)) break;
     end -= 1;
   }
   return [token.slice(0, end), token.slice(end)];
@@ -158,7 +177,7 @@ function namesAFile(domain: string, domainPath: string | undefined): boolean {
 function linkDomain(whole: string, domain: string, domainPath: string | undefined): string {
   if (namesAFile(domain, domainPath)) return whole;
   const [target, tail] = splitTrailing(`${domain}${domainPath ?? ""}`);
-  return `${link(target, `https://${target}`)}${tail}`;
+  return `${link(target, `https://${unescaped(target)}`)}${tail}`;
 }
 
 const LEADING_HASH = /^([0-9a-f]{7,40})\s+(.+)$/;
