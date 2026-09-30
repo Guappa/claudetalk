@@ -26,7 +26,7 @@ export const de: Catalog = {
     current:
       "Sprache der Brücke: **{{name}}**. Das gilt für das, was die Brücke selbst sagt; Claude antwortet in der Sprache, in der du schreibst.",
     changed:
-      "Sprache der Brücke: **{{name}}**, ab jetzt. Das gilt für das, was die Brücke selbst sagt; ein Durchlauf, der schon läuft, behält die Sprache, in der er begonnen hat. Claudes Antworten sind nicht betroffen: es antwortet in der Sprache, in der du schreibst.",
+      "Sprache der Brücke: **{{name}}**, ab jetzt. Das gilt für das, was die Brücke selbst sagt; ein Durchlauf, der schon läuft, behält die Sprache, in der er begonnen hat. Claudes Antworten sind nicht betroffen: Es antwortet in der Sprache, in der du schreibst.",
   },
   access: {
     ownersOnly:
@@ -86,7 +86,7 @@ export const de: Catalog = {
     failedSteps_one: "**Fehlgeschlagen nach** {{elapsed}} · {{count}} Schritt",
     failedSteps_other: "**Fehlgeschlagen nach** {{elapsed}} · {{count}} Schritte",
     started: "**Gestartet**",
-    interrupted: "**Unterbrochen: die Brücke wurde gestoppt, während das lief. Schick eine Nachricht, um weiterzumachen.**",
+    interrupted: "**Unterbrochen: Die Brücke wurde gestoppt, während das lief. Schick eine Nachricht, um weiterzumachen.**",
     answerDone: "Fertig.",
     answerDoneNoText: "Fertig, ohne Text zum Anzeigen.",
     answerCompacted: "Komprimiert.",
@@ -106,7 +106,7 @@ export const de: Catalog = {
       "Die Brücke fährt herunter und nimmt nichts Neues mehr an. Sie lässt laufende Durchläufe erst zu Ende kommen, was eine Weile dauern kann; schick das noch einmal, sobald sie wieder da ist.",
     failed: "Der Durchlauf ist fehlgeschlagen.\n```\n{{error}}\n```",
     checkFailed:
-      "Deine Nachricht wurde nicht an Claude geschickt: die Prüfung vor dem Durchlauf ist mit {{error}} fehlgeschlagen. Versuch, sie noch einmal zu schicken; wenn es weiter fehlschlägt, stehen die Einzelheiten im Log der Brücke auf dem Host.",
+      "Deine Nachricht wurde nicht an Claude geschickt: Die Prüfung vor dem Durchlauf ist mit {{error}} fehlgeschlagen. Versuch, sie noch einmal zu schicken; wenn es weiter fehlschlägt, stehen die Einzelheiten im Log der Brücke auf dem Host.",
     heldByBackgroundAgent:
       "Dieses Gespräch läuft als Hintergrund-Agent (`{{shortId}}`). Führ hier `/takeover` aus, um ihn zu stoppen und weiterzumachen, oder `claude attach {{shortId}}` auf dem Host.",
     openInTerminal:
@@ -114,7 +114,7 @@ export const de: Catalog = {
     conversationGone:
       "Das Gespräch dieses Kanals wurde neu gestartet oder gelöst, während deine Nachricht unterwegs war, also wurde sie nicht ausgeführt. Schick sie noch einmal.",
     unknownSession:
-      "Claude Code hat kein Gespräch unter der Sitzungs-ID, an die dieser Kanal gebunden ist: sein Transkript wurde vom Host entfernt, oder sein erster Durchlauf kam nie weit genug, um eines zu schreiben. Die Nachricht noch einmal zu schicken hilft nicht. Führ `/clear` aus, um in diesem Kanal ein frisches Gespräch zu beginnen.",
+      "Claude Code hat kein Gespräch unter der Sitzungs-ID, an die dieser Kanal gebunden ist: Sein Transkript wurde vom Host entfernt, oder sein erster Durchlauf kam nie weit genug, um eines zu schreiben. Die Nachricht noch einmal zu schicken hilft nicht. Führ `/clear` aus, um in diesem Kanal ein frisches Gespräch zu beginnen.",
     errors: {
       stopped: "Der Durchlauf wurde gestoppt.",
       orphanTwice:
@@ -134,7 +134,7 @@ export const de: Catalog = {
     neverTaken: "Der Durchlauf endete, bevor das aufgenommen wurde. Schick es noch einmal.",
     sendNow: "Jetzt senden",
     sent: "Jetzt gesendet. Der Schritt, an dem Claude war, wurde abgebrochen, damit es deine Nachricht lesen konnte, und es macht von dort weiter. Agenten und Hintergrundbefehle, die es laufen hatte, laufen weiter.",
-    nothingWaiting: "Nichts wartet: der laufende Durchlauf hat deine Nachricht schon aufgenommen.",
+    nothingWaiting: "Nichts wartet: Der laufende Durchlauf hat deine Nachricht schon aufgenommen.",
     notRunning: "Hier läuft kein Durchlauf mehr, also gibt es nichts zu unterbrechen.",
     notInterrupted:
       "Der laufende Durchlauf ließ sich nicht unterbrechen, also wartet deine Nachricht weiter auf seinen nächsten Schritt.",
@@ -145,7 +145,7 @@ export const de: Catalog = {
     runningAlone: "Ein Durchlauf läuft, und nichts steht dahinter an.",
     runningWith_one: "Ein Durchlauf läuft, mit {{count}} Nachricht dahinter in der Warteschlange.",
     runningWith_other: "Ein Durchlauf läuft, mit {{count}} Nachrichten dahinter in der Warteschlange.",
-    full: "Dieses Gespräch hält schon {{limit}} Nachrichten: eine läuft und {{queued}} stehen dahinter an. Lass es aufholen, führ `/stop` aus, um die laufende zu beenden und die nächste starten zu lassen, oder `/stop all:true`, um die Warteschlange gleich mit zu verwerfen.",
+    full: "Dieses Gespräch hält schon {{limit}} Nachrichten: Eine läuft und {{queued}} stehen dahinter an. Lass es aufholen, führ `/stop` aus, um die laufende zu beenden und die nächste starten zu lassen, oder `/stop all:true`, um die Warteschlange gleich mit zu verwerfen.",
   },
   stop: {
     button: "Stopp",
@@ -234,14 +234,14 @@ export const de: Catalog = {
       "{{count}} Nachrichten sind in diesem Gespräch außerhalb von Discord passiert, seit du zuletzt hier warst. Die letzte war {{ago}}, {{when}}. Führ `/sync` aus, um sie zu sehen.",
     running:
       "Hier läuft gerade ein Durchlauf, und was er sagt, ist auf dem Weg in diesen Kanal. Führ `/sync` noch einmal aus, sobald er fertig ist.",
-    nothingNew: "Nichts Neues: in diesem Gespräch ist außerhalb von Discord nichts passiert, seit du zuletzt hier warst.",
+    nothingNew: "Nichts Neues: In diesem Gespräch ist außerhalb von Discord nichts passiert, seit du zuletzt hier warst.",
     all_one: "{{count}} Nachricht von außerhalb von Discord:",
     all_other: "{{count}} Nachrichten von außerhalb von Discord:",
     latest_one: "{{count}} Nachricht von außerhalb von Discord. Wo du aufgehört hast, mit allen davon in der Datei:",
     latest_other: "{{count}} Nachrichten von außerhalb von Discord. Wo du aufgehört hast, mit allen davon in der Datei:",
     leftOff: "Wo du aufgehört hast:",
     countedRecent:
-      "Das zählt nur das Jüngste: die Brücke liest die letzten {{megabytes}} MB eines Transkripts zurück, und davor ist mehr passiert, als da hineinpasst.",
+      "Das zählt nur das Jüngste: Die Brücke liest die letzten {{megabytes}} MB eines Transkripts zurück, und davor ist mehr passiert, als da hineinpasst.",
   },
   ask: {
     withContext_one: "Frage mit der letzten {{count}} Nachricht als Kontext.",
@@ -292,7 +292,7 @@ export const de: Catalog = {
   create: {
     topic: 'Claude-Code-Gespräch "{{name}}" in {{cwd}}',
     channelFailed:
-      "Konnte den Kanal nicht anlegen: {{error}}. Der Bot braucht Kanäle verwalten und Rollen verwalten in diesem Server; Rollen verwalten ist das, womit er den Kanal privat für dich machen kann.",
+      "Konnte den Kanal nicht anlegen: {{error}}. Der Bot braucht Kanäle verwalten, Rollen verwalten und Nachrichten verwalten in diesem Server; Rollen verwalten ist das, womit er den Kanal privat für dich machen kann.",
     ownersOnlyHere:
       "Nur ein Besitzer kann hier Gespräche anlegen. Setz WORKSPACES_ROOT, um anderen Operatoren einen eigenen Platz zum Arbeiten zu geben.",
     folderFailed:
@@ -310,14 +310,14 @@ export const de: Catalog = {
       "`{{cwd}}` hat schon {{count}} Gespräche ({{hidden}} ältere nicht gezeigt). Eines fortsetzen, oder ein weiteres daneben anfangen?",
     cancelled: "In Ruhe gelassen. Nichts wurde angelegt.",
     tooOld: "Dieses `/create` ist zu alt, um jetzt noch darauf zu reagieren. Führ es noch einmal aus.",
-    gone: "Dieses Gespräch ist nicht mehr auf dem Host: sein Transkript wurde entfernt oder verschoben. Führ `/create` noch einmal aus, um ein frisches anzufangen.",
+    gone: "Dieses Gespräch ist nicht mehr auf dem Host: Sein Transkript wurde entfernt oder verschoben. Führ `/create` noch einmal aus, um ein frisches anzufangen.",
   },
   fork: {
     unbound: "Dieser Kanal ist an kein Gespräch gebunden, also gibt es nichts abzuzweigen.",
     unnamed: "Gespräch",
     branching: "Zweigt nach {{channel}} ab...",
     notStarted:
-      "Nichts wurde abgezweigt: der erste Durchlauf des Zweigs ist nicht gestartet, und der dafür angelegte Kanal wurde wieder entfernt. Das passiert, wenn dieses Gespräch in einem Terminal offen ist oder von einem Hintergrund-Agenten gehalten wird, wenn seine Warteschlange voll ist oder verworfen wurde, oder wenn die Brücke herunterfährt. Führ `/fork` noch einmal aus, sobald es frei ist.",
+      "Nichts wurde abgezweigt: Der erste Durchlauf des Zweigs ist nicht gestartet, und der dafür angelegte Kanal wurde wieder entfernt. Das passiert, wenn dieses Gespräch in einem Terminal offen ist oder von einem Hintergrund-Agenten gehalten wird, wenn seine Warteschlange voll ist oder verworfen wurde, oder wenn die Brücke herunterfährt. Führ `/fork` noch einmal aus, sobald es frei ist.",
     notBound:
       "{{channel}} angelegt, aber der erste Durchlauf des Zweigs endete, ohne dass Claude Code eine neue Sitzungs-ID gemeldet hat, also ist dieser Kanal nicht gebunden; wozu der Durchlauf kam, steht dort. Wenn der Zweig doch in `/sessions` auftaucht, öffnet `/resume` ihn in einem eigenen Kanal, und {{channel}} kann gelöscht werden.",
     done: "**{{source}}** nach {{channel}} als **{{name}}** abgezweigt. Dieser Kanal ist unberührt.",
@@ -378,8 +378,8 @@ export const de: Catalog = {
   },
   run: {
     noListYet:
-      "Die Befehle dieses Gesprächs sind noch nicht bekannt: sie werden beim ersten Durchlauf in seinem Ordner gelernt. Schick hier erst eine Nachricht, dann listet `/run` sie beim Tippen auf.",
-    noListChoice: "Noch keine Befehlsliste: schick hier erst eine Nachricht, dann versuch es noch einmal",
+      "Die Befehle dieses Gesprächs sind noch nicht bekannt: Sie werden beim ersten Durchlauf in seinem Ordner gelernt. Schick hier erst eine Nachricht, dann listet `/run` sie beim Tippen auf.",
+    noListChoice: "Noch keine Befehlsliste: Schick hier erst eine Nachricht, dann versuch es noch einmal",
     notAName: "`{{command}}` ist kein Befehlsname. Wähl einen aus der Liste, die `/run` beim Tippen anbietet.",
     unknown:
       "`/{{command}}` ist kein Befehl, den dieses Gespräch hat. Wähl einen aus der Liste, die `/run` beim Tippen anbietet; ein Plugin, das seit dem letzten Durchlauf hier installiert wurde, taucht nach dem nächsten auf.",
@@ -399,7 +399,7 @@ export const de: Catalog = {
     terminalOnly: "`/{{command}}` läuft nur in einem interaktiven Terminal. Führ es auf dem Host aus.",
     billedReview: "Es startet eine Cloud-Prüfung, die zusätzlich zu deinem Abo berechnet werden kann.",
     asksFirst:
-      "`{{typed}}` wurde nicht ausgeführt. {{caution}} In einem Terminal fragt Claude Code, bevor es startet, aber ein hier als Nachricht getippter Befehl würde starten, ohne zu fragen. Nimm stattdessen `{{viaRun}}`: es zeigt genau, was laufen wird, und wartet, bis du Ausführen drückst.",
+      "`{{typed}}` wurde nicht ausgeführt. {{caution}} In einem Terminal fragt Claude Code, bevor es startet, aber ein hier als Nachricht getippter Befehl würde starten, ohne zu fragen. Nimm stattdessen `{{viaRun}}`: Es zeigt genau, was laufen wird, und wartet, bis du Ausführen drückst.",
   },
   settings: {
     current: "{{setting}} steht für dieses Gespräch auf `{{value}}`.",
@@ -407,7 +407,7 @@ export const de: Catalog = {
     changed:
       "{{setting}} auf `{{value}}` gesetzt. Es gilt ab dem nächsten Durchlauf; ein Durchlauf, der schon läuft, behält, womit er begonnen hat.",
     hostDefault: "`{{value}}` (Standard des Hosts)",
-    claudeDefault: "der Standard von Claude Code",
+    claudeDefault: "dem Standard von Claude Code",
   },
   whoami: {
     title: "Dieser Kanal",
@@ -459,7 +459,7 @@ export const de: Catalog = {
       "Konnte `{{id}}` nicht deaktivieren: {{error}}. Führ denselben Befehl auf dem Host aus, um die ganze Ausgabe zu sehen.",
   },
   skills: {
-    none: "Für dieses Gespräch sind noch keine Skills bekannt. Schick ihm erst eine Nachricht, dann versuch es noch einmal: die Liste kommt aus der Sitzung selbst.",
+    none: "Für dieses Gespräch sind noch keine Skills bekannt. Schick ihm erst eine Nachricht, dann versuch es noch einmal: Die Liste kommt aus der Sitzung selbst.",
     option: "/{{skill}} ausführen",
     range: "{{first}} bis {{last}}",
     available_one: "{{count}} Skill in diesem Gespräch verfügbar.",

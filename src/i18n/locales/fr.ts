@@ -143,7 +143,7 @@ export const fr: Catalog = {
     runningAlone: "Un tour est en cours, sans rien en file derrière lui.",
     runningWith_one: "Un tour est en cours, avec {{count}} message en file derrière lui.",
     runningWith_other: "Un tour est en cours, avec {{count}} messages en file derrière lui.",
-    full: "Cette conversation tient déjà {{limit}} messages : un en cours et {{queued}} en file derrière. Laisse-la rattraper, lance `/stop` pour finir celui en vol et laisser partir le suivant, ou `/stop all:true` pour écarter la file avec.",
+    full: "Cette conversation tient déjà {{limit}} messages : un en cours et {{queued}} en file derrière. Laisse-la rattraper son retard, lance `/stop` pour finir celui en vol et laisser partir le suivant, ou `/stop all:true` pour écarter la file avec.",
   },
   stop: {
     button: "Arrêter",
@@ -418,7 +418,7 @@ export const fr: Catalog = {
   usage: {
     notReported:
       "Utilisation du forfait : pas encore signalée. Claude Code l'envoie à chaque tour, elle apparaît donc après le premier.",
-    plan: "Utilisation du forfait : {{windows}} (au {{when}})",
+    plan: "Utilisation du forfait : {{windows}} (signalée {{when}})",
     window: "{{label}} {{percent}} % utilisés, se réinitialise {{when}}",
     windowReset: "{{label}} réinitialisée {{when}}, aucun chiffre signalé depuis",
     fiveHour: "fenêtre de 5 heures",

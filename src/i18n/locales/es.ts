@@ -103,7 +103,7 @@ export const es: Catalog = {
   },
   turn: {
     draining:
-      "El puente se está apagando y no acepta nada nuevo. Deja terminar antes los turnos en marcha, lo que puede tardar un rato; envía esto otra vez cuando haya vuelto.",
+      "El puente se está apagando y no acepta nada nuevo; antes deja terminar los turnos en marcha, lo que puede tardar un rato. Envía esto otra vez cuando haya vuelto.",
     failed: "El turno falló.\n```\n{{error}}\n```",
     checkFailed:
       "Tu mensaje no se envió a Claude: la comprobación previa al turno falló con {{error}}. Prueba a enviarlo otra vez; si sigue fallando, el registro del puente en el host tiene los detalles.",
@@ -401,7 +401,7 @@ export const es: Catalog = {
     current: "{{setting}} está en `{{value}}` para esta conversación.",
     notOverridden: "{{setting}} no está sobrescrito aquí, así que los turnos se ejecutan con {{fallback}}.",
     changed:
-      "{{setting}} puesto en `{{value}}`. Se aplica a partir del siguiente turno; un turno que ya está en marcha conserva con lo que empezó.",
+      "{{setting}} puesto en `{{value}}`. Se aplica a partir del siguiente turno; un turno que ya está en marcha conserva aquello con lo que empezó.",
     hostDefault: "`{{value}}` (predeterminado del host)",
     claudeDefault: "el predeterminado de Claude Code",
   },
@@ -415,9 +415,9 @@ export const es: Catalog = {
   },
   usage: {
     notReported: "Uso del plan: todavía sin informar. Claude Code lo envía con cada turno, así que aparece después del primero.",
-    plan: "Uso del plan: {{windows}} (a fecha de {{when}})",
+    plan: "Uso del plan: {{windows}} (informado {{when}})",
     window: "{{label}} {{percent}} % usado, se reinicia {{when}}",
-    windowReset: "{{label}} reiniciado {{when}}, sin ninguna cifra informada desde entonces",
+    windowReset: "{{label}} reiniciada {{when}}, sin ninguna cifra informada desde entonces",
     fiveHour: "ventana de 5 horas",
     weekAll: "semana, todos los modelos",
     weekOpus: "semana, Opus",
