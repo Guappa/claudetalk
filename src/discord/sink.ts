@@ -40,26 +40,30 @@ function buttonRow(actions: SinkAction[]): ActionRowBuilder<ButtonBuilder>[] {
   const buttons = actions.slice(0, 5).map((action) =>
     new ButtonBuilder()
       .setCustomId(action.id)
-      .setLabel(action.label)
+      .setLabel(nameForDiscord(action.label))
       .setStyle(action.tone === "danger" ? ButtonStyle.Danger : ButtonStyle.Secondary),
   );
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)];
 }
 
-function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
-  const options = menu.options.map((option) => {
+// Gated and cut to what Discord accepts, in that order: a redacted path is shorter than the one it replaces.
+function optionsForDiscord(options: SinkMenu["options"]): StringSelectMenuOptionBuilder[] {
+  return options.map((option) => {
     const built = new StringSelectMenuOptionBuilder()
       .setValue(truncate(option.value, MENU_TEXT_LIMIT))
-      .setLabel(truncate(option.label, MENU_TEXT_LIMIT));
-    if (option.description) built.setDescription(truncate(option.description, MENU_TEXT_LIMIT));
+      .setLabel(truncate(nameForDiscord(option.label), MENU_TEXT_LIMIT));
+    if (option.description) built.setDescription(truncate(nameForDiscord(option.description), MENU_TEXT_LIMIT));
     return built;
   });
+}
+
+function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
   const select = new StringSelectMenuBuilder()
     .setCustomId(menu.id)
-    .setPlaceholder(truncate(menu.placeholder, PLACEHOLDER_LIMIT))
+    .setPlaceholder(truncate(nameForDiscord(menu.placeholder), PLACEHOLDER_LIMIT))
     .setMinValues(1)
-    .setMaxValues(menu.multiple ? options.length : 1)
-    .addOptions(options);
+    .setMaxValues(menu.multiple ? menu.options.length : 1)
+    .addOptions(optionsForDiscord(menu.options));
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
 

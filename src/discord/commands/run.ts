@@ -14,6 +14,7 @@ import { truncate } from "../../text.ts";
 import { requireConversation } from "../binding.ts";
 import { RUN_CANCEL, RUN_CONFIRM } from "../menus.ts";
 import { respond, settleMenu } from "../respond.ts";
+import { choicesForDiscord } from "../outgoing.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { classifyPrompt, describeNotRun } from "./settings.ts";
@@ -77,12 +78,12 @@ export async function suggestCommands(bridge: Bridge, interaction: AutocompleteI
   }
   const commands = bridge.capabilities.commands(conversation.cwd);
   if (commands.length === 0) {
-    await interaction.respond([{ name: truncate(bridge.language.say("run.noListChoice"), CHOICE_CHARS), value: NO_LIST }]);
+    const none = { name: truncate(bridge.language.say("run.noListChoice"), CHOICE_CHARS), value: NO_LIST };
+    await interaction.respond(choicesForDiscord([none]));
     return;
   }
-  await interaction.respond(
-    commandChoices(commands, interaction.options.getFocused(), runnableIn(bridge, conversation.sessionId, commands)),
-  );
+  const runnable = runnableIn(bridge, conversation.sessionId, commands);
+  await interaction.respond(choicesForDiscord(commandChoices(commands, interaction.options.getFocused(), runnable)));
 }
 
 const named = (command: string) => (entry: SessionCommand) => entry.name === command || entry.aliases.includes(command);

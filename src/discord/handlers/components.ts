@@ -39,6 +39,7 @@ import { clearConversation } from "../commands/clear.ts";
 import { cancelRun, confirmRun, runPressed } from "../commands/run.ts";
 import { requireConversation } from "../binding.ts";
 import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
+import { nameForDiscord, optionForDiscord } from "../outgoing.ts";
 import { describeSendNow, describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
 import { canRunCommand } from "../../access.ts";
 import { tierOf } from "../policy.ts";
@@ -58,7 +59,7 @@ export async function handlePluginsCommand(bridge: Bridge, interaction: ChatInpu
   const menu = new StringSelectMenuBuilder()
     .setCustomId(PLUGIN_SELECT)
     .setPlaceholder(say("plugins.choose"))
-    .addOptions(pluginSelectOptions(say, plugins));
+    .addOptions(pluginSelectOptions(say, plugins).map(optionForDiscord));
 
   await respond(interaction, {
     content: say("plugins.summary", {
@@ -83,7 +84,10 @@ export async function handleSkillsCommand(bridge: Bridge, interaction: ChatInput
   const menus = skillSelectMenus(say, skills);
   const rows = menus.pages.map((page, index) =>
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder().setCustomId(skillSelectId(index)).setPlaceholder(menuPlaceholder(say, page)).addOptions(page),
+      new StringSelectMenuBuilder()
+        .setCustomId(skillSelectId(index))
+        .setPlaceholder(nameForDiscord(menuPlaceholder(say, page)))
+        .addOptions(page.map(optionForDiscord)),
     ),
   );
 
@@ -153,9 +157,11 @@ function otherAnswerModal(say: Say, action: Action<"question-pick">): ModalBuild
     .setMaxLength(1000);
   return new ModalBuilder()
     .setCustomId(questionOtherId(action.askId, action.index))
-    .setTitle(truncate(say("questions.ownAnswerTitle", { number: action.index + 1 }), MODAL_TEXT_LIMIT))
+    .setTitle(truncate(nameForDiscord(say("questions.ownAnswerTitle", { number: action.index + 1 })), MODAL_TEXT_LIMIT))
     .addLabelComponents(
-      new LabelBuilder().setLabel(truncate(say("questions.ownAnswerLabel"), MODAL_TEXT_LIMIT)).setTextInputComponent(field),
+      new LabelBuilder()
+        .setLabel(truncate(nameForDiscord(say("questions.ownAnswerLabel")), MODAL_TEXT_LIMIT))
+        .setTextInputComponent(field),
     );
 }
 

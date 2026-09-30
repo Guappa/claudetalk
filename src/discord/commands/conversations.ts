@@ -34,7 +34,7 @@ import { runConversationTurn } from "../turn.ts";
 import { markCaughtUp } from "../sync.ts";
 import { formatExchanges } from "../transcriptView.ts";
 import { respond } from "../respond.ts";
-import { postText, splitForDiscord } from "../outgoing.ts";
+import { nameForDiscord, postText, splitForDiscord } from "../outgoing.ts";
 
 const RECAP_EXCHANGES = 2;
 
@@ -182,7 +182,12 @@ async function askWhichConversation(
   const buttons = offered.map((record) =>
     new ButtonBuilder()
       .setCustomId(createResumeId(record.sessionId))
-      .setLabel(say("create.resumeButton", { name: displayName(record), age: humanAge(say, record.lastActivity) }).slice(0, 80))
+      .setLabel(
+        nameForDiscord(say("create.resumeButton", { name: displayName(record), age: humanAge(say, record.lastActivity) })).slice(
+          0,
+          80,
+        ),
+      )
       .setStyle(ButtonStyle.Primary),
   );
   buttons.push(
