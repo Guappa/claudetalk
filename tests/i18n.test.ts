@@ -18,8 +18,14 @@ function sentences(entries: object, prefix = ""): Array<[string, string]> {
   );
 }
 
+// A value with its format, so a number that loses its thousands separators in one language is a difference.
 const placeholders = (sentence: string): string[] =>
-  [...sentence.matchAll(/\{\{\s*([A-Za-z]+)[^}]*\}\}/g)].map((match) => match[1]!).sort();
+  [...sentence.matchAll(/\{\{\s*([A-Za-z]+)\s*(?:,\s*([A-Za-z]+))?\s*\}\}/g)]
+    .map((match) => (match[2] ? `${match[1]}, ${match[2]}` : match[1]!))
+    .sort();
+const boldSpans = (sentence: string): number => [...sentence.matchAll(/\*\*[^*]+\*\*/g)].length;
+// The words of a sentence itself, without the values it is given and the commands it quotes.
+const ownWords = (sentence: string): string[] => sentence.replace(/\{\{[^}]+\}\}|`[^`]*`/g, "").match(/\p{L}{2,}/gu) ?? [];
 const nested = (sentence: string): string[] => [...sentence.matchAll(/\$t\(([^)]+)\)/g)].map((match) => match[1]!).sort();
 // A command or a path in backticks is typed as written, so it has to read the same in every language.
 const literals = (sentence: string): string[] =>
@@ -55,14 +61,25 @@ describe("the catalog", () => {
     const wrong: string[] = [];
     for (const [key, sentence] of sentences(CATALOGS[language])) {
       const source = english.get(key)!;
-      // A language may leave the number out of a sentence about exactly one thing; it may not leave out anything else.
+      // A language may leave the number out of a sentence about exactly one thing; it may not leave it out of any other, or leave out anything else.
       const given = placeholders(sentence);
-      const expected = placeholders(source).filter((name) => name !== "count" || given.includes("count"));
+      const mayDropCount = key.endsWith("_one") && !given.includes("count");
+      const expected = placeholders(source).filter((name) => name !== "count" || !mayDropCount);
       if (given.join() !== expected.join()) wrong.push(`${key}: takes ${given.join()} where English takes ${expected.join()}`);
       if (nested(sentence).join() !== nested(source).join()) wrong.push(`${key}: nests differently from English`);
       if (literals(sentence).join() !== literals(source).join()) wrong.push(`${key}: quotes ${literals(sentence).join(" ")}`);
+      if (boldSpans(sentence) !== boldSpans(source))
+        wrong.push(`${key}: has ${boldSpans(sentence)} in bold where English has ${boldSpans(source)}`);
     }
     expect(wrong).toEqual([]);
+  });
+
+  // A label of a word or two can be the same in two languages; a sentence cannot, and one that is was left untranslated.
+  it.each(languages.filter((language) => language !== "en"))("leaves no sentence in %s as its English", (language) => {
+    const untranslated = sentences(CATALOGS[language])
+      .filter(([key, sentence]) => sentence === english.get(key) && ownWords(sentence).length >= 3)
+      .map(([key]) => key);
+    expect(untranslated).toEqual([]);
   });
 
   it.each(languages)("renders every sentence in %s with nothing left unfilled", (language) => {
