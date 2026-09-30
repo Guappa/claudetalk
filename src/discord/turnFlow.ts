@@ -174,12 +174,19 @@ async function linkEverything(cwd: string, text: string): Promise<string> {
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
 async function conclude(say: Say, status: StatusMessage, sink: MessageSink, chunks: string[], mood: Mood): Promise<void> {
   const first = chunks[0] ?? say("trail.answerDone");
-  if (await concludeInPlace(status, sink, first, mood)) {
+  // The progress message can be gone by now, purged or deleted by hand; what it could not be given is then said beneath where it was.
+  const inPlace = await concludeInPlace(status, sink, first, mood).catch(() => null);
+  if (inPlace) {
     for (const chunk of chunks.slice(1)) await sink.send(chunk);
     return;
   }
-  await status.settle(mood);
-  for (const chunk of chunks) await sink.send(chunk);
+  if (inPlace === false) await status.settle(mood).catch(() => undefined);
+  for (const chunk of chunks.length > 0 ? chunks : [first]) await sink.send(chunk);
+}
+
+// A turn that ran must still end properly when its channel cannot be written to: the state is set, the queue moves on, and the host log says why nothing was posted.
+function reportUnposted(sessionId: string): (error: unknown) => void {
+  return (error) => console.error(`could not post how the turn in ${sessionId} ended`, error);
 }
 
 // True once the answer went into the progress message itself.
@@ -321,7 +328,8 @@ export class TurnFlow {
     const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, this.cloudGraceMs));
     void Promise.race([turn.stopTasks(cloud), pause()])
       .then(pause)
-      .finally(() => turn.stop());
+      .finally(() => turn.stop())
+      .catch((error: unknown) => console.error(`stopping the turn in ${sessionId} failed`, error));
   }
 
   queueDepth(sessionId: string): number {
@@ -452,7 +460,12 @@ export class TurnFlow {
       (trail) => linkEverything(cwd, trail),
       () => board.block(),
     );
-    await status.start();
+    try {
+      await status.start();
+    } catch (error) {
+      this.boards.delete(sessionId);
+      throw error;
+    }
     await remember();
     await options.onState?.("running");
 
@@ -476,7 +489,9 @@ export class TurnFlow {
         const noteCompaction = (): void => {
           compaction.happened = true;
         };
-        pending.push(this.handleEvent(say, event, sessionId, cwd, status, board, sink, tracker, noteCompaction));
+        // Nothing awaits these until the turn ends, and a rejection left unhandled that long takes the whole bridge down.
+        const handled = this.handleEvent(say, event, sessionId, cwd, status, board, sink, tracker, noteCompaction);
+        pending.push(handled.catch((error: unknown) => console.error(`an event in ${sessionId} could not be shown`, error)));
       },
     );
     this.running.set(sessionId, turn);
@@ -491,13 +506,13 @@ export class TurnFlow {
         // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
         const stopped = this.stopping.has(sessionId);
         const outcome = stopped ? say("trail.answerStopped") : describeFailure(say, result.error);
-        await conclude(say, status, sink, [outcome], stopped ? "stopped" : "failed");
+        await conclude(say, status, sink, [outcome], stopped ? "stopped" : "failed").catch(reportUnposted(sessionId));
         await options.onState?.(stopped ? "stopped" : "failed");
         await this.settleFolded(sessionId, stopped ? "stopped" : "failed");
         return;
       }
 
-      await postAnswer(say, status, sink, cwd, result.text, compaction.happened);
+      await postAnswer(say, status, sink, cwd, result.text, compaction.happened).catch(reportUnposted(sessionId));
       await options.onState?.("done");
       await this.settleFolded(sessionId, "done");
       await this.outbox.deliver(say, cwd, sessionId, sink);

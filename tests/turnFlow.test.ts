@@ -331,6 +331,57 @@ describe("TurnFlow", () => {
     expect(second.messages[0]).toContain("**Arbetade**");
   });
 
+  // The final edit was awaited bare: with the progress message purged mid-turn it threw, and the answer, the reaction and the outbox were all skipped.
+  it("still says the answer when the progress message is gone by the end", async () => {
+    scripted.set("purged under it", [
+      { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: "Looking." }] } },
+    ]);
+    const flow = makeFlow();
+    const sink = recordingSink();
+    const states: string[] = [];
+    const deleted = { yes: false };
+    const edit = sink.edit;
+    sink.edit = async (text, actions) => {
+      if (deleted.yes) throw new Error("Unknown Message");
+      await edit(text, actions);
+    };
+
+    const running = flow.run("s18", cwd, "purged under it", {}, sink, {
+      resume: true,
+      onState: async (state) => void states.push(state),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    deleted.yes = true;
+
+    expect(await running).toBe(true);
+    expect(sink.messages.at(-1)).toBe("echo purged under it");
+    expect(states).toEqual(["running", "done"]);
+  });
+
+  // A notice that could not be sent mid-turn was a rejection nobody handled until the turn ended, which ends the process.
+  it("keeps the turn going when a notice in the middle of it cannot be sent", async () => {
+    scripted.set("compacts to a dead channel", [
+      {
+        type: "system",
+        subtype: "compact_boundary",
+        compact_metadata: {
+          trigger: "auto",
+          pre_tokens: 9000,
+          post_tokens: 900,
+          cumulative_dropped_tokens: 8100,
+          duration_ms: 2000,
+        },
+      },
+    ]);
+    const flow = makeFlow();
+    const sink = recordingSink();
+    sink.notice = async () => {
+      throw new Error("Unknown Channel");
+    };
+    expect(await flow.run("s19", cwd, "compacts to a dead channel", {}, sink, { resume: true })).toBe(true);
+    expect(sink.messages.at(-1)).toBe("echo compacts to a dead channel");
+  });
+
   it("stops everything at once when told to, dropping what was queued", async () => {
     const flow = makeFlow();
     const first = flow.run("s7", cwd, "one", {}, quietSink(), { resume: true });
