@@ -22,7 +22,7 @@ import { parseAgentsJson } from "../src/sessions/activeSessions.ts";
 import { resolveByChannelName, resolveByFolder, resolveByName } from "../src/sessions/resolve.ts";
 import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
 import { randomUUID } from "node:crypto";
-import { PENDING_TTL_MS, PendingCreates } from "../src/discord/pendingCreate.ts";
+import { PENDING_TTL_MS, Pending, PendingCreates } from "../src/discord/pendingCreate.ts";
 import { ConversationStore } from "../src/conversations.ts";
 import { OperatorStore } from "../src/operators.ts";
 import { loadConfig } from "../src/config.ts";
@@ -33,7 +33,9 @@ import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
 import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
-import { agentEvent, parentToolUseId, type ClaudeEvent } from "../src/claude/events.ts";
+import { agentEvent, commandsChanged, parentToolUseId, type ClaudeEvent, type SessionCommand } from "../src/claude/events.ts";
+import { commandChoices, describeRun, refusal } from "../src/discord/commands/run.ts";
+import { CapabilityCache } from "../src/claude/capabilities.ts";
 import { AgentBoard } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
@@ -80,6 +82,8 @@ import {
 import {
   CLEAR_CANCEL,
   CLEAR_CONFIRM,
+  RUN_CANCEL,
+  RUN_CONFIRM,
   PLUGIN_SELECT,
   PURGE_CANCEL,
   PURGE_CONFIRM,
@@ -1815,6 +1819,136 @@ describe("agents in a turn", () => {
   });
 });
 
+describe("/run finds a conversation's commands", () => {
+  const command = (name: string, description = "", extra: Partial<SessionCommand> = {}): SessionCommand => ({
+    name, description, argumentHint: "", aliases: [], builtin: false, ...extra,
+  });
+  const known = [
+    command("compact", "Free up context", { builtin: true, argumentHint: "<instructions>" }),
+    command("code-review", "Review the current diff", { builtin: true, aliases: ["review"] }),
+    command("ledger:code-review", "Review a pull request against the ledger rules", { argumentHint: "[pr]" }),
+    command("ledger:audit", "Audit the books"),
+    command("doctor", "Check the install", { builtin: true }),
+    command("model", "Switch model", { builtin: true }),
+  ];
+  const runnable = (name: string) => classifyPrompt(`/${name}`, ["doctor"]).kind === "passthrough";
+
+  it("reads the list the session sends, tidying what a label cannot hold", () => {
+    const event = { type: "system", subtype: "commands_changed", commands: [
+      { name: "ledger:audit", description: "Audit\n  the books", argumentHint: " [year] ", aliases: ["books"] },
+      { name: "compact", description: "Free up context", argumentHint: "", builtin: true },
+      { description: "no name" },
+    ] } as unknown as ClaudeEvent;
+    expect(commandsChanged(event)).toEqual([
+      { name: "ledger:audit", description: "Audit the books", argumentHint: "[year]", aliases: ["books"], builtin: false },
+      { name: "compact", description: "Free up context", argumentHint: "", aliases: [], builtin: true },
+    ]);
+    expect(commandsChanged({ type: "system", subtype: "status", status: null })).toBeNull();
+    const long = { type: "system", subtype: "commands_changed", commands: [{ name: "wordy", description: "y".repeat(400) }] } as unknown as ClaudeEvent;
+    expect(commandsChanged(long)![0]!.description).toBe(`${"y".repeat(280)}...`);
+  });
+
+  it("offers what plugins and skills add before the built-ins, and never what the bridge would refuse", () => {
+    expect(commandChoices(known, "", runnable)).toEqual([
+      { name: "ledger:audit · Audit the books", value: "ledger:audit" },
+      { name: "ledger:code-review [pr] · Review a pull request against the ledger rules", value: "ledger:code-review" },
+      { name: "code-review · Review the current diff", value: "code-review" },
+      { name: "compact <instructions> · Free up context", value: "compact" },
+    ]);
+  });
+
+  it("ranks a name that starts with what was typed over one that contains it, over a description that mentions it", () => {
+    const values = (typed: string) => commandChoices(known, typed, runnable).map((choice) => choice.value);
+    expect(values("code")).toEqual(["code-review", "ledger:code-review"]);
+    expect(values("/audit")).toEqual(["ledger:audit"]);
+    expect(values("review")).toEqual(["ledger:code-review", "code-review"]);
+    expect(values("context")).toEqual(["compact"]);
+    expect(values("zzz")).toEqual([]);
+  });
+
+  it("keeps to Discord's limits however many commands there are", () => {
+    const many = Array.from({ length: 60 }, (_, index) => command(`pack:command-${index}`, "y".repeat(300)));
+    const choices = commandChoices(many, "", runnable);
+    expect(choices).toHaveLength(25);
+    for (const choice of choices) expect(choice.name.length).toBeLessThanOrEqual(100);
+  });
+
+  it("refuses what could not run, saying why, and lets the rest through", () => {
+    expect(refusal("ledger:audit", "/ledger:audit 2026", known, ["doctor"])).toBeNull();
+    expect(refusal("review", "/review", known, ["doctor"])).toBeNull();
+    expect(refusal("nope", "/nope", known, ["doctor"])).toContain("not a command this conversation has");
+    expect(refusal("nope", "/nope", [], ["doctor"])).toBeNull();
+    expect(refusal("doctor", "/doctor", known, ["doctor"])).toContain("interactive terminal");
+    expect(refusal("model", "/model opus", known, ["doctor"])).toContain("bot's own");
+    expect(refusal("rm -rf", "/rm -rf", known, ["doctor"])).toContain("not a command name");
+    expect(refusal("-", "/-", known, ["doctor"])).toContain("not known yet");
+  });
+
+  // Someone used to the terminal types the command; there it asks before starting, here it would not.
+  it("turns away a typed command that asks first in a terminal, and says how to run it here", () => {
+    for (const typed of ["/code-review ultra", "/review ultra --fix 12", "/ultrareview 12", "/CODE-REVIEW Ultra"]) {
+      expect(classifyPrompt(typed, []).kind).toBe("asks-first");
+    }
+    const ultra = classifyPrompt("/code-review ultra --fix", []);
+    expect(ultra.kind === "asks-first" && ultra.message).toContain("`/run command:code-review args:ultra --fix`");
+    expect(ultra.kind === "asks-first" && ultra.message).toContain("billed");
+    expect(ultra.kind === "asks-first" && ultra.message).toContain("waits for you to press Run");
+    const bare = classifyPrompt("/ultrareview", []);
+    expect(bare.kind === "asks-first" && bare.message).toContain("`/run command:ultrareview`");
+
+    for (const typed of ["/code-review", "/code-review high --fix", "/code-review ultrawide", "/review 12"]) {
+      expect(classifyPrompt(typed, []).kind).toBe("passthrough");
+    }
+  });
+
+  it("lets /run take what a typed message may not, since /run is where it gets asked", () => {
+    expect(refusal("code-review", "/code-review ultra", known, ["doctor"])).toBeNull();
+    expect(refusal("ultrareview", "/ultrareview", [], ["doctor"])).toBeNull();
+  });
+
+  it("shows the exact line, what it does and what it takes before anything runs, with the cost where one is known", () => {
+    expect(describeRun("/ledger:code-review 12", known[2], null)).toBe(
+      "Run this in the conversation?\n```\n/ledger:code-review 12\n```\n" +
+        "Review a pull request against the ledger rules\nTakes: `[pr]`\nNothing starts until you press Run.",
+    );
+    const billed = describeRun("/code-review ultra", known[1], "It starts a cloud review, which is billed.");
+    expect(billed).toContain("**It starts a cloud review, which is billed.**");
+    expect(describeRun("/unlisted", undefined, null)).toBe(
+      "Run this in the conversation?\n```\n/unlisted\n```\nNothing starts until you press Run.",
+    );
+  });
+
+  it("holds what was asked for until its button is pressed, once, and not forever", () => {
+    let now = 0;
+    const pending = new Pending<{ prompt: string }>(() => now);
+    pending.remember("m1", { prompt: "/compact" });
+    expect(pending.take("m1")).toEqual({ prompt: "/compact" });
+    expect(pending.take("m1")).toBeNull();
+    pending.remember("m2", { prompt: "/compact" });
+    now = PENDING_TTL_MS + 1;
+    expect(pending.take("m2")).toBeNull();
+    expect(parseCustomId(RUN_CONFIRM)).toEqual({ kind: "run-confirm" });
+    expect(parseCustomId(RUN_CANCEL)).toEqual({ kind: "run-cancel" });
+  });
+
+  it("remembers a folder's commands across a restart, and writes only when they change", async () => {
+    const file = path.join(os.tmpdir(), `claudetalk-commands-${process.pid}-${Math.random()}.json`);
+    const cache = new CapabilityCache(file);
+    await cache.load();
+    expect(cache.commands("/srv/app")).toEqual([]);
+    await cache.recordCommands("/srv/app", known);
+    const written = (await fs.stat(file)).mtimeMs;
+    await cache.recordCommands("/srv/app", known);
+    expect((await fs.stat(file)).mtimeMs).toBe(written);
+
+    const reloaded = new CapabilityCache(file);
+    await reloaded.load();
+    expect(reloaded.commands("/srv/app")).toEqual(known);
+    expect(reloaded.commands("/srv/other")).toEqual([]);
+    await fs.rm(file, { force: true });
+  });
+});
+
 describe("StatusMessage formatting", () => {
   it("keeps a remark's paragraphs and code blocks instead of flattening them", async () => {
     const sink = recordingSink();
@@ -2642,7 +2776,7 @@ describe("access tiers", () => {
   it("lets anyone below operator run nothing at all", () => {
     const everyCommand = [
       "ask", "sync", "whoami", "members", "skills", "stop",
-      "create", "resume", "invite", "operator", "unbind", "purge", "clear", "takeover",
+      "create", "resume", "invite", "operator", "unbind", "purge", "clear", "takeover", "run",
     ];
     for (const command of everyCommand) {
       expect(canRunCommand("none", command)).toBe(false);

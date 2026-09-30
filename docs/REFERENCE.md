@@ -24,6 +24,7 @@ this covers behaviour.
 | `/ask <prompt> [context:N]` | O | Asks with the last N channel messages as context. `N` is 1 to 50. |
 | `/sync` | O | Posts where you left off outside Discord: the latest few prompts and replies since you last saw it, with all of them attached as a file when there are more than fit in one message. Turns the bridge itself ran are marked seen when they end, so they never come back as drift. |
 | `/skills` | O | Lists the bound session's skills, A to Z across up to five menus of twenty-five, and runs the one you pick. Past 125 the rest are counted and reachable by sending `/name` as a message. |
+| `/run <command> [args]` | O | Runs one of the conversation's commands, skills or plugin commands, after showing exactly what will run and waiting for **Run** to be pressed. As you type, it searches what this conversation has, by name and description, with each command's arguments shown; whatever a plugin adds is listed without anything being registered. `args` is passed as you would type it after the command. |
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |
 | `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, nothing remembered. The previous conversation stays on the host. The channel's messages are kept. |
@@ -298,6 +299,28 @@ unchanged: `/compact`, `/context`, `/usage`, `/recap`, `/mcp`, `/config`,
 `/autocompact`, and every skill and plugin command. The ones the session
 reports as terminal-only (`/doctor`, `/color`, `/reload-plugins`) are refused
 with an explanation; the list is read from the session, not hardcoded.
+
+`/run` reaches the same commands, and adds two things a typed message lacks.
+One is finding them: Discord's own `/` list only ever shows the bridge's
+commands, so `/run` searches the conversation's, plugin and skill commands
+first, then Claude Code's own, each with its description and the arguments it
+takes. A name the conversation does not have is refused before a turn is spent
+on it. The other is being asked: `/run` replies with the exact line, what the
+command does and what it takes, and nothing starts until **Run** is pressed. A
+typed message stays the quick way and runs at once.
+
+The terminal draws its own confirmations, and none of them reach Discord: Claude
+Code sends a dialog only to a host that says it can show it, and otherwise acts
+on the command's flags alone. So a command that asks before it acts in a
+terminal is not run from a typed message here. `/code-review ultra`,
+`/review ultra` and `/ultrareview` start a billed cloud review; typed as a
+message they are turned away with the `/run` line to use instead, and through
+`/run` the confirmation says what it will cost.
+
+The command list is what Claude Code reported the last time a turn ran in that
+folder, kept in `data/commands.json`, so it is there after a restart and a newly
+installed plugin appears after the next turn. Before any turn has run in a
+folder there is no list yet, and `/run` says so.
 
 `/clear` is not passed through: every message here runs a new process resumed
 against the bound session id, so the fresh session it would start is one the

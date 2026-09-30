@@ -1,4 +1,4 @@
-import { MessageFlags, type ChatInputCommandInteraction, type Interaction } from "discord.js";
+import { MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import { canRunCommand, describeOwnersOnly } from "../../access.ts";
 import { errorMessage } from "../../text.ts";
@@ -13,6 +13,7 @@ import { handleCreate, handleFork, handleResume } from "../commands/conversation
 import { handleInvite, handleMembers, handleUninvite } from "../commands/membership.ts";
 import { handleOperator } from "../commands/operators.ts";
 import { handleAutocomplete, handleSessions } from "../commands/sessions.ts";
+import { handleRun, suggestCommands } from "../commands/run.ts";
 import { handleSetting, handleWhoami } from "../commands/settings.ts";
 import { handleSync } from "../commands/sync.ts";
 import { handleSpend } from "../commands/spend.ts";
@@ -54,11 +55,20 @@ const COMMANDS: Record<string, CommandHandler> = {
   clear: handleClear,
   plugins: handlePluginsCommand,
   skills: handleSkillsCommand,
+  run: handleRun,
   operator: handleOperator,
   invite: handleInvite,
   uninvite: handleUninvite,
   members: handleMembers,
   takeover: handleTakeover,
+};
+
+type Suggester = (bridge: Bridge, interaction: AutocompleteInteraction) => Promise<void>;
+
+// Which command is asking decides what is suggested; one that offers nothing gets an empty list.
+const SUGGESTERS: Record<string, Suggester> = {
+  resume: handleAutocomplete,
+  run: suggestCommands,
 };
 
 export async function handleInteraction(bridge: Bridge, interaction: Interaction): Promise<void> {
@@ -77,7 +87,10 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
     return;
   }
 
-  if (interaction.isAutocomplete()) return await handleAutocomplete(bridge, interaction);
+  if (interaction.isAutocomplete()) {
+    const suggest = SUGGESTERS[interaction.commandName];
+    return suggest ? await suggest(bridge, interaction) : await interaction.respond([]);
+  }
   if (interaction.isStringSelectMenu()) return await handleSelect(bridge, interaction);
   if (interaction.isModalSubmit()) return await handleModal(bridge, interaction);
   if (interaction.isButton()) return await handleButton(bridge, interaction);

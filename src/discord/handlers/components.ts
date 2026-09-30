@@ -35,6 +35,7 @@ import { OTHER_VALUE } from "../questions.ts";
 import { describePurge, purgeChannel } from "../purge.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { clearConversation } from "../commands/clear.ts";
+import { cancelRun, confirmRun } from "../commands/run.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { requireConversation } from "../binding.ts";
@@ -315,6 +316,14 @@ async function confirmClear(bridge: Bridge, interaction: ButtonInteraction) {
   await clearConversation(bridge, interaction);
 }
 
+async function approveRun(bridge: Bridge, interaction: ButtonInteraction) {
+  if (!canRunCommand(tierOf(bridge, interaction.user.id), "run")) {
+    await settleMenu(interaction, describeOwnersOnly("run"));
+    return;
+  }
+  await confirmRun(bridge, interaction);
+}
+
 async function keepUnboundChannel(_bridge: Bridge, interaction: ButtonInteraction) {
   await settleMenu(interaction, "Kept. The channel stays as it is, with its history.");
 }
@@ -386,6 +395,10 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await cancelClear(bridge, interaction);
     case "clear-confirm":
       return await confirmClear(bridge, interaction);
+    case "run-cancel":
+      return await cancelRun(bridge, interaction);
+    case "run-confirm":
+      return await approveRun(bridge, interaction);
     case "question-submit":
       return await submitAnswers(bridge, interaction, action);
     case "question-skip":

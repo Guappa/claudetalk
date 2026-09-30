@@ -154,7 +154,7 @@ describe("docs follow code", () => {
     const callers = basenames(files.filter((file) => /runConversationTurn\(/.test(fs.readFileSync(file, "utf8")))).sort();
 
     expect(callers).toEqual(
-      ["ask.ts", "clear.ts", "components.ts", "conversations.ts", "fork.ts", "message.ts", "turn.ts"].sort(),
+      ["ask.ts", "clear.ts", "components.ts", "conversations.ts", "fork.ts", "message.ts", "run.ts", "turn.ts"].sort(),
     );
   });
 

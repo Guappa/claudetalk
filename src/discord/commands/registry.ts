@@ -132,6 +132,18 @@ export function bridgeCommandDefinitions() {
       .setDescription("List the skills this conversation has and run one"),
 
     new SlashCommandBuilder()
+      .setName("run")
+      .setDescription("Run one of this conversation's commands, skills or plugin commands")
+      .addStringOption((option) =>
+        option
+          .setName("command")
+          .setDescription("Start typing to search what this conversation has")
+          .setRequired(true)
+          .setAutocomplete(true),
+      )
+      .addStringOption((option) => option.setName("args").setDescription("What to pass to the command, as you would type after it")),
+
+    new SlashCommandBuilder()
       .setName("purge")
       .setDescription("Delete every message in this channel; the conversation is kept"),
 

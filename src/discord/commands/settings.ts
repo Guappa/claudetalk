@@ -20,6 +20,12 @@ const AMBIGUOUS = new Map([
       "the channel's messages.",
   ],
 ]);
+const BILLED_REVIEW = "It starts a cloud review, which is billed.";
+// In a terminal these ask before they act; typed here they would act on their flags alone.
+const ASKS_FIRST: ReadonlyArray<{ commands: string[]; when: RegExp; caution: string }> = [
+  { commands: ["code-review", "review"], when: /(?:^|\s)ultra(?:\s|$)/i, caution: BILLED_REVIEW },
+  { commands: ["ultrareview"], when: /^/, caution: BILLED_REVIEW },
+];
 const COMMAND_PATTERN = /^\/([a-z][a-z0-9-]*(?::[a-z0-9-]+)*)(?:\s|$)/i;
 
 export type PromptKind =
@@ -27,7 +33,8 @@ export type PromptKind =
   | { kind: "passthrough"; command: string }
   | { kind: "terminal-only"; message: string }
   | { kind: "bridge-owned"; message: string }
-  | { kind: "ambiguous"; message: string };
+  | { kind: "ambiguous"; message: string }
+  | { kind: "asks-first"; command: string; caution: string; message: string };
 
 export function classifyPrompt(content: string, terminalOnly: string[]): PromptKind {
   const command = COMMAND_PATTERN.exec(content.trim())?.[1]?.toLowerCase();
@@ -53,7 +60,22 @@ export function classifyPrompt(content: string, terminalOnly: string[]): PromptK
     };
   }
 
+  const args = content.trim().slice(command.length + 1).trim();
+  const guarded = ASKS_FIRST.find((entry) => entry.commands.includes(command) && entry.when.test(args));
+  if (guarded) return { kind: "asks-first", command, caution: guarded.caution, message: describeAsksFirst(command, args, guarded.caution) };
+
   return { kind: "passthrough", command };
+}
+
+// Written for someone used to the terminal, where typing the command is the whole of it.
+function describeAsksFirst(command: string, args: string, caution: string): string {
+  const typed = args ? `/${command} ${args}` : `/${command}`;
+  const viaRun = args ? `/run command:${command} args:${args}` : `/run command:${command}`;
+  return (
+    `\`${typed}\` was not run. ${caution} In a terminal Claude Code asks before it starts, but a command typed ` +
+    `as a message here would start at once. Use \`${viaRun}\` instead: it shows exactly what will run and ` +
+    "waits for you to press Run."
+  );
 }
 
 function bindingEmbed(conversation: Conversation, defaults: HostDefaults) {
