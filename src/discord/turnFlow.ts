@@ -10,6 +10,7 @@ import {
   isCompactionStart,
   isInit,
   parentToolUseId,
+  replayed,
   type ClaudeEvent,
 } from "../claude/events.ts";
 import { AgentBoard, agentsTitle } from "./agentBoard.ts";
@@ -22,14 +23,14 @@ import type { ApprovalPrompts } from "./approvals.ts";
 import type { QuestionPrompts } from "./questions.ts";
 import type { Config } from "../config.ts";
 import type { SessionRecord } from "../sessions/index.ts";
-import type { MessageSink, SinkAction } from "./messageSink.ts";
+import type { AskHandle, MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
 import { chunkForDiscord } from "./renderer.ts";
 import { displayPath } from "../displayPath.ts";
 import { count } from "../text.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeQueued } from "./turnQueue.ts";
-import { stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";
+import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";
 import type { OutboxDelivery } from "./outboxDelivery.ts";
 import type { StateMarker } from "./reactions.ts";
 import type { Mood } from "./statusMessage.ts";
@@ -38,6 +39,9 @@ import type { ActiveTurns } from "./activeTurns.ts";
 const DRAINING =
   "The bridge is shutting down and takes nothing new until it is back. Send this again in a minute.";
 const DRAIN_POLL_MS = 250;
+const HANDED_OVER = "Handed to the running turn. Claude takes it up at its next step.";
+const TAKEN_UP = "Taken up by the running turn.";
+const NEVER_TAKEN = "The turn ended before this was taken up. Send it again.";
 
 export type PreflightResult =
   | { kind: "ok" }
@@ -79,6 +83,25 @@ export interface TurnOptions {
   onState?: StateMarker;
   // What the person asked in their own words, where the prompt carries context around it.
   asked?: string;
+  // A plain message may join the turn already running, the way the terminal takes one typed mid-turn.
+  foldable?: boolean;
+}
+
+// A message handed to a running turn: where it stands, and the notice that offers to hurry it.
+interface Folded {
+  onState?: StateMarker;
+  notice: AskHandle | null;
+  taken: boolean;
+}
+
+export type SendNowOutcome = "sent" | "nothing-waiting" | "not-running";
+
+export function describeSendNow(outcome: SendNowOutcome): string {
+  if (outcome === "sent") {
+    return "Sent now. The step Claude was on was cut short so it could read your message; it carries on from there.";
+  }
+  if (outcome === "nothing-waiting") return "Nothing is waiting: the running turn has already taken your message up.";
+  return "No turn is running here any more, so there is nothing to interrupt.";
 }
 
 export interface StopOutcome {
@@ -193,6 +216,7 @@ export class TurnFlow {
   private readonly running = new Map<string, RunningTurn>();
   private readonly stopping = new Set<string>();
   private readonly boards = new Map<string, AgentBoard>();
+  private readonly folded = new Map<string, Map<string, Folded>>();
   private readonly queue = new TurnQueue();
   private readonly capabilities: CapabilityCache;
   private readonly trackerFor: (sessionId: string) => ContextTracker;
@@ -329,6 +353,8 @@ export class TurnFlow {
       await sink.notice(DRAINING);
       return false;
     }
+    if (options.foldable && (await this.fold(sessionId, prompt, sink, options))) return true;
+
     const admission = this.queue.admit(sessionId);
     if (admission.kind === "full") {
       await sink.notice(admission.message);
@@ -349,6 +375,52 @@ export class TurnFlow {
     });
     if (!ran) await options.onState?.("stopped");
     return ran;
+  }
+
+  // False when no turn is running or it is past taking a message, and the message then waits its turn as before.
+  private async fold(sessionId: string, prompt: string, sink: MessageSink, options: TurnOptions): Promise<boolean> {
+    const turn = this.running.get(sessionId);
+    if (!turn || this.stopping.has(sessionId)) return false;
+    const uuid = turn.handOver(prompt);
+    if (!uuid) return false;
+
+    const entry: Folded = { onState: options.onState, notice: null, taken: false };
+    const waiting = this.folded.get(sessionId) ?? new Map<string, Folded>();
+    waiting.set(uuid, entry);
+    this.folded.set(sessionId, waiting);
+    await options.onState?.("queued");
+    entry.notice = (await sink.ask?.(HANDED_OVER, [{ id: sendNowActionId(sessionId), label: "Send now" }])) ?? null;
+    // It can be taken up while the notice is still on its way.
+    if (entry.taken) await entry.notice?.close(TAKEN_UP);
+    return true;
+  }
+
+  private async takeUp(sessionId: string, uuid: string): Promise<void> {
+    const entry = this.folded.get(sessionId)?.get(uuid);
+    if (!entry || entry.taken) return;
+    entry.taken = true;
+    await entry.onState?.("running");
+    await entry.notice?.close(TAKEN_UP);
+  }
+
+  // A message that joined a turn ends the way the turn did; one never taken up says so, since nothing answered it.
+  private async settleFolded(sessionId: string, state: "done" | "stopped" | "failed"): Promise<void> {
+    const entries = [...(this.folded.get(sessionId)?.values() ?? [])];
+    this.folded.delete(sessionId);
+    for (const entry of entries) {
+      if (!entry.taken) await entry.notice?.close(NEVER_TAKEN);
+      await entry.onState?.(entry.taken ? state : "stopped");
+    }
+  }
+
+  // Interrupting is only worth it while something waits; after that it would cut the turn short for nothing.
+  async sendNow(sessionId: string): Promise<SendNowOutcome> {
+    const turn = this.running.get(sessionId);
+    if (!turn) return "not-running";
+    const waiting = [...(this.folded.get(sessionId)?.values() ?? [])].some((entry) => !entry.taken);
+    if (!waiting) return "nothing-waiting";
+    await turn.interrupt();
+    return "sent";
   }
 
   private async runNow(
@@ -425,11 +497,13 @@ export class TurnFlow {
         const stopped = this.stopping.has(sessionId);
         await conclude(status, sink, [stopped ? "Stopped." : describeFailure(result.error)], stopped ? "stopped" : "failed");
         await options.onState?.(stopped ? "stopped" : "failed");
+        await this.settleFolded(sessionId, stopped ? "stopped" : "failed");
         return;
       }
 
       await postAnswer(status, sink, cwd, result.text, compaction.happened);
       await options.onState?.("done");
+      await this.settleFolded(sessionId, "done");
       await this.outbox.deliver(cwd, sessionId, sink);
 
       if (result.contextUsage) {
@@ -447,6 +521,7 @@ export class TurnFlow {
       await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
+      await this.settleFolded(sessionId, "stopped");
       this.boards.delete(sessionId);
       this.stopping.delete(sessionId);
     }
@@ -478,6 +553,12 @@ export class TurnFlow {
   ): Promise<void> {
     if (isInit(event)) {
       this.capabilities.record(sessionId, event);
+      return;
+    }
+
+    const taken = replayed(event);
+    if (taken) {
+      await this.takeUp(sessionId, taken);
       return;
     }
 

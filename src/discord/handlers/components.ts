@@ -40,7 +40,7 @@ import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { requireConversation } from "../binding.ts";
 import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
-import { describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
+import { describeSendNow, describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
 import { canRunCommand, describeOwnersOnly } from "../../access.ts";
 import { tierOf } from "../policy.ts";
 import { hasWorkingDir } from "../../sessions/index.ts";
@@ -260,6 +260,11 @@ async function stopAgents(bridge: Bridge, interaction: ButtonInteraction, action
   await respondQuietly(interaction, describeStopAgents(await bridge.flow.stopAgents(action.sessionId)));
 }
 
+async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: Action<"turn-send-now">) {
+  await acknowledgeQuietly(interaction);
+  await respondQuietly(interaction, describeSendNow(await bridge.flow.sendNow(action.sessionId)));
+}
+
 async function cancelPurge(_bridge: Bridge, interaction: ButtonInteraction) {
   await settleMenu(interaction, "Left the channel alone.");
 }
@@ -384,6 +389,8 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await stopAllTurns(bridge, interaction, action);
     case "turn-stop-agents":
       return await stopAgents(bridge, interaction, action);
+    case "turn-send-now":
+      return await sendNow(bridge, interaction, action);
     case "purge-cancel":
       return await cancelPurge(bridge, interaction);
     case "purge-confirm":

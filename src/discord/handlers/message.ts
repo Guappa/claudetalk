@@ -155,6 +155,7 @@ async function runTurn(
   target: Target,
   prompt: string,
   context: BuiltContext,
+  plain: boolean,
 ): Promise<void> {
   void sweepAttachments();
 
@@ -189,6 +190,8 @@ async function runTurn(
     name: target.isFirstTurn ? toChannelName(channelNameOf(message)) : undefined,
     onState: reactionMarker(message, message.client.user.id),
     asked: prompt,
+    // A command is its own turn; only a plain message joins the one already running.
+    foldable: plain && !target.isFirstTurn,
   });
 }
 
@@ -224,5 +227,5 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
 
   const target = await targetFor(bridge, message, channel, addressing);
   if (!target) return;
-  await runTurn(bridge, message, channel, target, prompt, contextFor(message, replied, addressing));
+  await runTurn(bridge, message, channel, target, prompt, contextFor(message, replied, addressing), classification.kind === "turn");
 }

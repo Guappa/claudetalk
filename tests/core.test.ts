@@ -69,8 +69,8 @@ import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
 import { defuseStrayMarkup } from "../src/discord/strayMarkup.ts";
 import { STATE_EMOJI } from "../src/discord/reactions.ts";
-import { describeStopAgents, describeStopTurn } from "../src/discord/turnFlow.ts";
-import { stopActionId, stopAgentsActionId, stopAllActionId } from "../src/discord/menus.ts";
+import { describeSendNow, describeStopAgents, describeStopTurn } from "../src/discord/turnFlow.ts";
+import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "../src/discord/menus.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -248,7 +248,7 @@ describe("buildOptions", () => {
   // No typed option covers autocompact, so it has to keep reaching the flag it had before.
   it("still reaches autocompact through the escape hatch", () => {
     const options = buildOptions({ ...base, resume: true, settings: { autocompact: "false" } });
-    expect(options.extraArgs).toEqual({ autocompact: "false" });
+    expect(options.extraArgs).toEqual({ "replay-user-messages": null, autocompact: "false" });
   });
 
   it("gates nothing unless the turn was given an approver", () => {
@@ -1398,6 +1398,60 @@ describe("HeldPrompt", () => {
     return await Promise.race([ended, wait(ms).then(() => false)]);
   }
 
+  // The shapes here were captured: a message handed over is echoed back the moment the session takes it up.
+  const replay = (uuid: string) => ({ type: "user", message: { content: [] }, uuid, isReplay: true }) as ClaudeEvent;
+
+  it("passes on a message handed over mid-turn, and refuses one before the turn is under way or after it has let go", async () => {
+    const held = new HeldPrompt("hello", 5);
+    expect(held.handOver("too early")).toBeNull();
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+
+    const uuid = held.handOver("also this");
+    expect(uuid).toEqual(expect.any(String));
+    expect((await stream.next()).value).toMatchObject({ uuid, priority: "next", message: { content: "also this" } });
+
+    held.observe(replay(uuid!));
+    held.observe(result);
+    expect((await stream.next()).done).toBe(true);
+    expect(held.handOver("too late")).toBeNull();
+  });
+
+  // A turn that ends with a message still waiting is about to run it as the next turn, in the same process.
+  it("stays open past an answer while a handed-over message is still to be taken up", async () => {
+    const held = new HeldPrompt("hello", 5, 1000);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    const uuid = held.handOver("also this")!;
+    await stream.next();
+
+    held.observe(result);
+    expect(held.awaitsUntaken).toBe(true);
+    const ended = stream.next().then(() => true);
+    expect(await Promise.race([ended, wait(20).then(() => false)])).toBe(false);
+
+    held.observe(init);
+    held.observe(replay(uuid));
+    held.observe(result);
+    expect(await ended).toBe(true);
+  });
+
+  it("does not hold the input open for good when a handed-over message is never taken up", async () => {
+    const held = new HeldPrompt("hello", 5, 10);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    held.handOver("also this");
+    await stream.next();
+    held.observe(result);
+    expect((await stream.next()).done).toBe(true);
+  });
+
   it("holds the prompt until the handshake is done, then yields it once", async () => {
     const held = new HeldPrompt("hello", 5);
     const stream = held.stream();
@@ -1814,6 +1868,9 @@ describe("agents in a turn", () => {
     expect(agents.running()).toEqual(["t2"]);
     expect(agents.runningRemote()).toEqual([]);
     expect(parseCustomId(stopAgentsActionId("s1"))).toEqual({ kind: "turn-stop-agents", sessionId: "s1" });
+    expect(parseCustomId(sendNowActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1" });
+    expect(describeSendNow("nothing-waiting")).toContain("already taken");
+    expect(describeSendNow("sent")).toContain("cut short so it could read your message");
     expect(describeStopAgents(0)).toContain("nothing to stop");
     expect(describeStopAgents(2)).toContain("Asked 2 tasks to stop");
   });

@@ -18,6 +18,8 @@ const started = vi.hoisted(() => [] as string[]);
 const scripted = vi.hoisted(() => new Map<string, unknown[]>());
 // What a mocked turn was asked to do, in order: tasks stopped inside it, and the turn itself stopped.
 const asked = vi.hoisted(() => [] as string[]);
+// How a test makes a mocked turn report that it took up a message handed to it.
+const taken = vi.hoisted(() => new Map<string, (uuid: string) => void>());
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
@@ -30,6 +32,15 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
       return {
         stop: () => void asked.push(`stop ${request.prompt}`),
         stopTasks: async (taskIds: string[]) => void asked.push(`stopTasks ${taskIds.join(",")}`),
+        handOver: (text: string) => {
+          asked.push(`handOver ${text}`);
+          taken.set(request.prompt, (uuid) => onEvent({ type: "user", message: { content: [] }, uuid, isReplay: true }));
+          return `uuid-${text}`;
+        },
+        interrupt: async () => {
+          asked.push(`interrupt ${request.prompt}`);
+          return [];
+        },
         done: new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: `echo ${request.prompt}` }), 20)),
       };
     },
@@ -194,6 +205,54 @@ describe("TurnFlow", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     const order = asked.filter((entry) => entry === "stopTasks t4" || entry === "stop review it");
     expect(order).toEqual(["stopTasks t4", "stop review it"]);
+  });
+
+  // A message sent mid-turn used to wait for the whole turn; the terminal takes one at the next step.
+  it("hands a plain message to the turn already running, and marks it taken up and then done with the turn", async () => {
+    const flow = makeFlow();
+    const running = flow.run("s13", cwd, "long job", {}, recordingSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const states: string[] = [];
+    const asks: string[] = [];
+    const closed: string[] = [];
+    const sink = { ...quietSink(), ask: async (text: string, actions: Array<{ label: string }>) => {
+      asks.push(`${text} [${actions.map((action) => action.label).join(",")}]`);
+      return { close: async (outcome: string) => void closed.push(outcome) };
+    } };
+    const folded = await flow.run("s13", cwd, "and this too", {}, sink, {
+      resume: true, foldable: true, onState: async (state) => void states.push(state),
+    });
+    expect(folded).toBe(true);
+    expect(asked).toContain("handOver and this too");
+    expect(started).not.toContain("and this too");
+    expect(asks[0]).toContain("Handed to the running turn");
+    expect(asks[0]).toContain("[Send now]");
+    expect(states).toEqual(["queued"]);
+    expect(flow.queueDepth("s13")).toBe(1);
+
+    expect(await flow.sendNow("s13")).toBe("sent");
+    expect(asked).toContain("interrupt long job");
+    taken.get("long job")?.("uuid-and this too");
+    await running;
+    expect(states).toEqual(["queued", "running", "done"]);
+    expect(closed).toEqual(["Taken up by the running turn."]);
+    expect(await flow.sendNow("s13")).toBe("not-running");
+  });
+
+  it("queues as before what is not a plain message, or what arrives with no turn to join", async () => {
+    const flow = makeFlow();
+    const first = flow.run("s14", cwd, "long job two", {}, quietSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const command = flow.run("s14", cwd, "/compact", {}, quietSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(flow.queueDepth("s14")).toBe(2);
+    expect(await Promise.all([first, command])).toEqual([true, true]);
+    expect(started).toContain("/compact");
+
+    expect(await flow.run("s15", cwd, "nobody home", {}, quietSink(), { resume: true, foldable: true })).toBe(true);
+    expect(started).toContain("nobody home");
+    expect(await flow.sendNow("s15")).toBe("not-running");
   });
 
   it("stops everything at once when told to, dropping what was queued", async () => {

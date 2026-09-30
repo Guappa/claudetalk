@@ -84,8 +84,9 @@ export function buildOptions(request: TurnRequest): Options {
   if (settings.fallbackModel) options.fallbackModel = settings.fallbackModel;
   if (settings.effort) options.effort = settings.effort as Options["effort"];
   if (settings.agent) options.agent = settings.agent;
-  // No typed option covers autocompact, and extraArgs is the SDK's own escape hatch to the flag.
-  if (settings.autocompact) options.extraArgs = { autocompact: settings.autocompact };
+  // Replay is how the bridge learns a message handed over mid-turn was taken up; no typed option covers it, or autocompact.
+  options.extraArgs = { "replay-user-messages": null };
+  if (settings.autocompact) options.extraArgs.autocompact = settings.autocompact;
   // Claude Code offers AskUserQuestion only to a client with a prompt surface; the hook answers before that is consulted.
   if (request.askQuestions) options.permissionPromptToolName = "stdio";
 
@@ -198,7 +199,10 @@ async function consumeStream(
         outcome.text = ("result" in message ? String(message.result ?? "") : "") || outcome.text;
         outcome.usage = message.usage as unknown as TokenUsage;
         outcome.sessionCostUsd = message.total_cost_usd;
-        if (message.is_error) return { ...outcome, ok: false, error: resultError(message.subtype, outcome.text) };
+        // An interrupted turn ends as an error, but a message still waiting makes it the start of the next, not a failure.
+        if (message.is_error && !held.awaitsUntaken) {
+          return { ...outcome, ok: false, error: resultError(message.subtype, outcome.text) };
+        }
       }
     }
   } catch (error) {
@@ -227,6 +231,10 @@ export interface RunningTurn {
   stop: () => void;
   // Stops tasks inside the turn and leaves the turn running; a cloud task is closed down where it runs.
   stopTasks: (taskIds: string[]) => Promise<void>;
+  // Hands the running turn another message, taken up at its next step; null when it is past taking one.
+  handOver: (text: string) => string | null;
+  // Cuts short what the turn is doing, so a message still waiting runs at once; resolves to those still waiting.
+  interrupt: () => Promise<string[]>;
   done: Promise<TurnResult>;
 }
 
@@ -290,7 +298,14 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     for (const taskId of taskIds) await attempt.live.query?.stopTask(taskId).catch(() => undefined);
   };
 
-  return { stop, stopTasks, done };
+  const handOver = (text: string): string | null => (stopped ? null : attempt.held.handOver(text));
+
+  const interrupt = async (): Promise<string[]> => {
+    const receipt = await attempt.live.query?.interrupt().catch(() => undefined);
+    return receipt?.still_queued ?? [];
+  };
+
+  return { stop, stopTasks, handOver, interrupt, done };
 }
 
 function resultError(subtype: string, text: string): ClaudeError {

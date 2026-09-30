@@ -191,6 +191,17 @@ into a CLI that has lost its host: hooks are not consulted and every tool call
 in the follow-up turn is denied as cancelled. The CLI reports the live task list
 through `background_tasks_changed`, which is what decides when to let go.
 
+The same held input is what carries a message sent mid-turn. `HeldPrompt` yields
+it with priority `next`, and Claude Code folds it in at the next step. Three
+things about that were captured from real runs. A folded message is only
+acknowledged when `--replay-user-messages` is on, as an echo at the moment it is
+taken up; without it nothing in the stream says so. An interrupt ends the turn
+in hand with an error result and leaves a waiting message queued, which then
+runs as the next turn in the same process, so that result is not a failure and
+the input must stay open past it. And priority `now` aborts the running tool
+call, which is why Send now is an interrupt of what was already handed over and
+not a second send.
+
 The same held input is what makes an orphaned task survivable. A stop or a
 crash can still leave a command running when the process exits, and the next
 process to resume that session opens by reporting it and running a rescue turn.
