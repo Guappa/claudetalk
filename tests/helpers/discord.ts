@@ -24,16 +24,20 @@ export interface FakeChannel {
   channel: TextChannel;
   // What the channel holds, one entry per message; an edit replaces the entry it edits.
   posted: string[];
+  // What people said here before, newest first, for a command that reads the channel back.
+  earlier: Message[];
   wasDeleted: () => boolean;
 }
 
 export function fakeChannel(id: string, name = "general"): FakeChannel {
   const posted: string[] = [];
+  const earlier: Message[] = [];
   let deleted = false;
   const channel = {
     id,
     name,
     parentId: null,
+    messages: { fetch: async ({ limit }: { limit: number }) => new Map(earlier.slice(0, limit).map((said) => [said.id, said])) },
     isSendable: () => true,
     isThread: () => false,
     isDMBased: () => false,
@@ -56,7 +60,7 @@ export function fakeChannel(id: string, name = "general"): FakeChannel {
       deleted = true;
     },
   };
-  return { channel: channel as unknown as TextChannel, posted, wasDeleted: () => deleted };
+  return { channel: channel as unknown as TextChannel, posted, earlier, wasDeleted: () => deleted };
 }
 
 export interface FakeCommand {

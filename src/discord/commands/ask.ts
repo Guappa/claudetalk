@@ -35,7 +35,7 @@ export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInt
       return;
     }
   }
-  await respond(interaction, wanted > 0 ? say("ask.withContext", { count: messages.length }) : say("ask.noContext"));
+  await respond(interaction, context.carried > 0 ? say("ask.withContext", { count: context.carried }) : say("ask.noContext"));
 
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,
@@ -45,6 +45,5 @@ export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInt
       latestPosts: bridge.latestPosts,
     }),
     resume: true,
-    quoted: context.quoted,
   });
 }

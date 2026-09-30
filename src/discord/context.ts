@@ -13,12 +13,12 @@ export interface ContextMessage {
 export interface BuiltContext {
   text: string;
   mentionableUserIds: string[];
-  // Whether the prompt carries message bodies somebody else wrote, which caps what the turn may do.
-  quoted: boolean;
+  // How many channel messages the text carries; one with nothing written in it, an embed or an upload alone, is left out.
+  carried: number;
 }
 
 export function noContext(): BuiltContext {
-  return { text: "", mentionableUserIds: [], quoted: false };
+  return { text: "", mentionableUserIds: [], carried: 0 };
 }
 
 const MAX_MESSAGE_CHARS = 600;
@@ -63,7 +63,7 @@ export function buildContext(messages: ContextMessage[]): BuiltContext {
       `${lines.join("\n")}\n` +
       `----- END CHANNEL MESSAGES ${token} -----`,
     mentionableUserIds,
-    quoted: true,
+    carried: usable.length,
   };
 }
 
@@ -71,7 +71,7 @@ export function attributionOnly(message: ContextMessage): BuiltContext {
   return {
     text: `${message.authorName} is speaking to you in Discord. ${MENTION_GUIDANCE}`,
     mentionableUserIds: message.isBot ? [] : [message.authorId],
-    quoted: false,
+    carried: 0,
   };
 }
 
