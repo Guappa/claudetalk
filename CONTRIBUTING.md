@@ -20,11 +20,11 @@ CI runs `typecheck`, `test` and `check:private` on Linux across Node 22, 24 and
 are fatal there and invisible elsewhere; the Windows job is there for path and
 process semantics, which do not vary by Node version.
 
-macOS runs on a tag instead, in `release.yml`, where it also installs, reports
-and removes the launchd agent before anything is published. Every job bills a
-whole minute however short it is, and macOS bills ten, so proving the agent once
-per release costs a tenth of proving it on every push. Nothing is published if
-that job fails.
+macOS runs in its own workflow, `macos.yml`, only on a pull request that changes
+the launchd installer or that workflow. It installs, reports and removes the
+agent. Every job bills a whole minute however short it is, and macOS bills ten,
+so proving the agent where it can break costs far less than proving it on every
+push. It can also be started by hand from the Actions tab.
 
 Actions are pinned by commit SHA rather than by tag, since a tag can be moved to
 point at other code. The trailing comment records which version each SHA is, and
@@ -86,7 +86,7 @@ replayed in order with no merge commit. Group them by area as you go.
 Nothing on the server blocks a direct push to `main`: branch protection is a paid
 feature on a private repository. The convention stands regardless.
 
-## Versions and releases
+## Versions
 
 `MAJOR.MINOR.PATCH`, and the commits decide which moves:
 
@@ -96,7 +96,7 @@ feature on a private repository. The convention stands regardless.
 | `feat:` | minor | Something new that does not disturb what was there |
 | `!` or `BREAKING CHANGE:` | major | An existing command, config key or file layout changed shape |
 
-A release is a tag on a merged commit, and it batches work: small fixes and
+A version is a tag on a merged commit, and it batches work: small fixes and
 additions merge without a bump and wait on `main` for the next one. The level
 is decided by everything merged since the last tag, and the bump rides in the
 last pull request of the batch, so it costs no extra commit or CI run on
@@ -110,27 +110,13 @@ git switch main && git pull
 git tag vX.Y.Z && git push origin vX.Y.Z
 ```
 
-The tag and the number must agree: the release workflow verifies the tag, and
-the notes name the version from it.
-
-Pushing the tag is the whole release. A workflow reads the commits it contains,
-groups them by type and publishes a GitHub Release with those notes, so watchers
-who follow releases hear about it and nobody writes a changelog by hand. The
-notes open with a one-paragraph summary and a counted changelog; each line links
-the pull request its commit landed through and credits the author, looked up per
-commit, since a rebase merge leaves no number in the subject. Run locally without
-`gh` signed in and the lines simply carry no link.
-
-Preview what a tag would say before cutting it:
+The tag and the number must agree. Nothing is published: there are no GitHub
+Releases and no changelog file, and `main` is what a clone runs. What changed
+between two versions is in the commits and the pull requests they landed through:
 
 ```bash
-npm run release:notes            # the latest tag
-npm run release:notes v0.11.0    # a specific one
+git log --oneline v0.19.0..v0.20.0
 ```
-
-Only `feat`, `fix`, `perf`, `refactor` and anything marked breaking reach the
-notes. A release of nothing but `chore`, `docs`, `test`, `build`, `ci` and
-`style` says so in one line, which is the signal that it did not need cutting.
 
 The running bridge reports its version at startup and in `/whoami`. Check it
 against the latest tag to confirm what is deployed.

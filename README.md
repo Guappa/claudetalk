@@ -11,7 +11,6 @@
   <a href="https://github.com/Guappa/claudetalk/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/Guappa/claudetalk/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A522.12-brightgreen">
   <img alt="platforms" src="https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos-lightgrey">
-  <a href="https://github.com/Guappa/claudetalk/releases.atom"><img alt="releases feed" src="https://img.shields.io/badge/rss-releases-orange"></a>
 </p>
 
 Talk to Claude Code sessions running on your own machine from Discord, on any device.
