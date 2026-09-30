@@ -445,6 +445,7 @@ describe("the private-data scan", () => {
     for (const placeholder of [
       "/home/user/x",
       "/home/you/x",
+      "/home/node/x",
       "/Users/me/x",
       "C:\\\\Users\\\\you\\\\x",
       "C:\\\\Users\\\\your\\\\x",
@@ -459,6 +460,7 @@ describe("the private-data scan", () => {
       posix("home", "yousef", "x"),
       posix("Users", "youssef", "x"),
       posix("home", "users1", "x"),
+      posix("home", "nodes", "x"),
       windows("C:", "Users", "yourick", "x"),
       windows("C:", "Users", "username7", "x"),
     ]) {
