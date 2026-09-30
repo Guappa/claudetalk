@@ -313,8 +313,9 @@ export class TurnFlow {
     if (ceiling) tracker.learnCeiling(ceiling);
   }
 
+  // True while the conversation's lane holds anything: a turn starting, running, posting its answer, or waiting behind one.
   isRunning(sessionId: string): boolean {
-    return this.running.has(sessionId);
+    return this.queue.depth(sessionId) > 0;
   }
 
   available(sessionId: string, record: SessionRecord | null): PreflightResult {

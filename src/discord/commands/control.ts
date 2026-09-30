@@ -28,7 +28,19 @@ export async function handleQueue(bridge: Bridge, interaction: ChatInputCommandI
 // Unbinding is safe and immediate; deleting the channel is not, so that part waits for a press.
 export async function handleUnbind(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
+  const conversation = await requireConversation(bridge, interaction, say("unbind.unbound"));
+  if (!conversation) return;
+  if (bridge.flow.isRunning(conversation.sessionId)) {
+    await respond(interaction, say("unbind.running"));
+    return;
+  }
+
   await bridge.store.unbind(interaction.channelId);
+  // A channel that only answered when tagged was never the conversation's own, so deleting it is not offered.
+  if (conversation.mentionOnly) {
+    await respond(interaction, say("unbind.doneShared"));
+    return;
+  }
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(UNBIND_DELETE).setLabel(say("unbind.deleteChannel")).setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(UNBIND_KEEP).setLabel(say("unbind.keep")).setStyle(ButtonStyle.Secondary),

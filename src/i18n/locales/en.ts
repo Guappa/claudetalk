@@ -248,7 +248,13 @@ export const en = {
     cancelled: "Left it alone. The conversation continues as it was.",
   },
   unbind: {
+    unbound: "This channel isn't bound to a conversation, so there is nothing to unbind.",
+    running: "A turn is running here. Let it finish or `/stop` it, then `/unbind`.",
     done: "Unbound. The conversation is still on the host and can be resumed with `/resume`. The channel is now just a channel; delete it, or keep it for the history?",
+    doneShared:
+      "Unbound. The conversation is still on the host and can be resumed with `/resume`. This channel only answered when the bot was tagged, and it stays as it is.",
+    boundAgain:
+      "This channel has been bound to a conversation again since, so it was not deleted. Run `/unbind` here again if it should go.",
     deleteChannel: "Delete the channel",
     keep: "Keep it",
     kept: "Kept. The channel stays as it is, with its history.",
