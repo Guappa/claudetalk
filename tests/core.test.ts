@@ -3645,11 +3645,13 @@ describe("stopping drains the queue", () => {
     expect(describeStop({ stopped: false, dropped: 0 })).toBe("Nothing is running here.");
   });
 
-  it("points the full-queue refusal at a stop that clears everything", async () => {
+  // It once said plain /stop dropped the queue, long after /stop had stopped doing that.
+  it("points the full-queue refusal at what each stop really does", async () => {
     const queue = new TurnQueue();
     const running = Array.from({ length: MAX_QUEUE_DEPTH }, () => queue.enqueue("s1", () => wait(5)));
     const outcome = queue.admit("s1");
-    expect(outcome.kind === "full" && outcome.message).toContain("everything queued");
+    expect(outcome.kind === "full" && outcome.message).toContain("`/stop all:true` to drop the queue");
+    expect(outcome.kind === "full" && outcome.message).toContain("`/stop` to end the one in flight");
     await Promise.all(running);
   });
 
@@ -4069,7 +4071,7 @@ describe("clear asks before starting over", () => {
 
   it("names what is kept and what is lost, and how to get the old one back", () => {
     const text = describeClear("/srv/work/ledger");
-    expect(text).toContain("nothing remembered");
+    expect(text).toContain("none of what was said in this one");
     expect(text).toContain("/resume");
     expect(text).toContain("/purge");
   });

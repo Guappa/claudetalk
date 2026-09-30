@@ -27,7 +27,7 @@ this covers behaviour.
 | `/run <command> [args]` | O | Runs one of the conversation's commands, skills or plugin commands, after showing exactly what will run and waiting for **Run** to be pressed. As you type, it searches what this conversation has, by name and description, with each command's arguments shown; whatever a plugin adds is listed without anything being registered. `args` is passed as you would type it after the command. |
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |
-| `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, nothing remembered. The previous conversation stays on the host. The channel's messages are kept. |
+| `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, with none of what was said before. The previous conversation stays on the host. The channel's messages are kept. |
 | `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. While agents or a cloud task are running there is also **Stop agents**, which stops them and leaves the turn going. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
 | `/takeover` | O | Stops a background agent holding this conversation, then continues. |
@@ -511,9 +511,12 @@ step, between two tool calls, without what it is doing being cut short, and
 answers it as part of the same turn: there is no second trail and no separate
 reply. Your message carries a clock until it is taken up, then eyes, then
 whatever the turn ends as. The notice that says it was handed over has a **Send
-now** button, which interrupts what Claude is doing so the message runs at once
-as the next turn. It only does that while the message is still waiting; once
-taken up there is nothing to hurry, and the button says so. A turn that ends
+now** button. It cuts short the one step Claude is on, so the message runs at
+once as the next turn, with the conversation so far still in front of it; Claude
+is told that step was rejected, so say so if you want it run again. Agents and
+background commands the turn had running are left running. The button only acts
+while the message is still waiting; once taken up there is nothing to hurry, and
+it says so. A turn that ends
 with a message still waiting runs it next without being asked.
 
 What is not a plain message still queues and runs as its own turn when the
@@ -592,9 +595,10 @@ untracked directory.
 `/purge` deletes every message in the channel, including yours, after a
 confirmation button that removes itself afterwards. It cannot be undone. In a
 conversation channel it does not touch the conversation: the transcript on the
-host is the conversation and the channel is a view of it, so `/sync`
-repopulates the channel and the next message picks up where the transcript left
-off. Discord refuses to bulk delete messages older than 14 days, so those go
+host is the conversation and the channel is a view of it, so the next message
+picks up where the transcript left off. The channel does not get its history
+back: `/sync` only posts what happened outside Discord since you were last
+here. Discord refuses to bulk delete messages older than 14 days, so those go
 one at a time with a pause; the result says how many took the slow path and how
 many could not be deleted.
 
@@ -603,7 +607,8 @@ many could not be deleted.
 `/clear` is the bridge's version of Claude Code's `/clear`: after a confirmation
 button, the channel is rebound to a new conversation in the same folder with the
 same model, effort, members and mention-only setting, and Claude opens it with a
-one-line hello. Nothing from the previous conversation is remembered. That
+one-line hello. Nothing said in the previous conversation carries over; what
+Claude Code keeps for the folder, its instruction and memory files, still loads. That
 conversation stays on the host with its transcript intact; `/sessions` lists it
 and `/resume` with its session id reopens it in a channel of its own. The
 channel's messages are left as they are, so the history reads on; `/purge`

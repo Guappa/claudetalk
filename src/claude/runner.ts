@@ -84,6 +84,8 @@ export function buildOptions(request: TurnRequest): Options {
   if (settings.fallbackModel) options.fallbackModel = settings.fallbackModel;
   if (settings.effort) options.effort = settings.effort as Options["effort"];
   if (settings.agent) options.agent = settings.agent;
+  // The bridge has its own control for stopping agents, which is what makes an interrupt spare them; without this one kills every agent running.
+  options.perTaskStopAffordance = true;
   // Replay is how the bridge learns a message handed over mid-turn was taken up; no typed option covers it, or autocompact.
   options.extraArgs = { "replay-user-messages": null };
   if (settings.autocompact) options.extraArgs.autocompact = settings.autocompact;

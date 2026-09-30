@@ -200,7 +200,16 @@ in hand with an error result and leaves a waiting message queued, which then
 runs as the next turn in the same process, so that result is not a failure and
 the input must stay open past it. And priority `now` aborts the running tool
 call, which is why Send now is an interrupt of what was already handed over and
-not a second send.
+not a second send. An interrupt also kills every running agent unless the
+client declares `perTaskStopAffordance`, which the bridge does because it has
+its own Stop agents control; with it declared an agent runs on and finishes,
+and a background command survives either way.
+
+**What the bot says has to be what happens.** A message that names an effect is
+checked against the code or a captured run before it ships, and corrected in
+the same change that alters the behaviour. The full-queue refusal went on
+saying `/stop` dropped the queue for weeks after `/stop` stopped doing that,
+and its test went on passing because it checked the old words.
 
 The same held input is what makes an orphaned task survivable. A stop or a
 crash can still leave a command running when the process exits, and the next
