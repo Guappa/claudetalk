@@ -39,7 +39,7 @@ import { clearConversation } from "../commands/clear.ts";
 import { cancelRun, confirmRun, runPressed } from "../commands/run.ts";
 import { requireConversation } from "../binding.ts";
 import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
-import { nameForDiscord, optionForDiscord } from "../outgoing.ts";
+import { nameForDiscord, optionForDiscord, postText } from "../outgoing.ts";
 import { describeSendNow, describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
 import { canRunCommand } from "../../access.ts";
 import { tierOf } from "../policy.ts";
@@ -266,12 +266,12 @@ async function confirmPurge(bridge: Bridge, interaction: ButtonInteraction) {
     return;
   }
   await settleMenu(interaction, say("purge.deleting"));
-  try {
-    const result = await purgeChannel(channel, interaction.message.id);
-    await settleMenu(interaction, describePurge(say, result, isConversationChannel(bridge, interaction.channelId)));
-  } catch (error) {
-    await settleMenu(interaction, say("purge.stoppedPartway", { error: errorMessage(error) }));
-  }
+  const outcome = await purgeChannel(channel, interaction.message.id).then(
+    (result) => describePurge(say, result, isConversationChannel(bridge, interaction.channelId)),
+    (error: unknown) => say("purge.stoppedPartway", { error: errorMessage(error) }),
+  );
+  // A long purge outlasts the fifteen minutes a press can be answered for, so the result is then said in the channel.
+  await settleMenu(interaction, outcome).catch(() => postText(channel, outcome));
 }
 
 async function cancelCreate(bridge: Bridge, interaction: ButtonInteraction) {

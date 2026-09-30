@@ -34,7 +34,14 @@ export function resolveByName(records: SessionRecord[], query: string): Resoluti
     if (sorted[0]) return { match: sorted[0], shadowed: sorted.slice(1) };
   }
 
-  return { match: null, candidates: prefixed };
+  // One per name, newest first: several transcripts of one name are one thing to choose, not several.
+  const named = new Map(
+    prefixed
+      .sort(byRecencyDesc)
+      .toReversed()
+      .map((record) => [displayName(record).toLowerCase(), record]),
+  );
+  return { match: null, candidates: [...named.values()].sort(byRecencyDesc) };
 }
 
 // A channel name is a slug, and un-slugging loses hyphens, so the names are compared as slugs. Only a whole name binds: the start of one would hand #general the conversation called "general ledger".

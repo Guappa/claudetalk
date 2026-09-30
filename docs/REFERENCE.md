@@ -145,8 +145,11 @@ CONVERSATIONS              <- DISCORD_CATEGORY_ID, where new channels land
 ```
 
 **Deleting a channel** unbinds it; the conversation survives on the host and
-`/resume <name>` reopens it in a fresh channel. That is also the answer when a
-category fills up.
+`/resume <name>` reopens it in a fresh channel. A channel deleted while the
+bridge was not running is unbound when it next starts. When a category is full
+every command that would make a channel in it says so and makes none: delete a
+channel there, or point `DISCORD_CATEGORY_ID` or `/create`'s `category` at
+another.
 
 Recaps and `/sync` show only what a person typed and what Claude replied. Tool
 calls, thinking, subagent output, and the wrappers Claude Code stores slash
@@ -236,9 +239,12 @@ team, run one bridge per person.
 
 Channels made by `/create` and `/resume` deny `@everyone` View Channel and
 allow only the owner, invited members and the bot; `/invite` and `/uninvite`
-update the overwrites. This needs **Manage Roles**; without it the channel is
-created, membership recorded, and the bot says everyone can see it. Server
-administrators bypass channel permissions. That is Discord, not this bridge.
+update the overwrites. Making the channel needs **Manage Channels**, **Manage
+Roles** and **Manage Messages**: without them no channel is made, and the reply
+says which permissions to give the bot. If only the later update of the
+overwrites fails, membership is recorded and the bot says the channel's
+visibility was not changed. Server administrators bypass channel permissions.
+That is Discord, not this bridge.
 
 A channel that was there before the conversation, one the bot was tagged in or
 one found by its name, keeps the permissions its server gave it. `/invite` and

@@ -90,12 +90,14 @@ The full access model is in [docs/REFERENCE.md](docs/REFERENCE.md#access).
    **Message Content Intent**. Without it the bot receives empty messages.
 4. Open **OAuth2 > URL Generator**. Tick the `bot` and
    `applications.commands` scopes, then tick these bot permissions:
-   View Channels, Manage Channels, Manage Roles, Send Messages, Create Public
-   Threads, Send Messages in Threads, Read Message History, Attach Files, Add
-   Reactions.
+   View Channels, Manage Channels, Manage Roles, Manage Messages, Send Messages,
+   Create Public Threads, Send Messages in Threads, Read Message History, Attach
+   Files, Add Reactions.
    Manage Channels lets `/create` make a channel per conversation; Manage Roles
-   is what makes that channel private to you; the two thread permissions let a
-   turn that uses agents list them in a thread.
+   is what makes that channel private to you; Manage Messages is what lets
+   `/purge` delete messages that are not the bot's own, and a channel cannot be
+   made without it, since the bot gives itself that permission there; the two
+   thread permissions let a turn that uses agents list them in a thread.
 5. Open the generated URL and add the bot to your server.
 6. In Discord, enable **Settings > Advanced > Developer Mode**. Then right-click
    your server for **Copy Server ID** (`DISCORD_GUILD_ID`) and right-click

@@ -1,3 +1,4 @@
+import { Collection } from "discord.js";
 import type { ButtonInteraction, ChatInputCommandInteraction, Guild, Message, TextChannel } from "discord.js";
 import { GUILD } from "./bridge.ts";
 
@@ -73,14 +74,18 @@ export interface FakeGuild {
   guild: Guild;
   // Every channel the guild was asked to make, in order.
   made: FakeChannel[];
+  // Channels the guild already holds, as far as a category's count goes.
+  standing: Collection<string, { id: string; name: string; parentId: string | null }>;
 }
 
 // What a test passes in runs while a channel is being made, which is where it puts whatever happens meanwhile.
 export function fakeGuild(whileMaking: () => void = () => undefined): FakeGuild {
   const made: FakeChannel[] = [];
+  const standing = new Collection<string, { id: string; name: string; parentId: string | null }>();
   const guild = {
     roles: { everyone: { id: "400000000000000002" } },
     channels: {
+      cache: standing,
       create: async ({ name }: { name: string }) => {
         const channel = fakeChannel(`made-${made.length + 1}`, name);
         made.push(channel);
@@ -90,7 +95,7 @@ export function fakeGuild(whileMaking: () => void = () => undefined): FakeGuild 
       },
     },
   };
-  return { guild: guild as unknown as Guild, made };
+  return { guild: guild as unknown as Guild, made, standing };
 }
 
 export interface FakeCommand {
@@ -192,6 +197,8 @@ interface FakeMessage {
 interface Said {
   authorId: string;
   content: string;
+  // Set for what Discord writes in a person's name: a pin, a thread being made.
+  system?: boolean;
   mentionsBot?: boolean;
   uploads?: FakeUpload[];
   repliedTo?: Message;
@@ -208,6 +215,7 @@ export function fakeMessage(place: FakeChannel, said: Said): FakeMessage {
     channel: place.channel,
     content: said.mentionsBot ? `<@${BOT}> ${said.content}` : said.content,
     author: { id: said.authorId, bot: false, username: "someone" },
+    system: said.system === true,
     member: null,
     createdAt: new Date(0),
     client: { user: { id: BOT } },

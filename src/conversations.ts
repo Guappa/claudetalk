@@ -119,6 +119,9 @@ export class ConversationStore {
   }
 
   async bind(channelId: string, conversation: Conversation): Promise<void> {
+    // A channel holds one conversation. The one it held before would otherwise stay in the store with nothing pointing at it, and count as open for good.
+    const held = this.byChannel(channelId);
+    if (held && held.sessionId !== conversation.sessionId) this.forget(held);
     this.data.conversations[conversation.sessionId] = conversation;
     this.data.channelIndex[channelId] = conversation.sessionId;
     this.rememberTagStarted(conversation);

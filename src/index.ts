@@ -4,13 +4,10 @@ import { acquireInstanceLock, lockPathBeside, STALE_AFTER_MS } from "./instanceL
 import { takeStopRequest, watchForStop, type StopMode } from "./stopSignal.ts";
 import { createBridge } from "./bridge.ts";
 import { sweepAttachments } from "./attachments.ts";
-import { bridgeCommandDefinitions } from "./discord/commands/registry.ts";
 import { handleMessage } from "./discord/handlers/message.ts";
 import { handleInteraction } from "./discord/handlers/interaction.ts";
-import { watchOutboxes } from "./discord/outboxWatcher.ts";
-import { markInterrupted } from "./discord/activeTurns.ts";
+import { startUp } from "./discord/startup.ts";
 import { count } from "./text.ts";
-import { bridgeVersion } from "./version.ts";
 
 const config = loadConfig();
 const lockPath = lockPathBeside(config.bindingsPath);
@@ -83,11 +80,8 @@ client.on(Events.Error, (error) => console.error("discord client error", error))
 client.on(Events.ShardDisconnect, (event, id) => console.error(`shard ${id} disconnected`, event.code));
 client.on(Events.ShardReconnecting, (id) => console.log(`shard ${id} reconnecting`));
 
-client.once(Events.ClientReady, async (ready) => {
-  await ready.application.commands.set(bridgeCommandDefinitions(), config.guildId);
-  await markInterrupted(ready, await bridge.activeTurns.takeLeftovers(), bridge.language.say);
-  watchOutboxes(bridge, ready);
-  console.log(`Ready as ${ready.user.tag} on v${bridgeVersion()}. ` + `Commands registered to guild ${config.guildId}.`);
+client.once(Events.ClientReady, (ready) => {
+  void startUp(bridge, ready).catch((error: unknown) => console.error("the bridge did not finish starting up", error));
 });
 
 client.on(Events.MessageCreate, (message) => {

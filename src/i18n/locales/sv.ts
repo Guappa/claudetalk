@@ -36,6 +36,8 @@ export const sv: Catalog = {
       "`/{{command}}` är registrerat hos Discord men bryggan har ingen hanterare för det. Starta om bryggan så registreras kommandona på nytt.",
     failed:
       "`/{{command}}` misslyckades: {{error}}. Försök igen; om det fortsätter misslyckas finns detaljerna i bryggans logg på värddatorn.",
+    pressFailed:
+      "Tryckningen misslyckades: {{error}}. Det den gällde kan vara halvgjort, så titta efter innan du trycker igen; detaljerna finns i bryggans logg på värddatorn.",
   },
   binding: {
     unbound: "Den här kanalen är inte kopplad till någon konversation än.",
@@ -314,6 +316,7 @@ export const sv: Catalog = {
   },
   resume: {
     ambiguous: '"{{name}}" är tvetydigt. Menade du: {{candidates}}?',
+    andMore: "{{candidates}} och {{count}} till",
     notFound: 'Ingen konversation heter "{{name}}". Använd `/sessions` för att se vilka som finns.',
     noFolder: 'Hittade "{{name}}" men kunde inte läsa dess arbetskatalog ur transkriptet, så den kan inte återupptas.',
     opened: "Öppnade {{channel}} för **{{name}}** i `{{cwd}}`.",

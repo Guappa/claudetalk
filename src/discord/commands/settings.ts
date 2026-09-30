@@ -13,7 +13,8 @@ import { respond } from "../respond.ts";
 export const MODEL_CHOICES = ["fable", "opus", "sonnet", "haiku"] as const;
 export const EFFORT_CHOICES = ["low", "medium", "high", "xhigh", "max"] as const;
 
-const BRIDGE_OWNED = new Set(["model", "effort", "fallback-model", "autocompact", "agent"]);
+// Only what the bridge has a command of its own for: the refusal points at that command.
+const BRIDGE_OWNED = new Set(["model", "effort"]);
 // What each would do typed as a message differs from what it does in a terminal, so each has its own explanation.
 const AMBIGUOUS = { clear: "typed.clear" } as const;
 type Ambiguous = keyof typeof AMBIGUOUS;
@@ -29,7 +30,10 @@ const ALIASES_UNLISTED = new Map([
   ["new", "clear"],
   ["review", "code-review"],
 ]);
-const COMMAND_PATTERN = /^\/([a-z][a-z0-9-]*(?::[a-z0-9-]+)*)(?:\s|$)/i;
+// A plugin's command is namespaced with a colon, and a name may hold an underscore or a dot.
+const NAME_SHAPE = "[a-z][a-z0-9_.-]*(?::[a-z0-9_.-]+)*";
+export const COMMAND_NAME = new RegExp(`^${NAME_SHAPE}$`, "i");
+const COMMAND_PATTERN = new RegExp(`^/(${NAME_SHAPE})(?:\\s|$)`, "i");
 
 // A command is judged by the name it goes by, whichever of its names was typed; an alias would otherwise walk past every rule here.
 function canonicalName(typed: string, known: SessionCommand[]): string {

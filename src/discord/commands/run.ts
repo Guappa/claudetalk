@@ -17,7 +17,7 @@ import { respond, settleMenu } from "../respond.ts";
 import { choicesForDiscord } from "../outgoing.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
-import { classifyPrompt, describeNotRun } from "./settings.ts";
+import { COMMAND_NAME, classifyPrompt, describeNotRun } from "./settings.ts";
 
 // Discord's limits: twenty-five choices to an autocomplete, a hundred characters to a choice's label and value.
 const CHOICE_LIMIT = 25;
@@ -27,7 +27,6 @@ const SHOWN_DESCRIPTION_CHARS = 300;
 const SHOWN_SENT_CHARS = 200;
 // Offered when no list is known yet; never a command name, so picking it explains itself.
 const NO_LIST = "-";
-const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/i;
 
 export interface CommandChoice {
   name: string;
@@ -97,7 +96,7 @@ export function refusal(
   terminalOnly: string[],
 ): string | null {
   if (command === NO_LIST) return say("run.noListYet");
-  if (!NAME.test(command)) return say("run.notAName", { command: truncate(command, 60) });
+  if (!COMMAND_NAME.test(command)) return say("run.notAName", { command: truncate(command, 60) });
   const classified = classifyPrompt(prompt, terminalOnly, known);
   if (classified.kind === "terminal-only" || classified.kind === "bridge-owned" || classified.kind === "ambiguous") {
     return describeNotRun(say, classified);

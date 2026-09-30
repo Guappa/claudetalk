@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
 import type { Message, SendableChannels } from "discord.js";
 import { replyText } from "../outgoing.ts";
 import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
+import { displayPath } from "../../displayPath.ts";
+import { errorMessage } from "../../text.ts";
 import { resolveByChannelName } from "../../sessions/resolve.ts";
 import { displayName } from "../../sessions/displayName.ts";
 import {
@@ -12,6 +15,7 @@ import {
   downloadAttachments,
   screenAttachments,
   sweepAttachments,
+  type RemoteAttachment,
 } from "../../attachments.ts";
 import { classifyTyped, describeNotRun, isNotRun } from "../commands/settings.ts";
 import { channelSink } from "../sink.ts";
@@ -69,7 +73,11 @@ async function bindExisting(
   message: Message,
   channel: SendableChannels,
 ): Promise<Conversation | "already-open" | null> {
-  const match = resolveByChannelName(await bridge.sessions.build(), channelNameOf(message)).match;
+  const records = await bridge.sessions.build();
+  // Looked at again once the index is read: another message for the bot can have bound this channel while it was.
+  const meanwhile = bridge.store.byChannel(message.channelId);
+  if (meanwhile) return meanwhile;
+  const match = resolveByChannelName(records, channelNameOf(message)).match;
   if (!match?.cwd) return null;
 
   const say = bridge.language.say;
@@ -97,14 +105,25 @@ async function bindExisting(
 }
 
 // Mention-only so follow-up tags keep context while ordinary chatter stays ignored.
-async function startMentionOnly(bridge: Bridge, message: Message, channel: SendableChannels): Promise<Conversation | null> {
+async function startMentionOnly(bridge: Bridge, message: Message, channel: SendableChannels): Promise<Target | null> {
+  const say = bridge.language.say;
   const cwd = adHocWorkingDir(bridge, tierOf(bridge, message.author.id), message.author.id);
   if (!cwd) {
-    await sendNotice(channel, bridge.language.say("binding.noWorkspace"));
+    await sendNotice(channel, say("binding.noWorkspace"));
     return null;
   }
+  // Claude Code is started in this folder, and one that is missing fails in words that name the binary, not the folder.
+  try {
+    await fs.mkdir(cwd, { recursive: true });
+  } catch (error) {
+    await sendNotice(channel, say("create.folderFailed", { cwd: displayPath(cwd), error: errorMessage(error) }));
+    return null;
+  }
+  // Nothing is awaited between this look and the binding, so two tags that overlap end up in one conversation.
+  const meanwhile = bridge.store.byChannel(message.channelId);
+  if (meanwhile) return { conversation: meanwhile, isFirstTurn: false };
 
-  return await bridge.store.bindNew({
+  const conversation = await bridge.store.bindNew({
     sessionId: randomUUID(),
     cwd,
     channelId: message.channelId,
@@ -113,6 +132,7 @@ async function startMentionOnly(bridge: Bridge, message: Message, channel: Senda
     adopted: true,
     fresh: true,
   });
+  return { conversation, isFirstTurn: true };
 }
 
 // Which conversation a message for the bot belongs to: the channel's own, one named like the channel, or a new ad-hoc one.
@@ -128,8 +148,7 @@ async function targetFor(
   if (bound === "already-open") return null;
   if (bound) return { conversation: bound, isFirstTurn: false };
 
-  const started = await startMentionOnly(bridge, message, channel);
-  return started ? { conversation: started, isFirstTurn: true } : null;
+  return await startMentionOnly(bridge, message, channel);
 }
 
 // A message that was only a refused or unfetchable file has nothing for a turn to answer.
@@ -145,21 +164,9 @@ async function runTurn(
   prompt: string,
   context: BuiltContext,
   plain: boolean,
+  allowed: RemoteAttachment[],
 ): Promise<boolean> {
   void sweepAttachments();
-
-  const { allowed, refused } = screenAttachments(
-    message.attachments.map((attachment) => ({
-      url: attachment.url,
-      name: attachment.name,
-      contentType: attachment.contentType,
-      size: attachment.size,
-    })),
-  );
-  // A reply, not a notice: it stays under the upload it is about, and a plain message has no ephemeral.
-  const refusal = describeRefused(bridge.language.say, refused);
-  if (refusal) await reply(message, refusal);
-  if (nothingToSend(prompt, allowed.length)) return false;
 
   const { saved, failed } = await downloadAttachments(allowed, randomUUID());
   const unfetched = describeUnfetched(bridge.language.say, failed);
@@ -184,6 +191,8 @@ async function runTurn(
 
 export async function handleMessage(bridge: Bridge, message: Message): Promise<void> {
   if (!isFromGuild(bridge.config, message.guildId, message.author.bot)) return;
+  // A pin, a thread being made, a member joining: Discord writes these in a person's name, and none of them is something that person asked.
+  if (message.system) return;
   if (!message.channel.isSendable()) return;
   // A thread the bridge opened holds a turn's detail; it is not a place to start a conversation.
   if (message.channel.isThread() && message.channel.ownerId === message.client.user.id) return;
@@ -214,17 +223,26 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
     return;
   }
 
+  // Screened before the channel is bound: a message that was only a refused file spends no turn and leaves no binding behind.
+  const { allowed, refused } = screenAttachments(
+    message.attachments.map((attachment) => ({
+      url: attachment.url,
+      name: attachment.name,
+      contentType: attachment.contentType,
+      size: attachment.size,
+    })),
+  );
+  // A reply, not a notice: it stays under the upload it is about, and a plain message has no ephemeral.
+  const refusal = describeRefused(bridge.language.say, refused);
+  if (refusal) await reply(message, refusal);
+  if (nothingToSend(prompt, allowed.length)) return;
+
   const target = await targetFor(bridge, message, channel, existing);
   if (!target) return;
-  const ran = await runTurn(
-    bridge,
-    message,
-    channel,
-    target,
-    prompt,
-    contextFor(message, replied, addressing),
-    classification.kind === "turn",
-  );
+  const plain = classification.kind === "turn";
+  // A command is only a command as the first thing the session reads, so nothing is put in front of one.
+  const context = plain ? contextFor(message, replied, addressing) : noContext();
+  const ran = await runTurn(bridge, message, channel, target, prompt, context, plain, allowed);
   if (!ran && target.isFirstTurn) await dropUnstarted(bridge, message.channelId, target.conversation);
 }
 
