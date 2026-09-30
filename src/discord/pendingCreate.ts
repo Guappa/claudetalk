@@ -6,6 +6,11 @@ export interface PendingCreate {
   categoryId?: string;
 }
 
+// What was asked of /run, held until its Run button is pressed.
+export interface PendingRun {
+  prompt: string;
+}
+
 // A button carries at most 100 characters of id, which a name and a path, or a command's arguments, do not fit inside.
 export class Pending<Held> {
   private readonly byMessage = new Map<string, { request: Held; at: number }>();

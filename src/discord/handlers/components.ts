@@ -36,9 +36,7 @@ import { OTHER_VALUE } from "../questions.ts";
 import { describePurge, purgeChannel } from "../purge.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { clearConversation } from "../commands/clear.ts";
-import { cancelRun, confirmRun } from "../commands/run.ts";
-import { channelSink } from "../sink.ts";
-import { runConversationTurn } from "../turn.ts";
+import { cancelRun, confirmRun, runPressed } from "../commands/run.ts";
 import { requireConversation } from "../binding.ts";
 import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
 import { describeSendNow, describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
@@ -116,12 +114,16 @@ export async function handlePurgeCommand(bridge: Bridge, interaction: ChatInputC
   await respond(interaction, { content: lines.join("\n"), components: [row] });
 }
 
+// A control is checked on its own press, not on who could see the message it sits on; false once the presser has been told it is not theirs.
+async function mayPress(bridge: Bridge, interaction: ButtonInteraction | StringSelectMenuInteraction, command: string) {
+  if (canRunCommand(tierOf(bridge, interaction.user.id), command)) return true;
+  await settleMenu(interaction, bridge.language.say("access.ownersOnly", { command }));
+  return false;
+}
+
 async function choosePlugin(bridge: Bridge, interaction: StringSelectMenuInteraction, action: Action<"plugin-chosen">) {
   const say = bridge.language.say;
-  if (!canRunCommand(tierOf(bridge, interaction.user.id), "plugins")) {
-    await settleMenu(interaction, say("access.ownersOnly", { command: "plugins" }));
-    return;
-  }
+  if (!(await mayPress(bridge, interaction, "plugins"))) return;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(pluginToggleId(action.id, true))
@@ -136,19 +138,7 @@ async function choosePlugin(bridge: Bridge, interaction: StringSelectMenuInterac
 }
 
 async function runSkill(bridge: Bridge, interaction: StringSelectMenuInteraction, action: Action<"skill-chosen">) {
-  const say = bridge.language.say;
-  const conversation = bridge.store.byChannel(interaction.channelId);
-  if (!conversation || !interaction.channel?.isSendable()) {
-    await settleMenu(interaction, say("common.noLongerBound"));
-    return;
-  }
-  await settleMenu(interaction, say("common.sent", { prompt: `/${action.skill}` }));
-  await runConversationTurn(bridge, conversation, {
-    actorId: interaction.user.id,
-    prompt: `/${action.skill}`,
-    sink: channelSink(interaction.channel, { latestPosts: bridge.latestPosts }),
-    resume: true,
-  });
+  await runPressed(bridge, interaction, `/${action.skill}`);
 }
 
 const OTHER_ANSWER_FIELD = "answer";
@@ -314,18 +304,12 @@ async function cancelClear(bridge: Bridge, interaction: ButtonInteraction) {
 }
 
 async function confirmClear(bridge: Bridge, interaction: ButtonInteraction, action: Action<"clear-confirm">) {
-  if (!canRunCommand(tierOf(bridge, interaction.user.id), "clear")) {
-    await settleMenu(interaction, bridge.language.say("access.ownersOnly", { command: "clear" }));
-    return;
-  }
+  if (!(await mayPress(bridge, interaction, "clear"))) return;
   await clearConversation(bridge, interaction, action.sessionId);
 }
 
 async function approveRun(bridge: Bridge, interaction: ButtonInteraction) {
-  if (!canRunCommand(tierOf(bridge, interaction.user.id), "run")) {
-    await settleMenu(interaction, bridge.language.say("access.ownersOnly", { command: "run" }));
-    return;
-  }
+  if (!(await mayPress(bridge, interaction, "run"))) return;
   await confirmRun(bridge, interaction);
 }
 
@@ -336,10 +320,7 @@ async function keepUnboundChannel(bridge: Bridge, interaction: ButtonInteraction
 // The reply lives in the channel being deleted, so it may be gone before it can be edited.
 async function deleteUnboundChannel(bridge: Bridge, interaction: ButtonInteraction) {
   const say = bridge.language.say;
-  if (!canRunCommand(tierOf(bridge, interaction.user.id), "unbind")) {
-    await settleMenu(interaction, say("access.ownersOnly", { command: "unbind" }));
-    return;
-  }
+  if (!(await mayPress(bridge, interaction, "unbind"))) return;
   const channel = interaction.channel;
   if (!channel || channel.isDMBased()) {
     await settleMenu(interaction, say("unbind.notDeletable"));
@@ -359,12 +340,8 @@ async function deleteUnboundChannel(bridge: Bridge, interaction: ButtonInteracti
 }
 
 async function togglePlugin(bridge: Bridge, interaction: ButtonInteraction, action: Action<"plugin-toggle">) {
-  // The menu is owner-only, and a button is checked on its own rather than trusting who could see the menu.
   const say = bridge.language.say;
-  if (!canRunCommand(tierOf(bridge, interaction.user.id), "plugins")) {
-    await settleMenu(interaction, say("access.ownersOnly", { command: "plugins" }));
-    return;
-  }
+  if (!(await mayPress(bridge, interaction, "plugins"))) return;
   await interaction.deferUpdate();
   try {
     const printed = await setPluginEnabled(action.id, action.enable);
