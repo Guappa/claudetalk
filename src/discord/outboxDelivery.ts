@@ -18,7 +18,8 @@ export class OutboxDelivery {
   // Deliveries for one conversation run in series, so a sweep and the turn's own delivery cannot both send a file.
   deliver(say: Say, cwd: string, sessionId: string, sink: MessageSink, minAgeMs = 0): Promise<number> {
     const previous = this.inFlight.get(sessionId) ?? Promise.resolve(0);
-    const task = previous.then(() => this.run(say, cwd, sessionId, sink, minAgeMs));
+    // A delivery that failed is its own caller's to hear about, not the next one's reason to fail.
+    const task = previous.catch(() => 0).then(() => this.run(say, cwd, sessionId, sink, minAgeMs));
     this.inFlight.set(sessionId, task);
     return task.finally(() => {
       if (this.inFlight.get(sessionId) === task) this.inFlight.delete(sessionId);

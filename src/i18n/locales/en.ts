@@ -57,6 +57,8 @@ export const en = {
   },
   outbox: {
     tooLarge: "Too large to attach, left in `{{folder}}`: {{names}}.",
+    failed:
+      "Could not attach what is in `{{folder}}`: {{error}}. The files are still there on the host and the bridge tries again on its own; if it keeps failing, check that the bot may attach files in this channel.",
     files_one: "{{count}} file",
     files_other: "{{count}} files",
   },

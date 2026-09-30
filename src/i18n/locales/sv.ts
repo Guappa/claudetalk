@@ -58,6 +58,8 @@ export const sv: Catalog = {
   },
   outbox: {
     tooLarge: "För stora för att bifoga, ligger kvar i `{{folder}}`: {{names}}.",
+    failed:
+      "Kunde inte bifoga det som ligger i `{{folder}}`: {{error}}. Filerna ligger kvar på värddatorn och bryggan försöker igen av sig själv; om det fortsätter misslyckas, kontrollera att boten får bifoga filer i den här kanalen.",
     files_one: "{{count}} fil",
     files_other: "{{count}} filer",
   },

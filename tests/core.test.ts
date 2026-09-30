@@ -144,6 +144,7 @@ import {
   outboxPath,
   MAX_FILE_BYTES,
   MAX_FILES_PER_MESSAGE,
+  MAX_MESSAGE_BYTES,
   OUTBOX_DIR,
   SETTLE_MS,
 } from "../src/discord/outbox.ts";
@@ -3939,11 +3940,30 @@ describe("outbox", () => {
     expect(await fs.readdir(outboxPath(cwd, "s1"))).toEqual(["huge.bin"]);
   });
 
-  it("caps how many go in one message", async () => {
+  // A file that only has to wait is not one that is too large, and saying so would be untrue.
+  it("caps how many go in one message, and leaves the rest for the next without calling them too large", async () => {
     for (let i = 0; i < MAX_FILES_PER_MESSAGE + 3; i++) await writeOutbox(`f${i}.txt`, "x");
+    const first = await collectOutbox(cwd, "s1");
+    expect(first.files).toHaveLength(MAX_FILES_PER_MESSAGE);
+    expect(first.skipped).toEqual([]);
+    expect(first.deferred).toBe(3);
+
+    await first.discard();
+    const second = await collectOutbox(cwd, "s1");
+    expect(second.files).toHaveLength(3);
+    expect(second.deferred).toBe(0);
+  });
+
+  it("caps what one message weighs in all, keeping the files in the order they are named in", async () => {
+    const each = MAX_FILE_BYTES - 1;
+    const fit = Math.floor(MAX_MESSAGE_BYTES / each);
+    for (let i = 0; i <= fit; i++) await writeOutbox(`part${i}.bin`, Buffer.alloc(each));
+    await writeOutbox("z-small.txt", "x");
+
     const result = await collectOutbox(cwd, "s1");
-    expect(result.files).toHaveLength(MAX_FILES_PER_MESSAGE);
-    expect(result.skipped).toHaveLength(3);
+    expect(result.files.map((file) => file.name)).toEqual(Array.from({ length: fit }, (_, index) => `part${index}.bin`));
+    expect(result.deferred).toBe(2);
+    expect(result.skipped).toEqual([]);
   });
 
   it("says where a skipped file still is", () => {
@@ -4587,6 +4607,26 @@ describe("outbox delivery", () => {
     const sink = recordingSink();
 
     await Promise.all([delivery.deliver(say, cwd, "s1", sink), delivery.deliver(say, cwd, "s1", sink)]);
+    expect(sink.files).toEqual(["report.md"]);
+  });
+
+  it("delivers for the caller queued behind one whose send failed, and keeps that file for it", async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outbox-failed-"));
+    await fs.mkdir(outboxPath(cwd, "s1"), { recursive: true });
+    await fs.writeFile(path.join(outboxPath(cwd, "s1"), "report.md"), "done");
+    const delivery = new OutboxDelivery();
+    const refusing = {
+      ...recordingSink(),
+      sendFiles: async () => {
+        throw new Error("the channel refused the upload");
+      },
+    };
+    const sink = recordingSink();
+
+    const failed = delivery.deliver(say, cwd, "s1", refusing);
+    const behind = delivery.deliver(say, cwd, "s1", sink);
+    await expect(failed).rejects.toThrow("refused the upload");
+    expect(await behind).toBe(1);
     expect(sink.files).toEqual(["report.md"]);
   });
 
