@@ -73,7 +73,8 @@ import {
   remoteWebUrl,
   resolveReferences,
 } from "../src/discord/repoLinks.ts";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
 import { defuseStrayMarkup } from "../src/discord/strayMarkup.ts";
@@ -375,6 +376,54 @@ describe("ConversationStore", () => {
 
   beforeEach(async () => {
     file = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "conv-")), "conversations.json");
+  });
+
+  // It once loaded as empty, and the first save afterwards wrote that emptiness over every binding.
+  it("refuses to load a file that does not parse, and leaves it exactly as it was", async () => {
+    const damaged = '{ "conversations": { "keep": { "sessionId": "keep" } }, "channelIndex": { "c1": "keep" }, }';
+    await fs.writeFile(file, damaged, "utf8");
+    const store = new ConversationStore(file);
+
+    await expect(store.load()).rejects.toThrow(/not valid JSON[\s\S]*Nothing was changed[\s\S]*move it aside/);
+    expect(await fs.readFile(file, "utf8")).toBe(damaged);
+  });
+
+  it("starts empty when there is no file yet", async () => {
+    const store = new ConversationStore(file);
+    await store.load();
+    expect(store.all()).toEqual([]);
+  });
+
+  // Every save shared one temporary file, so two that overlapped lost one of them to a failed rename.
+  it("lands every save when several overlap, and ends holding the last state", async () => {
+    const store = new ConversationStore(file);
+    await store.load();
+    for (let index = 0; index < 5; index += 1) {
+      await store.bindNew({ sessionId: `s${index}`, cwd: "/tmp", channelId: `c${index}`, ownerId: "u1" });
+    }
+    for (let round = 0; round < 10; round += 1) {
+      const stamp = new Date(Date.UTC(2026, 8, 1, 12, round)).toISOString();
+      const saves = await Promise.allSettled(Array.from({ length: 5 }, (_, index) => store.markSynced(`s${index}`, stamp)));
+      expect(saves.filter((save) => save.status === "rejected")).toEqual([]);
+    }
+    const onDisk = JSON.parse(await fs.readFile(file, "utf8")) as { conversations: Record<string, { syncedThrough: string }> };
+    expect(Object.values(onDisk.conversations).map((entry) => entry.syncedThrough)).toEqual(
+      Array.from({ length: 5 }, () => new Date(Date.UTC(2026, 8, 1, 12, 9)).toISOString()),
+    );
+    expect((await fs.readdir(path.dirname(file))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+  });
+
+  // Left behind, it routed the old voice channel into whatever was next bound under the same session.
+  it("forgets every channel of a conversation when its text channel is unbound", async () => {
+    const store = new ConversationStore(file);
+    await store.load();
+    await store.bindNew({ sessionId: "s1", cwd: "/tmp", channelId: "text-1", ownerId: "u1" });
+    await store.attachChannel("s1", "voice-1", "voice");
+    await store.unbind("text-1");
+
+    await store.bindNew({ sessionId: "s1", cwd: "/tmp", channelId: "text-2", ownerId: "u1" });
+    expect(store.byChannel("voice-1")).toBeUndefined();
+    expect(store.byChannel("text-2")?.sessionId).toBe("s1");
   });
 
   const conversation = {
@@ -2824,6 +2873,29 @@ describe("acquireInstanceLock", () => {
   beforeEach(async () => {
     lockPath = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "lock-")), "bridge.lock");
   });
+
+  // Reading the lock and then writing it let two bridges started in the same instant both take it.
+  it("lets only one of two processes starting together take the lock", async () => {
+    const lockModule = pathToFileURL(path.join(import.meta.dirname, "..", "src", "instanceLock.ts")).href;
+    const contender = `
+      import { acquireInstanceLock } from ${JSON.stringify(lockModule)};
+      try {
+        await acquireInstanceLock(process.argv[1]);
+        console.log("ACQUIRED");
+        setTimeout(() => undefined, 1500);
+      } catch {
+        console.log("REFUSED");
+      }`;
+    const start = (): Promise<string> =>
+      new Promise((resolve) => {
+        const flags = ["--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", contender, lockPath];
+        execFile(process.execPath, flags, (_error, stdout) => resolve(stdout.trim()));
+      });
+
+    const outcomes = await Promise.all([start(), start(), start()]);
+    expect(outcomes.filter((outcome) => outcome === "ACQUIRED")).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome === "REFUSED")).toHaveLength(2);
+  }, 20_000);
 
   it("acquires a lock when none exists", async () => {
     const lock = await acquireInstanceLock(lockPath);

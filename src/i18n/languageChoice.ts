@@ -1,4 +1,4 @@
-import { readJsonOr, writeJsonAtomic } from "../jsonFile.ts";
+import { orderedWriter, readJsonOr } from "../jsonFile.ts";
 import { isLanguage, sayIn, type Language, type Say } from "./index.ts";
 
 // The language the bridge itself speaks: the host's default until someone picks one in Discord, which then outlives a restart.
@@ -6,9 +6,11 @@ export class LanguageChoice {
   private chosen: Language;
   private picked = false;
   private readonly filePath: string;
+  private readonly write: (value: unknown) => Promise<void>;
 
   constructor(filePath: string, hostDefault: Language) {
     this.filePath = filePath;
+    this.write = orderedWriter(filePath);
     this.chosen = hostDefault;
   }
 
@@ -35,6 +37,6 @@ export class LanguageChoice {
   async choose(language: Language): Promise<void> {
     this.chosen = language;
     this.picked = true;
-    await writeJsonAtomic(this.filePath, { language });
+    await this.write({ language });
   }
 }
