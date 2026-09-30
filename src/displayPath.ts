@@ -39,10 +39,15 @@ function spelledPattern(home: string): RegExp | null {
   if (!first) return null;
   // A Windows home is spelled with its drive letter, or as a path from the root by every POSIX shell on the machine, and commands quote it each way.
   const drive = /^[A-Za-z]:$/.test(first) ? `(?:${first}|${MOUNT}[\\\\/]+${escaped(first[0]!)})` : first;
-  const lead = path.isAbsolute(home) && !/^[A-Za-z]:/.test(home) ? "[\\\\/]+" : "";
-  // Anchored at both ends: a home called /root must not rewrite the word root or a URL ending in it, nor /home/dan "danger"; a full stop that ends the sentence is not part of the name.
-  return new RegExp(`(?<![\\w.-])${lead}${[drive, ...rest].join("[\\\\/]+")}(?![\\w-]|\\.\\w)`, "gi");
+  const fromRoot = path.isAbsolute(home) && !/^[A-Za-z]:/.test(home);
+  // A home from the root is its own whatever stands before it, a compiler flag or a UNC host or a volume, so only a web address ending in it is left alone; a drive letter is anchored so that it is not the tail of a word.
+  const [lead, unlessWeb] = fromRoot ? ["[\\\\/]+", IN_WEB_ADDRESS] : ["(?<![\\w.-])", ""];
+  // Anchored at the end: /home/dan must not rewrite "danger", and a full stop that ends the sentence is not part of the name.
+  return new RegExp(`${lead}${[drive, ...rest].join("[\\\\/]+")}${unlessWeb}(?![\\w-]|\\.\\w)`, "gi");
 }
+
+// Looked for behind a match, never ahead of one: asked at every slash it would cost the length of the text each time.
+const IN_WEB_ADDRESS = "(?<!\\bhttps?:\\/\\/[^\\s\"'<>]*)";
 
 // Claude Code names a project's folders after its path with every other character turned into a dash.
 function flattenedPattern(home: string): RegExp | null {
