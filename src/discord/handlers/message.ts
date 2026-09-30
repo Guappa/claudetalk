@@ -25,7 +25,7 @@ import { sendNotice } from "../notice.ts";
 import { runConversationTurn } from "../turn.ts";
 import { reactionMarker } from "../reactions.ts";
 import { isFromGuild } from "../gate.ts";
-import { toChannelName } from "../channelName.ts";
+import { toChannelName } from "../../channelName.ts";
 import { addressesBot, isForBot, shouldQuoteReplied, type Addressing } from "../addressing.ts";
 import { adHocWorkingDir, tierOf } from "../policy.ts";
 import {

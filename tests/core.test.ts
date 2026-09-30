@@ -65,7 +65,7 @@ import {
   withoutScratch,
 } from "../src/discord/commands/sessionList.ts";
 import { displayName } from "../src/sessions/displayName.ts";
-import { toChannelName } from "../src/discord/channelName.ts";
+import { toChannelName } from "../src/channelName.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import {
@@ -147,13 +147,12 @@ import { TurnQueue, describeDepth, describeFull, describeQueued, MAX_QUEUE_DEPTH
 import {
   collectOutbox,
   describeSkipped,
-  outboxPath,
   MAX_FILE_BYTES,
   MAX_FILES_PER_MESSAGE,
   MAX_MESSAGE_BYTES,
-  OUTBOX_DIR,
   SETTLE_MS,
 } from "../src/discord/outbox.ts";
+import { OUTBOX_DIR, outboxPath } from "../src/outboxFolder.ts";
 import { readExchanges, readExchangesSince, lastExchanges, lastCompactionCeiling } from "../src/sessions/exchanges.ts";
 import { SessionIndex } from "../src/sessions/index.ts";
 import { readTail } from "../src/sessions/transcriptTail.ts";

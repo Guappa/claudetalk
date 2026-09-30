@@ -1,7 +1,7 @@
 import type { SessionRecord } from "./index.ts";
 import { displayName } from "./displayName.ts";
 import { samePath } from "../platform.ts";
-import { toChannelName } from "../discord/channelName.ts";
+import { toChannelName } from "../channelName.ts";
 
 export type Resolution = { match: SessionRecord; shadowed: SessionRecord[] } | { match: null; candidates: SessionRecord[] };
 

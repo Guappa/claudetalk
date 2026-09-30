@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { query, type Options, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { killTree, turnSpawnOptions } from "../platform.ts";
 import { errorMessage } from "../text.ts";
-import { outboxRelative } from "../discord/outbox.ts";
+import { outboxRelative } from "../outboxFolder.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
 import { HeldPrompt } from "./heldPrompt.ts";
