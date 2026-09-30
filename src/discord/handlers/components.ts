@@ -1,153 +1,62 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   LabelBuilder,
   ModalBuilder,
-  StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
-  type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { Say } from "../../i18n/index.ts";
-import {
-  describeSkillMenus,
-  listPlugins,
-  menuPlaceholder,
-  pluginSelectOptions,
-  setPluginEnabled,
-  skillSelectMenus,
-} from "../../claude/pluginCatalog.ts";
-import {
-  PLUGIN_SELECT,
-  PURGE_CANCEL,
-  PURGE_CONFIRM,
-  parseCustomId,
-  pluginToggleId,
-  questionOtherId,
-  skillSelectId,
-  type MenuAction,
-} from "../menus.ts";
+import { parseCustomId, questionOtherId, type Action, type MenuAction } from "../menus.ts";
 import { OTHER_VALUE } from "../questions.ts";
-import { describePurge, purgeChannel } from "../purge.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { clearConversation } from "../commands/clear.ts";
-import { cancelRun, confirmRun, runPressed } from "../commands/run.ts";
-import { requireConversation } from "../binding.ts";
-import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
-import { nameForDiscord, optionForDiscord, postText } from "../outgoing.ts";
+import { choosePlugin, togglePlugin } from "../commands/plugins.ts";
+import { cancelPurge, confirmPurge } from "../commands/purge.ts";
+import { cancelRun, confirmRun } from "../commands/run.ts";
+import { runSkill } from "../commands/skills.ts";
+import { acknowledgeQuietly, respondQuietly, settleMenu } from "../respond.ts";
+import { nameForDiscord } from "../outgoing.ts";
 import { describeSendNow, describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
 import { canRunCommand } from "../../access.ts";
+import { MODAL_TEXT_CHARS } from "../limits.ts";
 import { tierOf } from "../policy.ts";
 import { hasWorkingDir } from "../../sessions/index.ts";
 import { errorMessage, truncate } from "../../text.ts";
 
-type Action<K extends MenuAction["kind"]> = Extract<MenuAction, { kind: K }>;
-
-export async function handlePluginsCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
-  const say = bridge.language.say;
-  const plugins = await listPlugins();
-  if (plugins.length === 0) {
-    await respond(interaction, say("plugins.none"));
-    return;
-  }
-
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(PLUGIN_SELECT)
-    .setPlaceholder(say("plugins.choose"))
-    .addOptions(pluginSelectOptions(say, plugins).map(optionForDiscord));
-
-  await respond(interaction, {
-    content: say("plugins.summary", {
-      count: plugins.length,
-      enabled: plugins.filter((plugin) => plugin.enabled).length,
-    }),
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
-  });
-}
-
-export async function handleSkillsCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
-  const conversation = await requireConversation(bridge, interaction);
-  if (!conversation) return;
-
-  const say = bridge.language.say;
-  const skills = bridge.capabilities.skills(conversation.sessionId);
-  if (skills.length === 0) {
-    await respond(interaction, say("skills.none"));
-    return;
-  }
-
-  const menus = skillSelectMenus(say, skills);
-  const rows = menus.pages.map((page, index) =>
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(skillSelectId(index))
-        .setPlaceholder(nameForDiscord(menuPlaceholder(say, page)))
-        .addOptions(page.map(optionForDiscord)),
-    ),
-  );
-
-  await respond(interaction, { content: describeSkillMenus(say, skills.length, menus), components: rows });
-}
-
-// A mention-only or unbound channel is not a view of a conversation, so /sync does not apply.
-function isConversationChannel(bridge: Bridge, channelId: string): boolean {
-  const conversation = bridge.store.byChannel(channelId);
-  return conversation !== undefined && !conversation.mentionOnly;
-}
-
-export async function handlePurgeCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
-  const say = bridge.language.say;
-  if (!interaction.channel || !("bulkDelete" in interaction.channel)) {
-    await respond(interaction, say("purge.notDeletable"));
-    return;
-  }
-
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(PURGE_CONFIRM).setLabel(say("purge.confirm")).setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(PURGE_CANCEL).setLabel(say("common.cancel")).setStyle(ButtonStyle.Secondary),
-  );
-
-  const lines: string[] = [say("purge.warning")];
-  if (isConversationChannel(bridge, interaction.channelId)) lines.push("", say("purge.warningConversation"));
-
-  await respond(interaction, { content: lines.join("\n"), components: [row] });
-}
+// Which command a control belongs to, and so who may press it: the same tiers that may run the command.
+const COMMAND_OF: Partial<Record<MenuAction["kind"], string>> = {
+  "plugin-chosen": "plugins",
+  "plugin-toggle": "plugins",
+  "skill-chosen": "skills",
+  "purge-confirm": "purge",
+  "purge-cancel": "purge",
+  "create-new": "create",
+  "create-cancel": "create",
+  "create-resume": "create",
+  "unbind-delete": "unbind",
+  "unbind-keep": "unbind",
+  "clear-confirm": "clear",
+  "clear-cancel": "clear",
+  "run-confirm": "run",
+  "run-cancel": "run",
+  "turn-stop": "stop",
+  "turn-stop-all": "stop",
+  "turn-stop-agents": "stop",
+  "turn-send-now": "stop",
+};
 
 // A control is checked on its own press, not on who could see the message it sits on; false once the presser has been told it is not theirs.
-async function mayPress(bridge: Bridge, interaction: ButtonInteraction | StringSelectMenuInteraction, command: string) {
-  if (canRunCommand(tierOf(bridge, interaction.user.id), command)) return true;
+async function mayPress(bridge: Bridge, interaction: ButtonInteraction | StringSelectMenuInteraction, action: MenuAction) {
+  const command = COMMAND_OF[action.kind];
+  if (!command || canRunCommand(tierOf(bridge, interaction.user.id), command)) return true;
   await settleMenu(interaction, bridge.language.say("access.ownersOnly", { command }));
   return false;
 }
 
-async function choosePlugin(bridge: Bridge, interaction: StringSelectMenuInteraction, action: Action<"plugin-chosen">) {
-  const say = bridge.language.say;
-  if (!(await mayPress(bridge, interaction, "plugins"))) return;
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(pluginToggleId(action.id, true))
-      .setLabel(say("plugins.enable"))
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(pluginToggleId(action.id, false))
-      .setLabel(say("plugins.disable"))
-      .setStyle(ButtonStyle.Danger),
-  );
-  await settleMenu(interaction, `\`${action.id}\``, [row]);
-}
-
-async function runSkill(bridge: Bridge, interaction: StringSelectMenuInteraction, action: Action<"skill-chosen">) {
-  await runPressed(bridge, interaction, `/${action.skill}`);
-}
-
 const OTHER_ANSWER_FIELD = "answer";
-// Discord allows a modal's title and a field's label forty-five characters each.
-const MODAL_TEXT_LIMIT = 45;
 
 function otherAnswerModal(say: Say, action: Action<"question-pick">): ModalBuilder {
   const field = new TextInputBuilder()
@@ -157,10 +66,10 @@ function otherAnswerModal(say: Say, action: Action<"question-pick">): ModalBuild
     .setMaxLength(1000);
   return new ModalBuilder()
     .setCustomId(questionOtherId(action.askId, action.index))
-    .setTitle(truncate(nameForDiscord(say("questions.ownAnswerTitle", { number: action.index + 1 })), MODAL_TEXT_LIMIT))
+    .setTitle(truncate(nameForDiscord(say("questions.ownAnswerTitle", { number: action.index + 1 })), MODAL_TEXT_CHARS))
     .addLabelComponents(
       new LabelBuilder()
-        .setLabel(truncate(nameForDiscord(say("questions.ownAnswerLabel")), MODAL_TEXT_LIMIT))
+        .setLabel(truncate(nameForDiscord(say("questions.ownAnswerLabel")), MODAL_TEXT_CHARS))
         .setTextInputComponent(field),
     );
 }
@@ -209,6 +118,7 @@ async function skipQuestions(bridge: Bridge, interaction: ButtonInteraction, act
 
 export async function handleSelect(bridge: Bridge, interaction: StringSelectMenuInteraction): Promise<void> {
   const action = parseCustomId(interaction.customId, interaction.values[0]);
+  if (!(await mayPress(bridge, interaction, action))) return;
   switch (action.kind) {
     case "plugin-chosen":
       return await choosePlugin(bridge, interaction, action);
@@ -254,26 +164,6 @@ async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: A
   await respondQuietly(interaction, describeSendNow(bridge.language.say, outcome));
 }
 
-async function cancelPurge(bridge: Bridge, interaction: ButtonInteraction) {
-  await settleMenu(interaction, bridge.language.say("purge.cancelled"));
-}
-
-async function confirmPurge(bridge: Bridge, interaction: ButtonInteraction) {
-  const say = bridge.language.say;
-  const channel = interaction.channel;
-  if (!channel || !("bulkDelete" in channel)) {
-    await settleMenu(interaction, say("purge.notDeletable"));
-    return;
-  }
-  await settleMenu(interaction, say("purge.deleting"));
-  const outcome = await purgeChannel(channel, interaction.message.id).then(
-    (result) => describePurge(say, result, isConversationChannel(bridge, interaction.channelId)),
-    (error: unknown) => say("purge.stoppedPartway", { error: errorMessage(error) }),
-  );
-  // A long purge outlasts the fifteen minutes a press can be answered for, so the result is then said in the channel.
-  await settleMenu(interaction, outcome).catch(() => postText(channel, outcome));
-}
-
 async function cancelCreate(bridge: Bridge, interaction: ButtonInteraction) {
   bridge.pendingCreates.take(interaction.message.id);
   await settleMenu(interaction, bridge.language.say("create.cancelled"));
@@ -310,13 +200,7 @@ async function cancelClear(bridge: Bridge, interaction: ButtonInteraction) {
 }
 
 async function confirmClear(bridge: Bridge, interaction: ButtonInteraction, action: Action<"clear-confirm">) {
-  if (!(await mayPress(bridge, interaction, "clear"))) return;
   await clearConversation(bridge, interaction, action.sessionId);
-}
-
-async function approveRun(bridge: Bridge, interaction: ButtonInteraction) {
-  if (!(await mayPress(bridge, interaction, "run"))) return;
-  await confirmRun(bridge, interaction);
 }
 
 async function keepUnboundChannel(bridge: Bridge, interaction: ButtonInteraction) {
@@ -326,7 +210,6 @@ async function keepUnboundChannel(bridge: Bridge, interaction: ButtonInteraction
 // The reply lives in the channel being deleted, so it may be gone before it can be edited.
 async function deleteUnboundChannel(bridge: Bridge, interaction: ButtonInteraction) {
   const say = bridge.language.say;
-  if (!(await mayPress(bridge, interaction, "unbind"))) return;
   const channel = interaction.channel;
   if (!channel || channel.isDMBased()) {
     await settleMenu(interaction, say("unbind.notDeletable"));
@@ -345,23 +228,9 @@ async function deleteUnboundChannel(bridge: Bridge, interaction: ButtonInteracti
   }
 }
 
-async function togglePlugin(bridge: Bridge, interaction: ButtonInteraction, action: Action<"plugin-toggle">) {
-  const say = bridge.language.say;
-  if (!(await mayPress(bridge, interaction, "plugins"))) return;
-  await interaction.deferUpdate();
-  try {
-    const printed = await setPluginEnabled(action.id, action.enable);
-    await settleMenu(interaction, printed || say(action.enable ? "plugins.enabled" : "plugins.disabled", { id: action.id }));
-  } catch (error) {
-    await settleMenu(
-      interaction,
-      say(action.enable ? "plugins.enableFailed" : "plugins.disableFailed", { id: action.id, error: errorMessage(error) }),
-    );
-  }
-}
-
 export async function handleButton(bridge: Bridge, interaction: ButtonInteraction): Promise<void> {
   const action = parseCustomId(interaction.customId);
+  if (!(await mayPress(bridge, interaction, action))) return;
   switch (action.kind) {
     case "approval":
       return await decideApproval(bridge, interaction, action);
@@ -394,7 +263,7 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
     case "run-cancel":
       return await cancelRun(bridge, interaction);
     case "run-confirm":
-      return await approveRun(bridge, interaction);
+      return await confirmRun(bridge, interaction);
     case "question-submit":
       return await submitAnswers(bridge, interaction, action);
     case "question-skip":

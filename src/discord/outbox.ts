@@ -2,12 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Say } from "../i18n/index.ts";
 import { outboxPath, outboxRelative } from "../outboxFolder.ts";
+import { MAX_FILE_BYTES, MAX_FILES_PER_MESSAGE, MAX_MESSAGE_BYTES } from "./limits.ts";
 import type { SinkFile } from "./messageSink.ts";
-
-export const MAX_FILE_BYTES = 8 * 1024 * 1024;
-export const MAX_FILES_PER_MESSAGE = 10;
-// Discord refuses a message whose whole request is over 25 MiB, however little each file in it weighs.
-export const MAX_MESSAGE_BYTES = 24 * 1024 * 1024;
 
 export interface OutboxResult {
   files: SinkFile[];

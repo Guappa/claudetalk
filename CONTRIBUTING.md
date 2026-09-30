@@ -359,6 +359,11 @@ this guard existed. A message that joins several texts, as the trail joins
 remarks and `/sync` joins exchanges, seals each text on its own first. Posting
 around the gate, or joining texts without sealing them, brings both bugs back.
 
+**What Discord accepts is read from `src/discord/limits.ts`.** The message,
+embed, menu, button, modal, custom id and upload limits are named there and
+nowhere else, so that a limit Discord changes is one edit. A bare `2000` or
+`100` beside a cut in code is a copy that will be missed.
+
 **Emoji appear in exactly two places, from one fixed set.** The reaction on the
 message that started a turn, and the heading of the progress message, each
 carrying the turn's state: queued, running, waiting on a person, done, stopped,

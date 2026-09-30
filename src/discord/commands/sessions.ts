@@ -5,8 +5,7 @@ import { displayName } from "../../sessions/displayName.ts";
 import { detail } from "../embeds.ts";
 import { respond } from "../respond.ts";
 import { choicesForDiscord } from "../outgoing.ts";
-
-const AUTOCOMPLETE_LIMIT = 25;
+import { CHOICES } from "../limits.ts";
 
 export async function handleAutocomplete(bridge: Bridge, interaction: AutocompleteInteraction): Promise<void> {
   const typed = interaction.options.getFocused().toLowerCase();
@@ -18,7 +17,7 @@ export async function handleAutocomplete(bridge: Bridge, interaction: Autocomple
   );
 
   const choices = newestPerName(matching)
-    .slice(0, AUTOCOMPLETE_LIMIT)
+    .slice(0, CHOICES)
     .map(([record, older]) => sessionChoice(bridge.language.say, record, older));
   await interaction.respond(choicesForDiscord(choices));
 }

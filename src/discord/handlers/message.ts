@@ -19,7 +19,7 @@ import {
   type RemoteAttachment,
   type SavedAttachment,
 } from "../../attachments.ts";
-import { classifyTyped, describeNotRun, isNotRun } from "../commands/settings.ts";
+import { classifyTyped, describeNotRun, isNotRun } from "../commands/typed.ts";
 import { channelSink } from "../sink.ts";
 import { sendNotice } from "../notice.ts";
 import { runConversationTurn } from "../turn.ts";

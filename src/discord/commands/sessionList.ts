@@ -5,9 +5,9 @@ import { isWithin, longTmpDir } from "../../platform.ts";
 import { byRecencyDesc } from "../../sessions/resolve.ts";
 import type { Say } from "../../i18n/index.ts";
 import { dateAndTime } from "../timestamps.ts";
+import { CHOICE_CHARS } from "../limits.ts";
 
 const MAX_LISTED = 25;
-const CHOICE_LABEL_LIMIT = 100;
 const SHORT_ID_CHARS = 8;
 
 // Untitled conversations are all named after their folder, so the id is what tells them apart.
@@ -61,9 +61,9 @@ export function newestPerName(records: SessionRecord[]): Array<[SessionRecord, n
 export function sessionChoice(say: Say, record: SessionRecord, older = 0): { name: string; value: string } {
   const olderTag = older > 0 ? ` · ${say("sessions.older", { older })}` : "";
   const suffix = `${tagFor(record)} · ${humanSize(record.sizeBytes)} · ${humanAge(say, record.lastActivity)}${olderTag}`;
-  const room = CHOICE_LABEL_LIMIT - suffix.length;
+  const room = CHOICE_CHARS - suffix.length;
   const name = displayName(record).slice(0, Math.max(room, 1));
-  return { name: `${name}${suffix}`.slice(0, CHOICE_LABEL_LIMIT), value: record.sessionId };
+  return { name: `${name}${suffix}`.slice(0, CHOICE_CHARS), value: record.sessionId };
 }
 
 export function formatSessionList(say: Say, records: SessionRecord[]): string {

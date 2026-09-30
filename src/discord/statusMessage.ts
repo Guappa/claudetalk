@@ -3,7 +3,8 @@ import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 import { forDiscord } from "./outgoing.ts";
-import { DISCORD_MESSAGE_LIMIT, chunkForDiscord } from "./renderer.ts";
+import { DISCORD_MESSAGE_LIMIT } from "./limits.ts";
+import { chunkForDiscord } from "./renderer.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 import { convertTables } from "./tables.ts";
 

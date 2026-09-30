@@ -1,6 +1,7 @@
 import type { Message, SendableChannels } from "discord.js";
 import { redactHome } from "../displayPath.ts";
-import { DISCORD_MESSAGE_LIMIT, chunkForDiscord } from "./renderer.ts";
+import { DISCORD_MESSAGE_LIMIT } from "./limits.ts";
+import { chunkForDiscord } from "./renderer.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 
 const TIGHTEN_BY = 100;

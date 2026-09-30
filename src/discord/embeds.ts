@@ -1,9 +1,6 @@
 import { EmbedBuilder } from "discord.js";
+import { EMBED_DESCRIPTION_LIMIT, EMBED_FIELD_LIMIT } from "./limits.ts";
 import { forDiscord, nameForDiscord } from "./outgoing.ts";
-
-// An embed's description holds 4096 characters where a message holds 2000.
-export const EMBED_DESCRIPTION_LIMIT = 4096;
-export const EMBED_FIELD_LIMIT = 1024;
 
 const BRIDGE_COLOUR = 0x5865f2;
 
