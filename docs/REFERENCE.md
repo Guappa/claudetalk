@@ -620,8 +620,8 @@ never land in the other's channel; a file dropped at the `.discord-outbox/`
 root belongs to nobody and is left alone. A fork's first turn still writes to
 the folder of the conversation it came from. A file over 8 MB is left in place
 and named once, not on every sweep. One message carries at most ten files and
-24 MB in all; whatever does not fit waits in the folder and goes out in the
-next message, within about twenty seconds, in the order the files are named in.
+24 MB in all; whatever does not fit goes out in the messages straight after it,
+in the order the files are named in.
 The folders are removed once empty, so a repository does not accumulate an
 untracked directory.
 
