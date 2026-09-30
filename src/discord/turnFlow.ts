@@ -37,7 +37,7 @@ import { splitForDiscord } from "./outgoing.ts";
 import { displayPath } from "../displayPath.ts";
 import { setTimeout as wait } from "node:timers/promises";
 import { errorMessage } from "../text.ts";
-import { outboxRelative } from "./outbox.ts";
+import { outboxRelative } from "../outboxFolder.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeFull, describeQueued } from "./turnQueue.ts";
 import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";

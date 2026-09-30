@@ -8,6 +8,26 @@
   "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" } },
   // Imports are grouped by what they belong to, not by the alphabet, so nothing reorders them.
   "assist": { "enabled": false },
+  // Sessions, Claude Code and the catalog know nothing of Discord; a reach the other way would make one of them start with a Discord import.
+  "overrides": [
+    {
+      "includes": ["src/claude/**", "src/sessions/**", "src/i18n/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  { "group": ["**/discord/**"], "message": "src/discord depends on this area, never the other way round." }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "linter": {
     "enabled": true,
     "rules": {

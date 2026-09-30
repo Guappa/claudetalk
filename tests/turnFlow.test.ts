@@ -14,7 +14,7 @@ import { menuAskingSink, quietSink, recordingSink } from "./helpers/sinks.ts";
 import { sayIn, type Language, type Say } from "../src/i18n/index.ts";
 import path from "node:path";
 import fs from "node:fs/promises";
-import { outboxPath } from "../src/discord/outbox.ts";
+import { outboxPath } from "../src/outboxFolder.ts";
 
 const started = vi.hoisted(() => [] as string[]);
 // Whether each mocked turn was asked to resume its session, keyed by its prompt.

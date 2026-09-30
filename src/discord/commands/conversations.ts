@@ -26,7 +26,7 @@ import { CREATE_CANCEL, CREATE_NEW, createResumeId } from "../menus.ts";
 import type { PendingCreate } from "../pendingCreate.ts";
 import { requireConversation, requireGuild } from "../binding.ts";
 import { channelSink } from "../sink.ts";
-import { toChannelName } from "../channelName.ts";
+import { toChannelName } from "../../channelName.ts";
 import { categoryIsFull, describeCategoryFull, resolveCategory } from "../category.ts";
 import { conversationOverwrites } from "../channelAccess.ts";
 import { tierOf, workingDirFor } from "../policy.ts";

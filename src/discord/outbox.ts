@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Say } from "../i18n/index.ts";
+import { outboxPath, outboxRelative } from "../outboxFolder.ts";
 import type { SinkFile } from "./messageSink.ts";
 
-export const OUTBOX_DIR = ".discord-outbox";
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
 export const MAX_FILES_PER_MESSAGE = 10;
 // Discord refuses a message whose whole request is over 25 MiB, however little each file in it weighs.
@@ -23,15 +23,6 @@ export interface OutboxResult {
 
 // Whether a file of this name, size and writing time was delivered before and is only still here because it could not be removed.
 type SentAlready = (name: string, mark: string) => boolean;
-
-// Keyed by conversation: two conversations in one folder must never read each other's files.
-export function outboxPath(cwd: string, sessionId: string): string {
-  return path.join(cwd, OUTBOX_DIR, sessionId);
-}
-
-export function outboxRelative(sessionId: string): string {
-  return `${OUTBOX_DIR}/${sessionId}/`;
-}
 
 export function describeSkipped(say: Say, skipped: string[], sessionId: string): string {
   if (skipped.length === 0) return "";

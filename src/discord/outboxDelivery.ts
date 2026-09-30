@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
-import { collectOutbox, describeSkipped, outboxPath, type OutboxResult } from "./outbox.ts";
+import { outboxPath } from "../outboxFolder.ts";
+import { collectOutbox, describeSkipped, type OutboxResult } from "./outbox.ts";
 import type { MessageSink } from "./messageSink.ts";
 import type { Say } from "../i18n/index.ts";
 
