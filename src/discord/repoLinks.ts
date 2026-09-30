@@ -21,6 +21,8 @@ export interface References {
 
 interface Verified {
   head: string;
+  // Where the working directory sits inside the repository, empty at its root; a blob link is written from the root.
+  prefix: string;
   commits: Set<string>;
   branches: Set<string>;
   tags: Set<string>;
@@ -100,19 +102,22 @@ export function referenceLinks(webUrl: string, verified: Verified): ReferenceLin
       return null;
     },
     file: (filePath, line, end) =>
-      verified.files.has(filePath) ? `${webUrl}${shapes.file(verified.head, filePath, line, end)}` : null,
+      verified.files.has(filePath) ? `${webUrl}${shapes.file(verified.head, `${verified.prefix}${filePath}`, line, end)}` : null,
   };
 }
 
 const HASH = /^[0-9a-f]{7,40}$/;
 const FILE = /^((?:[\w.-]+\/)*[\w-][\w.-]*\.\w+)(?::(\d+)(?:-(\d+))?)?$/;
 const NAME = /^[\w][\w.\-/]*$/;
-const TRAILING_PUNCTUATION = /[.,;:!?)]+$/;
+// What can end a URL but far more often ends the sentence, the emphasis or the brackets around it.
+const SELDOM_ENDS_A_URL = new Set([...".,;:!?)]}\"'*_~`"]);
+// An extension a file is as likely to carry as a site is, so a bare name under one is left as the file name it probably is.
+const ALSO_EXTENSIONS = new Set(["sh", "app"]);
 // Fences pass through untouched and an existing link keeps its text; everything else is scanned for something worth a link.
 const TOKENS = new RegExp(
   [
     "(?<fence>```[\\s\\S]*?```)",
-    "(?<mdlink>\\[(?<mdtext>[^\\]\\n]*)\\]\\((?<mdurl>[^)\\n]*)\\))",
+    "(?<mdlink>\\[(?<mdtext>[^\\]\\n]*)\\]\\((?<mdurl>(?:[^()\\n]|\\([^()\\n]*\\))*)\\))",
     "(?<url><?https?://[^\\s>]+>?)",
     "`(?<span>[^`\\n]+)`",
     "(?<![\\w#/])#(?<issue>\\d+)\\b",
@@ -124,14 +129,36 @@ const TOKENS = new RegExp(
   "g",
 );
 
+// The text is a name taken from the answer as it stands, so a marker in it, the underscores of __init__.py, is escaped to show as itself.
 function link(text: string, url: string): string {
-  return `[${text}](<${url}>)`;
+  return `[${text.replace(/[\\*_~`|]/g, "\\$&")}](<${url}>)`;
 }
 
-// A link's target never keeps the sentence's own punctuation.
+function count(text: string, char: string): number {
+  return text.split(char).length - 1;
+}
+
+// A link's target never keeps the sentence's own punctuation or the markup around it; a closing bracket stays only where the target opened it.
 function splitTrailing(token: string): [string, string] {
-  const tail = TRAILING_PUNCTUATION.exec(token)?.[0] ?? "";
-  return [token.slice(0, token.length - tail.length), tail];
+  let end = token.length;
+  while (end > 0 && SELDOM_ENDS_A_URL.has(token[end - 1]!)) {
+    const kept = token.slice(0, end);
+    if (token[end - 1] === ")" && count(kept, "(") >= count(kept, ")")) break;
+    end -= 1;
+  }
+  return [token.slice(0, end), token.slice(end)];
+}
+
+// deploy.sh and Info.app are files far more often than sites; a subdomain or a path is what says otherwise.
+function namesAFile(domain: string, domainPath: string | undefined): boolean {
+  const labels = domain.split(".");
+  return !domainPath && labels.length === 2 && ALSO_EXTENSIONS.has(labels[1]!.toLowerCase());
+}
+
+function linkDomain(whole: string, domain: string, domainPath: string | undefined): string {
+  if (namesAFile(domain, domainPath)) return whole;
+  const [target, tail] = splitTrailing(`${domain}${domainPath ?? ""}`);
+  return `${link(target, `https://${target}`)}${tail}`;
 }
 
 const LEADING_HASH = /^([0-9a-f]{7,40})\s+(.+)$/;
@@ -208,10 +235,7 @@ export function linkReferences(text: string, links: ReferenceLinks): string {
       return url ? link(whole, url) : whole;
     }
     if (groups.url) return wrapUrl(whole);
-    if (groups.domain) {
-      const [target, tail] = splitTrailing(`${groups.domain}${groups.dpath ?? ""}`);
-      return `${link(target, `https://${target}`)}${tail}`;
-    }
+    if (groups.domain) return linkDomain(whole, groups.domain, groups.dpath);
     return whole;
   });
 }
@@ -226,7 +250,7 @@ function wrapUrl(token: string): string {
 // A link Claude wrote itself would otherwise hang an embed under the message just as a bare URL does.
 function wrapLinkTarget(whole: string, text: string | undefined, target: string | undefined): string {
   if (text === undefined || !target || !/^https?:\/\/\S+$/.test(target)) return whole;
-  return link(text, target);
+  return `[${text}](<${target}>)`;
 }
 
 // Bare URLs and domains need no repository, so they are linked even where nothing else can be.
@@ -235,10 +259,7 @@ export function linkPlain(text: string): string {
     const groups = rest.at(-1) as Record<string, string | undefined>;
     if (groups.mdlink) return wrapLinkTarget(whole, groups.mdtext, groups.mdurl);
     if (groups.url) return wrapUrl(whole);
-    if (groups.domain) {
-      const [target, tail] = splitTrailing(`${groups.domain}${groups.dpath ?? ""}`);
-      return `${link(target, `https://${target}`)}${tail}`;
-    }
+    if (groups.domain) return linkDomain(whole, groups.domain, groups.dpath);
     return whole;
   });
 }
@@ -311,6 +332,7 @@ export async function resolveReferences(cwd: string, text: string): Promise<Refe
 
   return referenceLinks(webUrl, {
     head,
+    prefix: wanted.files.size > 0 ? ((await git(cwd, ["rev-parse", "--show-prefix"])) ?? "") : "",
     commits: wanted.hashes.size > 0 ? await existingCommits(cwd, [...wanted.hashes]) : new Set(),
     branches,
     tags,

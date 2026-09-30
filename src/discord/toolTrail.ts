@@ -23,6 +23,8 @@ export function describeToolUse(say: Say, name: string, input: Record<string, un
 // Enough to see what changed; a whole file rewrite is not worth a screen of scrolling on a phone.
 const MAX_DIFF_LINES = 24;
 const MAX_COMMAND_CHARS = 300;
+// A minified file is one line of any length, and a preview of it would run to a hundred messages.
+const MAX_LINE_CHARS = 200;
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
@@ -32,8 +34,9 @@ function safe(line: string): string {
 }
 
 function capped(say: Say, lines: string[]): string[] {
-  if (lines.length <= MAX_DIFF_LINES) return lines;
-  return [...lines.slice(0, MAX_DIFF_LINES), say("trail.moreLines", { count: lines.length - MAX_DIFF_LINES })];
+  const shown = lines.slice(0, MAX_DIFF_LINES).map((line) => truncate(line, MAX_LINE_CHARS));
+  if (lines.length <= MAX_DIFF_LINES) return shown;
+  return [...shown, say("trail.moreLines", { count: lines.length - MAX_DIFF_LINES })];
 }
 
 function fenced(kind: string, lines: string[]): string {

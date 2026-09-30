@@ -1985,6 +1985,19 @@ describe("stopping one turn or all of them", () => {
   });
 });
 
+describe("a preview of a file with one very long line", () => {
+  it("cuts the line, so a minified file does not run to a hundred messages", () => {
+    const shown = describeToolUse(say, "Write", { file_path: "/tmp/bundle.min.js", content: "x".repeat(200_000) });
+    expect(shown!.length).toBeLessThan(400);
+    const edited = describeToolUse(say, "Edit", {
+      file_path: "/tmp/bundle.min.js",
+      old_string: "a",
+      new_string: "y".repeat(5000),
+    });
+    expect(edited!.length).toBeLessThan(400);
+  });
+});
+
 describe("describeToolUse", () => {
   it("shows an edit as a diff block with the removed and added lines under the file's path", () => {
     const shown = describeToolUse(say, "Edit", {
@@ -2648,6 +2661,32 @@ describe("convertTables", () => {
     const notATable = "a | b\n| just a pipe | in prose |\nend";
     expect(convertTables(notATable)).toBe(notATable);
   });
+
+  // A block planted inside a block would end the outer one early and leave a stray fence behind.
+  it("leaves a table quoted inside a code block as the code it is", () => {
+    const quoted = ["Write it like this:", "```md", "| a | b | c |", "|---|---|---|", "| 1 | 2 | 3 |", "```", "and then:"].join(
+      "\n",
+    );
+    expect(convertTables(quoted)).toBe(quoted);
+    const after = `${quoted}\n| a | b |\n|---|---|\n| 1 | 2 |`;
+    expect(convertTables(after)).toBe(`${quoted}\n- **1**: 2`);
+  });
+
+  it("keeps a pipe that is written as escaped, or sits inside inline code, in its cell", () => {
+    const table = ["| Step | Command |", "|---|---|", "| count | `ls | wc -l` |", "| either | a \\| b |"].join("\n");
+    expect(convertTables(table)).toBe(["- **count**: `ls | wc -l`", "- **either**: a | b"].join("\n"));
+  });
+
+  it("drops emphasis inside a block but not a star that multiplies", () => {
+    const table = ["| Sum | Works out to | Note |", "|---|---|---|", "| 2 * 3 * 4 | 24 | *exact* |"].join("\n");
+    expect(convertTables(table)).toContain("2 * 3 * 4  24            exact");
+  });
+
+  it("loses nothing a table says: a cell past the second, and a heading with no rows under it", () => {
+    const ragged = ["| Key | Value |", "|---|---|", "| port | 8080 | default |"].join("\n");
+    expect(convertTables(ragged)).toBe("- **port**: 8080 · default");
+    expect(convertTables("| Key | Value |\n|---|---|")).toBe("- **Key**: Value");
+  });
 });
 
 describe("repo links against a real repository", () => {
@@ -2669,15 +2708,35 @@ describe("repo links against a real repository", () => {
     expect(links?.file("local-only.md")).toBeNull();
     await fs.rm(repo, { recursive: true, force: true });
   });
+
+  // A conversation can work in a folder below the repository's root, and a blob link is written from the root.
+  it("links a file named from a folder inside the repository by its path from the root", async () => {
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), "links-subfolder-"));
+    const run = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
+    run("init", "-q");
+    run("config", "user.email", "tests@example.invalid");
+    run("config", "user.name", "Tests");
+    run("remote", "add", "origin", "https://example.com/acme/ledger.git");
+    const inside = path.join(repo, "packages", "app");
+    await fs.mkdir(path.join(inside, "src"), { recursive: true });
+    await fs.writeFile(path.join(inside, "src", "entry.ts"), "export {};\n");
+    run("add", ".");
+    run("commit", "-q", "-m", "initial");
+
+    const links = await resolveReferences(inside, "See `src/entry.ts`.");
+    expect(links?.file("src/entry.ts", "3")).toMatch(/\/blob\/[0-9a-f]{40}\/packages\/app\/src\/entry\.ts#L3$/);
+    await fs.rm(repo, { recursive: true, force: true });
+  });
 });
 
 describe("repo links", () => {
   const verified = {
     head: "abc1234abc1234abc1234abc1234abc1234abc12",
+    prefix: "",
     commits: new Set(["e2ea070", "2d560e0"]),
     branches: new Set(["main", "feat/drain-on-stop"]),
     tags: new Set(["v0.14.0"]),
-    files: new Set(["src/discord/turnFlow.ts", "README.md"]),
+    files: new Set(["src/discord/turnFlow.ts", "README.md", "pkg/__init__.py"]),
   };
   const links = referenceLinks("https://github.com/someone/project", verified);
   const base = "https://github.com/someone/project";
@@ -2741,6 +2800,39 @@ describe("repo links", () => {
     );
     expect(linkPlain("package.json and index.ts are files, node.js too")).toBe(
       "package.json and index.ts are files, node.js too",
+    );
+  });
+
+  // .sh and .app end a file name far more often than a site's, and a link to a stranger's domain misleads.
+  it("leaves a script or an app bundle named in prose as text, and still links a site under the same ending", () => {
+    const files = "Run deploy.sh and then install.sh, or open Info.app.";
+    expect(linkPlain(files)).toBe(files);
+    expect(linkReferences(files, links)).toBe(files);
+    expect(linkPlain("It is up at ledger.example.app and get.example.sh/install.")).toBe(
+      "It is up at [ledger.example.app](<https://ledger.example.app>) and [get.example.sh/install](<https://get.example.sh/install>).",
+    );
+  });
+
+  it("keeps the markup and brackets around a url out of its target", () => {
+    expect(linkPlain("**https://example.com/docs**")).toBe("**<https://example.com/docs>**");
+    expect(linkPlain('_https://example.com_ and "https://example.com/a"')).toBe(
+      '_<https://example.com>_ and "<https://example.com/a>"',
+    );
+    expect(linkPlain("[see https://example.com/b]")).toBe("[see <https://example.com/b>]");
+    expect(linkPlain("(at https://example.com/c).")).toBe("(at <https://example.com/c>).");
+  });
+
+  it("keeps a closing bracket the url itself opened", () => {
+    expect(linkPlain("See https://example.org/wiki/Ledger_(book).")).toBe("See <https://example.org/wiki/Ledger_(book)>.");
+    expect(linkPlain("See [the book](https://example.org/wiki/Ledger_(book)).")).toBe(
+      "See [the book](<https://example.org/wiki/Ledger_(book)>).",
+    );
+  });
+
+  // Discord draws __init__ inside link text as underline, and the reader sees a file called init.
+  it("escapes a marker in a file name it links, so the name reads as it is written", () => {
+    expect(linkReferences("Edit `pkg/__init__.py`.", links)).toBe(
+      `Edit [pkg/\\_\\_init\\_\\_.py](<${base}/blob/${verified.head}/pkg/__init__.py>).`,
     );
   });
 

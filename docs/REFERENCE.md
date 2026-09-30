@@ -418,7 +418,7 @@ The session's own tool calls are counted as steps, an agent's are counted
 against the agent in its roster, and the ones the terminal draws are drawn here too, from
 the call's own input, so they cost the model nothing: an edit shows as a `diff`
 block under its file's path, written as code so no character in a file name
-turns into formatting, with the removed and added lines capped at two dozen, since that is the
+turns into formatting, with the removed and added lines capped at two dozen and each line at 200 characters, since that is the
 one tag Discord colours by line; a written file shows its first lines in a block
 tagged with its language; a shell command shows as a `$` line in a `bash` or
 `powershell` block. Reads and searches are only counted. Reasoning cannot be shown: thinking arrives over the stream with a
@@ -442,7 +442,8 @@ whose only remark was the answer keeps no trail.
 Discord draws no tables, and every turn is told so. A Markdown table that
 arrives anyway is converted: two columns become a list with the first cell in
 bold, more become an aligned code block with inline markup dropped, since it
-would show as literal punctuation there.
+would show as literal punctuation there. A table quoted inside a code block is
+code and is left as written.
 
 Discord parses a whole message as one run of inline formatting, so an inline
 code span, bold, italics, strikethrough, spoiler or link left open in one place
@@ -454,15 +455,20 @@ the trail and each exchange `/sync` posts is sealed on its own, since several
 share one message. Code blocks are left exactly as written.
 
 References in the answer become links, written so that Discord adds no embed
-beneath the message. A bare URL is kept clickable, a link Claude writes itself
-keeps its text with the target wrapped the same way, a domain name becomes a link
-to it, and when the working directory has an `origin` remote the repository's
+beneath the message. A bare URL is kept clickable, without the punctuation,
+emphasis or brackets that stand around it, a link Claude writes itself keeps
+its text with the target wrapped the same way, a domain name becomes a link to
+it, and when the working directory has an `origin` remote the repository's
 own references do too: commit hashes, a `#` number that the words before it
 name as a pull request or merge request, `!` numbers for merge requests on
 GitLab, branch and tag names written in code
 spans, and file paths with an optional `:line` or `:from-to`. Each repository
 reference is checked first, so a word that merely looks like a hash, or a path
-that is not in the committed tree, stays plain text. A number on its own, or
+that is not in the committed tree, stays plain text. A path is read from the
+conversation's working directory and linked from the repository's root, so a
+conversation in a folder below the root links correctly. A bare name ending in
+`.sh` or `.app`, `deploy.sh` say, is a file far more often than a site and
+stays text unless it has a subdomain or a path. A number on its own, or
 after a word like issue, stays plain too: it is as often the third point of a
 list as an item in a tracker. GitHub, GitLab and Bitbucket get their
 own link shapes, self-hosted GitLab included; any other host gets GitHub's,
