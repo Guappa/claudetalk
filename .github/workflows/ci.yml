@@ -52,7 +52,17 @@ jobs:
           $found = Invoke-ScriptAnalyzer -Path scripts -Recurse
           $found | Format-Table -AutoSize -Wrap
           if ($found) { exit 1 }
-      # Fetched by version and held to its published checksum, for the reason the actions above are pinned by commit.
+      # Fetched by version and held to their published checksums, for the reason the actions above are pinned by commit.
+      - name: lint the Dockerfile
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/hadolint" "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-linux-x86_64"
+          echo "${HADOLINT_SHA256}  $RUNNER_TEMP/hadolint" | sha256sum --check --quiet
+          chmod +x "$RUNNER_TEMP/hadolint"
+          "$RUNNER_TEMP/hadolint" Dockerfile
+        env:
+          HADOLINT_VERSION: "2.15.1"
+          HADOLINT_SHA256: "c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507"
       - name: lint the workflows
         if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
         run: |

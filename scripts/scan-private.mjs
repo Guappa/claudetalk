@@ -19,10 +19,10 @@ export const SHAPES = [
     "a credential",
     /(gh[pousr]_[A-Za-z0-9]{16,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_-])[MNO][A-Za-z0-9_-]{22,27}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/,
   ],
-  // A Windows path in source or JSON is written with its separators doubled.
+  // A Windows path in source or JSON is written with its separators doubled. The node user's home is the official image's, not a person's.
   [
     "a real home directory",
-    /([A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}(?!(?:your?|user|USER|me)[\\/])[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!(?:user|you|me)\/)[a-z0-9._-]{2,}\/|\/Users\/(?!(?:you|user|me)\/)[A-Za-z0-9 ._-]{2,}\/)/,
+    /([A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}(?!(?:your?|user|USER|me)[\\/])[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!(?:user|you|me|node)\/)[a-z0-9._-]{2,}\/|\/Users\/(?!(?:you|user|me)\/)[A-Za-z0-9 ._-]{2,}\/)/,
   ],
   ["an 8.3 short path", /[\\/][A-Za-z0-9]+~[0-9][\\/]/],
 ];
