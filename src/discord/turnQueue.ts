@@ -32,13 +32,14 @@ export function describeFull(say: Say): string {
 export class TurnQueue {
   private readonly lanes = new Map<string, Lane>();
 
+  // A dropped message keeps its place in the lane until the turn ahead of it ends, and counts for nothing meanwhile.
   depth(key: string): number {
-    return this.lanes.get(key)?.tickets.length ?? 0;
+    return this.lanes.get(key)?.tickets.filter((ticket) => !ticket.cancelled).length ?? 0;
   }
 
   total(): number {
     let sum = 0;
-    for (const lane of this.lanes.values()) sum += lane.tickets.length;
+    for (const key of this.lanes.keys()) sum += this.depth(key);
     return sum;
   }
 

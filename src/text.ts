@@ -2,8 +2,9 @@ export function count(quantity: number, noun: string, plural = `${noun}s`): stri
   return `${quantity} ${quantity === 1 ? noun : plural}`;
 }
 
+// Never longer than max, its ellipsis included: the limit a caller passes is usually one Discord enforces.
 export function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}...` : text;
+  return text.length > max ? `${text.slice(0, Math.max(max - 3, 0))}...` : text;
 }
 
 // For where nothing draws a time in the reader's zone: a date with it, and whose clock it is.

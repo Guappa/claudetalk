@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { actionId, askingSink, menuAskingSink, quietSink, recordingSink, type MenuAsk } from "./helpers/sinks.ts";
 import { record, usage, wait } from "./helpers/records.ts";
+import { fakeChannel as fakeDiscordChannel } from "./helpers/discord.ts";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -112,6 +113,8 @@ import {
 } from "../src/discord/menus.ts";
 import { describeDefault, parseHostDefaults, readHostDefaults } from "../src/claude/hostSettings.ts";
 import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/purge.ts";
+import { channelSink } from "../src/discord/sink.ts";
+import { truncate } from "../src/text.ts";
 import { displayPath, homePatterns, redactHome, redactPaths } from "../src/displayPath.ts";
 import { shortPrefix } from "../src/platform.ts";
 import { EMBED_DESCRIPTION_LIMIT, EMBED_FIELD_LIMIT, detail } from "../src/discord/embeds.ts";
@@ -898,6 +901,48 @@ describe("StatusMessage", () => {
     expect(trail).not.toContain("Point 1:");
   });
 
+  // A link is several times the length of the reference it replaces, and the trail is measured before it is linked.
+  it("settles with its references unlinked when linking them would take it past what a message holds", async () => {
+    const sink = recordingSink();
+    const edit = sink.edit;
+    sink.edit = async (text, actions) => {
+      if (text.length > 2000) throw new Error("Invalid Form Body: content must be 2000 or fewer in length");
+      await edit(text, actions);
+    };
+    const linked = async (text: string): Promise<string> =>
+      text.replaceAll("notes.md", `[notes.md](<https://example.com/${"p".repeat(110)}>)`);
+    const status = new StatusMessage(
+      say,
+      sink,
+      () => 0,
+      () => [],
+      undefined,
+      linked,
+    );
+    await status.start();
+    for (let remark = 1; remark <= 8; remark += 1) status.note(`Step ${remark}: read notes.md. ${"w".repeat(140)}`);
+    await status.settle("done");
+
+    const trail = sink.messages.at(-1)!;
+    expect(trail).toContain("**Worked**");
+    expect(trail).toContain("Step 8: read notes.md.");
+    expect(trail).not.toContain("https://example.com");
+
+    const brief = recordingSink();
+    const short = new StatusMessage(
+      say,
+      brief,
+      () => 0,
+      () => [],
+      undefined,
+      linked,
+    );
+    await short.start();
+    short.note("Read notes.md.");
+    await short.settle("done");
+    expect(brief.messages.at(-1)).toContain("https://example.com");
+  });
+
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
     const sink = recordingSink();
     const moved = vi.fn(async () => undefined);
@@ -1204,6 +1249,31 @@ describe("purgeChannel", () => {
       throw new Error("boom");
     });
     await expect(purgeChannel(channel as never)).resolves.toMatchObject({ bulkDeleted: 1 });
+  });
+
+  // A message that cannot be deleted stays at the top of the channel, and would be fetched again with every page read from the top.
+  it("goes on past messages it cannot delete, and counts each of them once", async () => {
+    const held = Array.from({ length: 1000 }, (_, index) => ({ ...fakeMessage(`m${index}`, index >= 10), gone: false }));
+    const channel = {
+      messages: {
+        fetch: async ({ limit, before }: { limit: number; before?: string }) => {
+          const left = held.filter((message) => !message.gone);
+          const below = left.filter((message) => !before || Number(message.id.slice(1)) > Number(before.slice(1)));
+          return new Map(below.slice(0, limit).map((message) => [message.id, message]));
+        },
+      },
+      bulkDelete: async (wanted: typeof held) => {
+        const deleted = wanted.filter((message) => Number(message.id.slice(1)) >= 10);
+        for (const message of deleted) message.gone = true;
+        return new Map(deleted.map((message) => [message.id, message]));
+      },
+    };
+
+    const result = await purgeChannel(channel as never);
+    expect(result).toEqual({ bulkDeleted: 990, slowDeleted: 0, failed: 10 });
+    expect(held.filter((message) => !message.gone).map((message) => message.id)).toEqual(
+      held.slice(0, 10).map((message) => message.id),
+    );
   });
 });
 
@@ -1521,8 +1591,32 @@ describe("ApprovalPrompts", () => {
       { command: "ls" },
     );
 
-    await decision;
+    expect(await decision).toEqual({ allow: false, reason: expect.stringContaining("Denied") });
     expect(refusal).toContain("Only an owner");
+  });
+
+  // Tools asked about side by side each put a prompt on screen before the first is answered.
+  it("covers the prompts already open when the rest of the turn is approved, and asks again once that is withdrawn", async () => {
+    const prompts = new ApprovalPrompts();
+    const open: string[] = [];
+    const sink = askingSink((actions) => void open.push(actionId(actions, "approve-all")));
+    const first = prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "ls" });
+    const second = prompts.ask(say, "turn-1", sink, [OWNER], "Edit", { file_path: "a.ts" });
+    const elsewhere = prompts.ask(say, "turn-2", sink, [OWNER], "Bash", { command: "ls" });
+    await vi.waitFor(() => expect(open).toHaveLength(3));
+
+    prompts.decide(say, open[0]!, OWNER, "approve-all");
+    expect(await Promise.all([first, second])).toEqual([{ allow: true }, { allow: true }]);
+    expect(await prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "pwd" })).toEqual({ allow: true });
+    expect(open).toHaveLength(3);
+
+    prompts.revoke("turn-1");
+    const again = prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "pwd" });
+    await vi.waitFor(() => expect(open).toHaveLength(4));
+    prompts.finish("turn-1");
+    prompts.finish("turn-2");
+    expect((await again).allow).toBe(false);
+    expect((await elsewhere).allow).toBe(false);
   });
 
   it("stops asking for the rest of a turn once approved wholesale", async () => {
@@ -2589,7 +2683,7 @@ describe("/run finds a conversation's commands", () => {
       subtype: "commands_changed",
       commands: [{ name: "wordy", description: "y".repeat(400) }],
     } as unknown as ClaudeEvent;
-    expect(commandsChanged(long)![0]!.description).toBe(`${"y".repeat(280)}...`);
+    expect(commandsChanged(long)![0]!.description).toBe(`${"y".repeat(277)}...`);
   });
 
   it("offers what plugins and skills add before the built-ins, and never what the bridge would refuse", () => {
@@ -3815,8 +3909,8 @@ describe("buildContext", () => {
 
   it("truncates a very long message", () => {
     const context = buildContext([{ ...messages[0]!, content: "x".repeat(5000) }]);
-    expect(context.text).toContain("x".repeat(600));
-    expect(context.text).not.toContain("x".repeat(601));
+    expect(context.text).toContain(`${"x".repeat(597)}...`);
+    expect(context.text).not.toContain("x".repeat(598));
   });
 
   it("deduplicates a speaker who said several things", () => {
@@ -4239,9 +4333,49 @@ describe("bridge system note", () => {
   });
 });
 
+describe("truncate", () => {
+  // The limit handed to it is nearly always one Discord enforces, and a result three characters over it is refused.
+  it("is never longer than the limit it is given, its ellipsis included", () => {
+    for (const length of [99, 100, 101, 150, 5000]) expect(truncate("x".repeat(length), 100).length).toBeLessThanOrEqual(100);
+    expect(truncate("x".repeat(101), 100)).toBe(`${"x".repeat(97)}...`);
+    expect(truncate("short", 100)).toBe("short");
+  });
+
+  it("lets a menu be drawn whose option and placeholder are longer than Discord allows", async () => {
+    const sink = channelSink(fakeDiscordChannel("menu-limits").channel);
+    const menu = {
+      id: "question:0",
+      placeholder: "p".repeat(200),
+      multiple: false,
+      options: [{ value: "0", label: "l".repeat(150), description: "d".repeat(150) }],
+    };
+    const handle = await sink.askWithMenus!("Pick one", [menu], []);
+    await handle.close("Picked.");
+  });
+});
+
 describe("turn queue", () => {
   it("runs the first message immediately", () => {
     expect(new TurnQueue().admit("s1").kind).toBe("run-now");
+  });
+
+  // A dropped message stays in the lane until the turn ahead of it has ended, which can take a while after a stop.
+  it("does not count messages it has already dropped", async () => {
+    const queue = new TurnQueue();
+    const running = Promise.withResolvers<void>();
+    const turns = [queue.enqueue("s1", () => running.promise)];
+    for (let queued = 0; queued < MAX_QUEUE_DEPTH - 1; queued += 1) turns.push(queue.enqueue("s1", async () => undefined));
+    await wait(1);
+    expect(queue.admit("s1")).toEqual({ kind: "full" });
+
+    expect(queue.drain("s1")).toBe(MAX_QUEUE_DEPTH - 1);
+    expect(queue.depth("s1")).toBe(1);
+    expect(queue.total()).toBe(1);
+    expect(queue.admit("s1")).toEqual({ kind: "queued", ahead: 1 });
+
+    running.resolve();
+    expect(await Promise.all(turns)).toEqual([true, false, false, false, false]);
+    expect(queue.depth("s1")).toBe(0);
   });
 
   it("queues rather than dropping a message sent mid-turn", async () => {

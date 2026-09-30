@@ -153,9 +153,9 @@ function otherAnswerModal(say: Say, action: Action<"question-pick">): ModalBuild
     .setMaxLength(1000);
   return new ModalBuilder()
     .setCustomId(questionOtherId(action.askId, action.index))
-    .setTitle(truncate(say("questions.ownAnswerTitle", { number: action.index + 1 }), MODAL_TEXT_LIMIT - 3))
+    .setTitle(truncate(say("questions.ownAnswerTitle", { number: action.index + 1 }), MODAL_TEXT_LIMIT))
     .addLabelComponents(
-      new LabelBuilder().setLabel(truncate(say("questions.ownAnswerLabel"), MODAL_TEXT_LIMIT - 3)).setTextInputComponent(field),
+      new LabelBuilder().setLabel(truncate(say("questions.ownAnswerLabel"), MODAL_TEXT_LIMIT)).setTextInputComponent(field),
     );
 }
 
