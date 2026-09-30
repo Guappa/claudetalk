@@ -49,7 +49,7 @@ export function claudeSettingsPath(): string {
   return path.join(os.homedir(), ".claude", "settings.json");
 }
 
-// os.tmpdir() returns an 8.3 short name on Windows, which Claude Code holds for approval as a suspicious path and which matches no folder a transcript is indexed under.
+// os.tmpdir() returns an 8.3 short name on Windows, and the session index spells every folder by its long one, so a path under the short name matches none of those it is compared with.
 export function longTmpDir(): string {
   try {
     return realpathSync.native(os.tmpdir());

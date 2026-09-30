@@ -290,12 +290,15 @@ takes the turn cleanly. Holding until `init` instead would deadlock, because a
 clean session emits nothing until it has a prompt. All of this was reproduced
 against the CLI, not inferred.
 
-**Paths handed to a session must be long-form.** `os.tmpdir()` returns a Windows
+**The temp folder is spelled by its long name.** `os.tmpdir()` returns a Windows
 8.3 short name such as `RUNNER~1`; `platform.ts` resolves it with
-`realpathSync.native`. Claude Code treats a path spelled that way as a
-suspicious Windows path and holds a write to it for manual approval, and the
-session index expands every recorded folder to its long form, so the short
-spelling would match none of them.
+`realpathSync.native`. The reason is the bridge's own comparisons: the session
+index expands every recorded folder to its long form, so a path under the short
+spelling would match none of them. Claude Code takes either spelling. In
+`bypassPermissions` it writes to, reads from and starts in a short-named folder,
+and resumes under the long name a session that was started under the short one;
+its check for suspicious Windows paths, which holds such a write for approval,
+does not apply in that mode.
 
 **There is no sandbox.** Every turn runs in `bypassPermissions`, and access is
 controlled at admission: `access.ts` answers who may do what, and tier `none` is
