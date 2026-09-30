@@ -18,7 +18,7 @@ import { channelSink } from "../sink.ts";
 import { sendNotice } from "../notice.ts";
 import { runConversationTurn } from "../turn.ts";
 import { reactionMarker } from "../reactions.ts";
-import { isFromGuild, isMessageInScope } from "../gate.ts";
+import { isFromGuild } from "../gate.ts";
 import { toChannelName } from "../channelName.ts";
 import { addressesBot, isForBot, shouldQuoteReplied, type Addressing } from "../addressing.ts";
 import { adHocWorkingDir, tierOf } from "../policy.ts";
@@ -115,12 +115,9 @@ async function targetFor(
 ): Promise<Target | null> {
   if (existing) return { conversation: existing, isFirstTurn: false };
 
-  const parentId = "parentId" in channel ? channel.parentId : null;
-  if (isMessageInScope(bridge.config, parentId, false)) {
-    const bound = await bindExisting(bridge, message, channel);
-    if (bound === "already-open") return null;
-    if (bound) return { conversation: bound, isFirstTurn: false };
-  }
+  const bound = await bindExisting(bridge, message, channel);
+  if (bound === "already-open") return null;
+  if (bound) return { conversation: bound, isFirstTurn: false };
 
   const started = await startMentionOnly(bridge, message, channel);
   return started ? { conversation: started, isFirstTurn: true } : null;

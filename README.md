@@ -109,7 +109,7 @@ cp .env.example .env
 | `DISCORD_BOT_TOKEN` | From step 2 above |
 | `DISCORD_GUILD_ID` | The one server the bot answers in |
 | `DISCORD_OWNER_IDS` | Who owns the bridge, comma separated. Full access, and the only ones who can add an operator. Cannot be changed from Discord |
-| `DISCORD_CATEGORY_ID` | Optional. Where conversation channels are created, and the only place plain messages are acted on |
+| `DISCORD_CATEGORY_ID` | Optional. The category new conversation channels are created in. It only files them; where a message is acted on does not depend on it |
 | `WORKSPACES_ROOT` | Optional. Parent folder for per-operator workspaces. Required before other operators can create conversations |
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
 | `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |

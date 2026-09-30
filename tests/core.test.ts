@@ -46,7 +46,7 @@ import { commandChoices, describeRun, refusal } from "../src/discord/commands/ru
 import { CapabilityCache } from "../src/claude/capabilities.ts";
 import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
-import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
+import { isFromGuild } from "../src/discord/gate.ts";
 import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
 import { forDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
 import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
@@ -3338,27 +3338,6 @@ describe("transcript view", () => {
 
   it("uses the singular for one message", () => {
     expect(describeDrift(say, exchanges.slice(0, 1))).toContain("1 message happened");
-  });
-});
-
-describe("isMessageInScope", () => {
-  const scoped = { guildId: "g", categoryId: "cat" };
-
-  it("allows any channel when no category is configured", () => {
-    expect(isMessageInScope({ guildId: "g" }, "anything", false)).toBe(true);
-  });
-
-  it("allows a channel inside the configured category", () => {
-    expect(isMessageInScope(scoped, "cat", false)).toBe(true);
-  });
-
-  it("ignores an unbound channel outside the category, so bridges do not collide", () => {
-    expect(isMessageInScope(scoped, "other", false)).toBe(false);
-  });
-
-  it("always allows a channel this bridge already owns, wherever it sits", () => {
-    expect(isMessageInScope(scoped, "other", true)).toBe(true);
-    expect(isMessageInScope(scoped, null, true)).toBe(true);
   });
 });
 
