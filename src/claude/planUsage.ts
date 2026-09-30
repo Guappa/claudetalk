@@ -59,15 +59,15 @@ export class PlanUsage {
   }
 }
 
-export function describePlanUsage(say: Say, snapshot: PlanUsageSnapshot | null): string {
+// The share last seen for a window belongs to the one before it once its reset has passed, so it is not shown as this one's.
+export function describePlanUsage(say: Say, snapshot: PlanUsageSnapshot | null, now: Date): string {
   if (!snapshot) return say("usage.notReported");
-  const windows = [...snapshot.windows].map(([name, window]) =>
-    say("usage.window", {
-      label: windowLabel(say, name),
-      percent: Math.round(window.utilization * 100),
-      when: `<t:${window.resetsAt}:R>`,
-    }),
-  );
+  const windows = [...snapshot.windows].map(([name, window]) => {
+    const shown = { label: windowLabel(say, name), when: `<t:${window.resetsAt}:R>` };
+    return window.resetsAt * 1000 <= now.getTime()
+      ? say("usage.windowReset", shown)
+      : say("usage.window", { ...shown, percent: Math.round(window.utilization * 100) });
+  });
   return say("usage.plan", {
     windows: windows.join(" · "),
     when: `<t:${Math.floor(snapshot.seenAt.getTime() / 1000)}:R>`,

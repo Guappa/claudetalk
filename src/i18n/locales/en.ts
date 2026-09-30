@@ -396,6 +396,7 @@ export const en = {
     notReported: "Plan usage: not reported yet. Claude Code sends it with each turn, so it appears after the first one.",
     plan: "Plan usage: {{windows}} (as of {{when}})",
     window: "{{label}} {{percent}}% used, resets {{when}}",
+    windowReset: "{{label}} reset {{when}}, with no figure reported since",
     fiveHour: "5-hour window",
     weekAll: "week, all models",
     weekOpus: "week, Opus",
@@ -413,7 +414,7 @@ export const en = {
     costWithLast:
       "API-equivalent cost, which a subscription is not billed by: {{mine}} this conversation over its life (last turn {{last}}), {{all}} across every conversation touched.",
     footnote:
-      "Plan usage is for the whole account. Turns and tokens are counted since the bridge started {{since}}; a restart resets them, and turns run in a terminal are never counted.",
+      "Plan usage is for the whole account. Turns and tokens are counted since the bridge started {{since}}; a restart resets them, and turns run in a terminal are never counted. Tokens are the session's own and leave out what its agents used; the cost includes them.",
   },
   plugins: {
     none: "No plugins reported by `claude plugin list --json`. If you expected some, check that Claude Code is on PATH for this process.",
