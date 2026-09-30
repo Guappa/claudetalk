@@ -935,6 +935,38 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
     expect(redactPaths(once, ownHome)).toBe(once);
   });
 
+  // A command run through WSL named the home as /mnt/c/Users/..., which no pattern knew, and it reached Discord as written.
+  it("knows the home as WSL and Cygwin spell it, and at the end of a sentence", () => {
+    const cases: Array<[string, string]> = [
+      [`cd '/mnt${slashed(home).replace("C:", "/c")}/Documents/projects/x'`, "cd '~/Documents/projects/x'"],
+      [`ls /cygdrive${slashed(home).replace("C:", "/c")}/Documents`, "ls ~/Documents"],
+      [`It is in ${home}.`, "It is in ~."],
+      [`${[`${home}.bak`, "x"].join("\\")} is another account's`, `${[users, "…", "x"].join("\\")} is another account's`],
+      ["/mnt/c/" + "Users/" + "Sam/x", "/mnt/c/Users/…/x"],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
+  });
+
+  it("hides another account named where the path ends, without taking the sentence after it", () => {
+    const cases: Array<[string, string]> = [
+      [`${[users, "Sam"].join("\\")}.`, `${[users, "…"].join("\\")}.`],
+      [`in ${[users, "Sam"].join("\\")}, then see src/a.ts`, `in ${[users, "…"].join("\\")}, then see src/a.ts`],
+      [[users, "Sam"].join("\\"), [users, "…"].join("\\")],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
+  });
+
+  it("does not take a URL, a nested folder or a flag for a POSIX home", () => {
+    const rootHome = homePatterns(["/root"]);
+    expect(redactPaths("see https://example.org/root and /var/root/x and --root", rootHome)).toBe(
+      "see https://example.org/root and /var/root/x and --root",
+    );
+    expect(redactPaths("cd /root/x && ls -root-projects", rootHome)).toBe("cd ~/x && ls ~-projects");
+
+    const named = homePatterns(["/home/" + "pat"]);
+    expect(redactPaths("/srv/home/" + "pat/x and /home/" + "pat/x", named)).toBe("/srv/home/" + "pat/x and ~/x");
+  });
+
   it("finds the short spelling of the home folder from the temp folder, and nothing when there is none", () => {
     const tail = "\\AppData\\Local\\Temp";
     expect(shortPrefix(home, `${shortHome}${tail}`, `${home}${tail}`)).toBe(shortHome);
