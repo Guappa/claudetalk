@@ -728,6 +728,13 @@ Portal, or unsaved. Without it every message arrives blank.
 **"Another bridge is already running".** A second instance tried to start. Stop
 the first, or delete `data/bridge.lock` if you are certain it is gone.
 
+**The bridge stopped, logging "Another bridge holds the lock now".** A bridge
+that does not refresh its lock for ninety seconds, because the machine slept or
+the process was suspended, is taken for dead, and a second one may start. When
+the first wakes and finds the lock is the other's, it stops at once, cutting
+short any turn it was running, so that no message is answered twice. The other
+carries on; nothing needs doing.
+
 **"The only claude on PATH is a script shim".** Node cannot start `.cmd` or
 `.bat` files directly on Windows. Set `CLAUDE_BIN` to the real executable,
 usually `%USERPROFILE%\.local\bin\claude.exe`.

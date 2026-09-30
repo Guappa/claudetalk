@@ -1,6 +1,6 @@
 import { Client, Events, GatewayIntentBits, Options } from "discord.js";
 import { loadConfig } from "./config.ts";
-import { acquireInstanceLock, lockPathBeside } from "./instanceLock.ts";
+import { acquireInstanceLock, lockPathBeside, STALE_AFTER_MS } from "./instanceLock.ts";
 import { takeStopRequest, watchForStop, type StopMode } from "./stopSignal.ts";
 import { createBridge } from "./bridge.ts";
 import { sweepAttachments } from "./attachments.ts";
@@ -60,6 +60,15 @@ function shutdownOnce(): (mode: StopMode) => Promise<void> {
 }
 
 const shutDown = shutdownOnce();
+// Two bridges answer every message twice, so the one that finds its lock taken is the one that goes.
+lock.whenTaken((holder) => {
+  console.error(
+    `Another bridge holds the lock now (pid ${holder.pid}, started ${holder.startedAt}). ` +
+      `This one did not refresh its lock for over ${STALE_AFTER_MS / 1000} seconds, usually because the machine slept or the process was suspended, and the other was started in that time. ` +
+      `Stopping this one so that no message is answered twice; the other carries on, and \`npm run stop\` stops it.`,
+  );
+  void shutDown("now");
+});
 // A crash leaves the lock behind on purpose: its heartbeat goes stale and the next start takes it over.
 const stopWatch = watchForStop(lockPath, (mode) => void shutDown(mode));
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

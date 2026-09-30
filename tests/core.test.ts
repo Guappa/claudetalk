@@ -3377,6 +3377,25 @@ describe("acquireInstanceLock", () => {
     await lock.release();
   });
 
+  // A bridge suspended past the stale limit wakes to find its lock taken, and two bridges answer every message twice.
+  it("stands down when its heartbeat finds the lock is another bridge's, and leaves that lock as it is", async () => {
+    const lock = await acquireInstanceLock(lockPath);
+    const takenBy: unknown[] = [];
+    lock.whenTaken((holder) => takenBy.push(holder.pid));
+    await lock.beat();
+    expect(takenBy).toEqual([]);
+
+    const successor = JSON.stringify({ pid: 999999, startedAt: "x", heartbeatAt: new Date().toISOString() });
+    await fs.writeFile(lockPath, successor);
+    await lock.beat();
+    await lock.noteDraining(1);
+    await lock.beat();
+    expect(takenBy).toEqual([999999]);
+    expect(await fs.readFile(lockPath, "utf8")).toBe(successor);
+    await lock.release();
+    expect(await fs.readFile(lockPath, "utf8")).toBe(successor);
+  });
+
   it("releases only its own lock", async () => {
     const lock = await acquireInstanceLock(lockPath);
     await fs.writeFile(lockPath, JSON.stringify({ pid: 999999, startedAt: "x" }));

@@ -66,6 +66,8 @@ export class InstanceLock {
   private readonly startedAt: string;
   private draining: DrainState | undefined;
   private heartbeat: NodeJS.Timeout | null = null;
+  private taken = false;
+  private onTaken: (holder: Partial<LockInfo>) => void = () => undefined;
   private readonly save: (value: unknown) => Promise<void>;
 
   constructor(lockPath: string) {
@@ -82,8 +84,23 @@ export class InstanceLock {
       await this.clearDead(seen);
     }
     await this.claim();
-    this.heartbeat = setInterval(() => void this.write().catch(() => undefined), HEARTBEAT_MS);
+    this.heartbeat = setInterval(() => void this.beat().catch(() => undefined), HEARTBEAT_MS);
     this.heartbeat.unref();
+  }
+
+  whenTaken(handler: (holder: Partial<LockInfo>) => void): void {
+    this.onTaken = handler;
+  }
+
+  // A bridge suspended past the stale limit wakes to find its lock taken over; its own written back over that would leave two running and neither aware of the other.
+  async beat(): Promise<void> {
+    if (this.taken) return;
+    const held = await readJsonOr<Partial<LockInfo> | null>(this.lockPath, () => null);
+    if (typeof held?.pid !== "number" || held.pid === process.pid) return await this.write();
+    this.taken = true;
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
+    this.onTaken(held);
   }
 
   // Written in full beside the lock and linked into place, which fails if one is there: of two bridges starting together one gets the file and the other is told.
@@ -135,6 +152,8 @@ export class InstanceLock {
   }
 
   private write(): Promise<void> {
+    // The file is another bridge's from the moment it is found taken.
+    if (this.taken) return Promise.resolve();
     return this.save(this.info());
   }
 }
