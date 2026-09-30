@@ -353,8 +353,9 @@ window; on Windows 11 that window is Windows Terminal, which ignores
 than as SYSTEM because Claude Code's credentials live in your user's store.
 
 **The image is the same bridge, and nothing in `src/` knows it is in one.** The
-`Dockerfile` builds `dist/` and runs it as the services do; what differs is
-outside the code: the `claude` on the image's PATH is a link to the build the
+`Dockerfile` runs `src/` under Node's type stripper exactly as the services do,
+so there is one way the bridge runs everywhere; what differs is outside the
+code: the `claude` on the image's PATH is a link to the build the
 Agent SDK ships, so listings and turns run one Claude Code, and the folders the
 bridge writes belong to the root group so `--user` with any uid can still write
 them. A change to the `Dockerfile` or `.dockerignore` is proved on the pull
