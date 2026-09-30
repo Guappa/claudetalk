@@ -290,7 +290,8 @@ export class StatusMessage {
   // A segment that holds no remarks of its own carries the answer under its heading rather than a heading alone.
   async finishWithHeading(text: string, mood: Mood = "done"): Promise<boolean> {
     const combined = `${headWith(this.say, this.now() - this.startedAt, this.steps, mood, this.extra())}\n\n${text}`;
-    if (combined.length > DISCORD_MESSAGE_LIMIT) return false;
+    // Measured as it will be sent: the sink escapes what it is given, and that is what has to fit.
+    if (defuseStrayMarkup(redactHome(combined)).length > DISCORD_MESSAGE_LIMIT) return false;
     await this.finish(combined);
     return true;
   }
