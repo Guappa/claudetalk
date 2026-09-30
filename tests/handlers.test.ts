@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleUnbind } from "../src/discord/commands/control.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
+import { handleMessage } from "../src/discord/handlers/message.ts";
 import { UNBIND_DELETE, UNBIND_KEEP } from "../src/discord/menus.ts";
-import { OPERATOR, OWNER, testBridge } from "./helpers/bridge.ts";
-import { fakeChannel, fakeCommand, fakePress } from "./helpers/discord.ts";
+import { OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
+import { fakeChannel, fakeCommand, fakeMessage, fakePress } from "./helpers/discord.ts";
 import { quietSink } from "./helpers/sinks.ts";
 
 interface Asked {
@@ -47,6 +48,39 @@ beforeEach(() => {
 });
 
 const SESSION = "11111111-1111-4111-8111-111111111111";
+
+describe("a message in a channel that holds no conversation", () => {
+  it("binds nothing when the tag carried only a file that was refused, so the next tag starts fresh", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("m1");
+    const upload = fakeMessage(place, {
+      authorId: OWNER,
+      content: "",
+      mentionsBot: true,
+      uploads: [{ name: "setup.exe", size: 10 }],
+    });
+    await handleMessage(bridge, upload.message);
+
+    expect(upload.replies.join("\n")).toContain("Not saved for this turn");
+    expect(asked).toEqual([]);
+    expect(bridge.store.byChannel("m1")).toBeUndefined();
+
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "hello", mentionsBot: true }).message);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.resume).toBe(false);
+    expect(asked[0]!.sessionId).toBe(bridge.store.byChannel("m1")?.sessionId);
+  });
+
+  it("stays silent for someone who may not use the bridge", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("m2");
+    await handleMessage(bridge, fakeMessage(place, { authorId: STRANGER, content: "hello", mentionsBot: true }).message);
+
+    expect(asked).toEqual([]);
+    expect(place.posted).toEqual([]);
+    expect(bridge.store.byChannel("m2")).toBeUndefined();
+  });
+});
 
 describe("/unbind", () => {
   it("says there is nothing to unbind in a channel that holds no conversation, and offers no button", async () => {

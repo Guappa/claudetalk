@@ -148,7 +148,7 @@ async function runTurn(
   prompt: string,
   context: BuiltContext,
   plain: boolean,
-): Promise<void> {
+): Promise<boolean> {
   void sweepAttachments();
 
   const { allowed, refused } = screenAttachments(
@@ -162,14 +162,14 @@ async function runTurn(
   // A reply, not a notice: it stays under the upload it is about, and a plain message has no ephemeral.
   const refusal = describeRefused(bridge.language.say, refused);
   if (refusal) await reply(message, refusal);
-  if (nothingToSend(prompt, allowed.length)) return;
+  if (nothingToSend(prompt, allowed.length)) return false;
 
   const { saved, failed } = await downloadAttachments(allowed, randomUUID());
   const unfetched = describeUnfetched(bridge.language.say, failed);
   if (unfetched) await reply(message, unfetched);
-  if (nothingToSend(prompt, saved.length)) return;
+  if (nothingToSend(prompt, saved.length)) return false;
 
-  await runConversationTurn(bridge, target.conversation, {
+  return await runConversationTurn(bridge, target.conversation, {
     actorId: message.author.id,
     prompt: appendAttachmentPaths(composePrompt(context, prompt), saved),
     sink: channelSink(channel, {
@@ -219,7 +219,7 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
 
   const target = await targetFor(bridge, message, channel, addressing);
   if (!target) return;
-  await runTurn(
+  const ran = await runTurn(
     bridge,
     message,
     channel,
@@ -228,4 +228,11 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
     contextFor(message, replied, addressing),
     classification.kind === "turn",
   );
+  if (!ran && target.isFirstTurn) await dropUnstarted(bridge, message.channelId, target.conversation);
+}
+
+// A binding made for a message that started no turn names a session Claude Code never saw, and every later message there would fail to resume it.
+async function dropUnstarted(bridge: Bridge, channelId: string, conversation: Conversation): Promise<void> {
+  if (bridge.store.byChannel(channelId) !== conversation || bridge.flow.isRunning(conversation.sessionId)) return;
+  await bridge.store.unbind(channelId);
 }

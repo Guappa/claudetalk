@@ -202,6 +202,12 @@ describe("detectClaudeError", () => {
   it("returns null for output that merely mentions an error", () => {
     expect(detectClaudeError("I fixed the error in your test.")).toBeNull();
   });
+
+  // Claude Code words a resume of an id it holds no transcript for this way, as the errors of a failed result.
+  it("recognises a resume of a session Claude Code does not have", () => {
+    const refused = ["No conversation found with session ID: 11111111-2222-4333-8444-555555555555"];
+    expect(resultError("error_during_execution", refused)).toEqual({ kind: "unknown-session" });
+  });
 });
 
 describe("buildOptions", () => {

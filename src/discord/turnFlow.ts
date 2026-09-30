@@ -151,10 +151,11 @@ async function whileWaiting<T>(onState: StateMarker | undefined, stillRunning: (
 
 function describeFailure(say: Say, error: ClaudeError): string {
   if (error.kind === "session-busy") return say("turn.heldByBackgroundAgent", { shortId: error.shortId });
+  if (error.kind === "unknown-session") return say("turn.unknownSession");
   return say("turn.failed", { error: failureDetail(say, error) });
 }
 
-function failureDetail(say: Say, error: Exclude<ClaudeError, { kind: "session-busy" }>): string {
+function failureDetail(say: Say, error: Exclude<ClaudeError, { kind: "session-busy" | "unknown-session" }>): string {
   switch (error.kind) {
     case "stopped":
       return say("turn.errors.stopped");

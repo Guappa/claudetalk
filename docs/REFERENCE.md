@@ -578,7 +578,7 @@ including `.sh`, `.ps1` and `.py`, because reading them is the point. This is a
 speed bump, not a boundary: what it removes is the one-step path from a file
 somebody forwarded you to a file on your disk. A refusal is posted as a reply
 under the message and stays; a message that was only a refused file spends no
-turn.
+turn, and in a channel that held no conversation it binds none.
 
 **Files coming back.** Anything Claude writes into
 `.discord-outbox/<session id>/` in the working directory is attached to its
@@ -703,6 +703,12 @@ and the bridge starts anyway, so a changed CLI cannot lock you out.
 
 **A turn fails immediately with a spawn error.** Claude Code is not on the PATH
 of the process running the bridge. Set `CLAUDE_BIN`.
+
+**A turn fails saying Claude Code has no conversation under the session id.**
+The channel is bound to a session whose transcript is no longer on the host:
+Claude Code removes old ones on its own schedule, or the conversation's first
+turn ended before one was written. Nothing can resume it, so `/clear` starts a
+fresh conversation in the same channel and folder.
 
 **The bot answers twice.** Two instances are running. That is what the lock
 prevents; a bridge started before the lock existed will not be caught by it.
