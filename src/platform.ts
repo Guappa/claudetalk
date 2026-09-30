@@ -49,7 +49,7 @@ export function claudeSettingsPath(): string {
   return path.join(os.homedir(), ".claude", "settings.json");
 }
 
-// Restricted mode rejects 8.3 short names as suspicious, and os.tmpdir() returns one on Windows.
+// os.tmpdir() returns an 8.3 short name on Windows, which Claude Code holds for approval as a suspicious path and which matches no folder a transcript is indexed under.
 export function longTmpDir(): string {
   try {
     return realpathSync.native(os.tmpdir());
