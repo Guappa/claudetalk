@@ -9,7 +9,7 @@ import {
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import { canRunCommand } from "../../access.ts";
-import { errorMessage, truncate } from "../../text.ts";
+import { shownError } from "../../text.ts";
 import { forDiscord } from "../outgoing.ts";
 import { respondQuietly } from "../respond.ts";
 import { isFromGuild } from "../gate.ts";
@@ -33,8 +33,6 @@ import { handleSkillsCommand } from "../commands/skills.ts";
 import { handleButton, handleModal, handleSelect } from "./components.ts";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
-// An error's own text can be as long as what caused it, and a reply that does not fit is refused, leaving no reply at all.
-const SHOWN_ERROR_CHARS = 1200;
 
 // An acknowledgement is for whoever asked; only what a conversation produces belongs to the channel.
 function replyIsContent(commandName: string): boolean {
@@ -126,9 +124,8 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
   } catch (error) {
     // Once deferred, an unanswered command sits on "thinking" until Discord gives up on it.
     console.error(`/${interaction.commandName} failed`, error);
-    const reason = truncate(errorMessage(error), SHOWN_ERROR_CHARS);
     await interaction
-      .editReply(forDiscord(say("command.failed", { command: interaction.commandName, error: reason })))
+      .editReply(forDiscord(say("command.failed", { command: interaction.commandName, error: shownError(error) })))
       .catch(() => undefined);
   }
 }
@@ -143,7 +140,8 @@ async function pressed(bridge: Bridge, interaction: Press): Promise<void> {
     else await handleButton(bridge, interaction);
   } catch (error) {
     console.error(`the press on ${interaction.customId} failed`, error);
-    const reason = truncate(errorMessage(error), SHOWN_ERROR_CHARS);
-    await respondQuietly(interaction, bridge.language.say("command.pressFailed", { error: reason })).catch(() => undefined);
+    await respondQuietly(interaction, bridge.language.say("command.pressFailed", { error: shownError(error) })).catch(
+      () => undefined,
+    );
   }
 }

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -29,7 +28,7 @@ import { channelSink } from "../sink.ts";
 import { toChannelName } from "../../channelName.ts";
 import { categoryIsFull, describeCategoryFull, resolveCategory } from "../category.ts";
 import { conversationOverwrites } from "../channelAccess.ts";
-import { tierOf, workingDirFor } from "../policy.ts";
+import { makeWorkingDir, tierOf, workingDirFor } from "../policy.ts";
 import { runConversationTurn } from "../turn.ts";
 import { markCaughtUp } from "../sync.ts";
 import { formatExchanges } from "../transcriptView.ts";
@@ -79,7 +78,6 @@ async function createConversationChannel(
   }
 }
 
-// Claude Code is spawned with this as its cwd, and a missing one fails as a bare spawn ENOENT.
 async function resolveWorkingDir(
   bridge: Bridge,
   interaction: ChatInputCommandInteraction,
@@ -92,13 +90,10 @@ async function resolveWorkingDir(
     return null;
   }
 
-  try {
-    await fs.mkdir(cwd, { recursive: true });
-    return cwd;
-  } catch (error) {
-    await respond(interaction, say("create.folderFailed", { cwd: displayPath(cwd), error: errorMessage(error) }));
-    return null;
-  }
+  const failure = await makeWorkingDir(say, cwd);
+  if (failure === undefined) return cwd;
+  await respond(interaction, failure);
+  return null;
 }
 
 // Undefined means no category was asked for; null means one was and could not be used.

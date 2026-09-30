@@ -1,11 +1,8 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
 import type { Message, SendableChannels } from "discord.js";
 import { replyText } from "../outgoing.ts";
 import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
-import { displayPath } from "../../displayPath.ts";
-import { errorMessage } from "../../text.ts";
 import { resolveByChannelName } from "../../sessions/resolve.ts";
 import { displayName } from "../../sessions/displayName.ts";
 import {
@@ -27,7 +24,7 @@ import { reactionMarker } from "../reactions.ts";
 import { isFromGuild } from "../gate.ts";
 import { toChannelName } from "../../channelName.ts";
 import { addressesBot, isForBot, shouldQuoteReplied, type Addressing } from "../addressing.ts";
-import { adHocWorkingDir, tierOf } from "../policy.ts";
+import { adHocWorkingDir, makeWorkingDir, tierOf } from "../policy.ts";
 import {
   attributionOnly,
   buildContext,
@@ -114,11 +111,9 @@ async function startMentionOnly(bridge: Bridge, message: Message, channel: Senda
     await sendNotice(channel, say("binding.noWorkspace"));
     return null;
   }
-  // Claude Code is started in this folder, and one that is missing fails in words that name the binary, not the folder.
-  try {
-    await fs.mkdir(cwd, { recursive: true });
-  } catch (error) {
-    await sendNotice(channel, say("create.folderFailed", { cwd: displayPath(cwd), error: errorMessage(error) }));
+  const failure = await makeWorkingDir(say, cwd);
+  if (failure !== undefined) {
+    await sendNotice(channel, failure);
     return null;
   }
   // Nothing is awaited between this look and the binding, so two tags that overlap end up in one conversation.

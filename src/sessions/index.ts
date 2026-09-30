@@ -98,6 +98,8 @@ export class SessionIndex {
 
   // A transcript is named after its session, so the one asked for is looked for by name in each project folder, and nothing else is read.
   async find(sessionId: string): Promise<SessionRecord | null> {
+    // The id names a file under each project folder; one with a separator in it would name a file somewhere else.
+    if (!/^[\w.-]+$/.test(sessionId)) return null;
     const file = `${sessionId}${TRANSCRIPT_SUFFIX}`;
     const [liveBySession, dirs] = await Promise.all([this.liveBySession(), readDirSafe(this.root)]);
     const copies = await Promise.all(dirs.map((dir) => this.recordFor(path.join(this.root, dir, file), file)));

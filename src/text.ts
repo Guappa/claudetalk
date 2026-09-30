@@ -16,3 +16,10 @@ export function utcDateAndTime(at: Date): string {
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+// An error's own text can be as long as what caused it, and a reply that does not fit is refused, leaving no reply at all.
+const SHOWN_ERROR_CHARS = 1200;
+
+export function shownError(error: unknown): string {
+  return truncate(errorMessage(error), SHOWN_ERROR_CHARS);
+}
