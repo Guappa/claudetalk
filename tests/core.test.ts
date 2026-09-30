@@ -16,7 +16,7 @@ import {
   turnSpawnOptions,
 } from "../src/platform.ts";
 import { detectClaudeError } from "../src/claude/errors.ts";
-import { buildOptions, bridgeSystemNote } from "../src/claude/runner.ts";
+import { buildOptions, bridgeSystemNote, resultError } from "../src/claude/runner.ts";
 import { scanTranscript } from "../src/sessions/transcriptScanner.ts";
 import { parseAgentsJson } from "../src/sessions/activeSessions.ts";
 import { resolveByChannelName, resolveByFolder, resolveByName } from "../src/sessions/resolve.ts";
@@ -33,7 +33,7 @@ import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
 import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
-import { agentEvent, commandsChanged, parentToolUseId, type ClaudeEvent, type SessionCommand } from "../src/claude/events.ts";
+import { agentEvent, commandsChanged, parentToolUseId, takenUp, type ClaudeEvent, type SessionCommand } from "../src/claude/events.ts";
 import { commandChoices, describeRun, refusal } from "../src/discord/commands/run.ts";
 import { CapabilityCache } from "../src/claude/capabilities.ts";
 import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
@@ -1441,6 +1441,38 @@ describe("HeldPrompt", () => {
     held.observe(replay(uuid));
     held.observe(result);
     expect(await ended).toBe(true);
+  });
+
+  // Captured from a session with nothing in hand: it reports starting on the message 1.5s before it echoes it, and longer when it thinks first.
+  it("counts a message as taken up when the session says it started on it, without waiting for the echo", async () => {
+    const lifecycle = (uuid: string, state: string) => ({ type: "command_lifecycle", command_uuid: uuid, state }) as ClaudeEvent;
+    const held = new HeldPrompt("hello", 5, 1000);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    const uuid = held.handOver("also this")!;
+
+    held.observe(lifecycle(uuid, "queued"));
+    expect(held.awaitsUntaken).toBe(true);
+    held.observe(lifecycle(uuid, "started"));
+    expect(held.awaitsUntaken).toBe(false);
+
+    expect(takenUp(lifecycle("u1", "started"))).toBe("u1");
+    expect(takenUp(lifecycle("u1", "queued"))).toBeNull();
+    expect(takenUp(lifecycle("u1", "completed"))).toBeNull();
+    expect(takenUp(replay("u2"))).toBe("u2");
+    expect(takenUp(spoke)).toBeNull();
+  });
+
+  // A failed follow-up once quoted the answer of the turn before it as the reason it failed.
+  it("words a failed result from its own errors", () => {
+    expect(resultError("error_during_execution", [])).toEqual({ kind: "ended", subtype: "error_during_execution", text: "" });
+    expect(resultError("error_max_turns", ["hit the limit", "twice"])).toEqual({
+      kind: "ended",
+      subtype: "error_max_turns",
+      text: "hit the limit\ntwice",
+    });
   });
 
   it("does not hold the input open for good when a handed-over message is never taken up", async () => {

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { isInit, isOrphanReport, liveBackgroundTasks, replayed, type ClaudeEvent } from "./events.ts";
+import { isInit, isOrphanReport, liveBackgroundTasks, takenUp, type ClaudeEvent } from "./events.ts";
 
 // Long enough for the follow-up turn a finished task triggers to announce itself before the input is closed.
 const FOLLOW_UP_GRACE_MS = 3_000;
@@ -82,7 +82,7 @@ export class HeldPrompt {
       this.close();
       return;
     }
-    const taken = replayed(event);
+    const taken = takenUp(event);
     if (taken) {
       this.untaken.delete(taken);
       return;

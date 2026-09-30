@@ -194,9 +194,14 @@ through `background_tasks_changed`, which is what decides when to let go.
 
 The same held input is what carries a message sent mid-turn. `HeldPrompt` yields
 it with priority `next`, and Claude Code folds it in at the next step. Three
-things about that were captured from real runs. A folded message is only
-acknowledged when `--replay-user-messages` is on, as an echo at the moment it is
-taken up; without it nothing in the stream says so. An interrupt ends the turn
+things about that were captured from real runs. The session reports each
+handed-over message by its uuid in `command_lifecycle` events, `queued`, then
+`started` when it takes it up, then `completed`. `--replay-user-messages` also
+echoes the message, and an older Claude Code sends only that, but the echo
+comes with the model's first output: mid-step that is the same moment, while a
+session with nothing in hand starts on the message at once and echoes it
+seconds later. Going by the echo alone left Send now live over a message
+already being answered, and pressing it cut that answer off. An interrupt ends the turn
 in hand with an error result and leaves a waiting message queued, which then
 runs as the next turn in the same process, so that result is not a failure and
 the input must stay open past it. And priority `now` aborts the running tool
