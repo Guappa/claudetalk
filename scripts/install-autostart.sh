@@ -78,6 +78,8 @@ Restart=on-failure
 RestartSec=10
 # A stop waits for the turn in flight; a turn can run for many minutes, and a kill would cut it short.
 TimeoutStopSec=1800
+# Only the bridge is told to stop. Signalled along with it, the Claude Code process running the turn would end at once and leave nothing to wait for.
+KillMode=mixed
 # A systemd unit inherits almost no PATH, and the bridge has to find the claude executable.
 Environment=PATH=%h/.local/bin:%h/bin:/usr/local/bin:/usr/bin:/bin
 
