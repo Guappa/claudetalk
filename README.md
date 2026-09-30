@@ -25,6 +25,10 @@ When Claude stops to ask you something, the questions arrive as select menus
 with the choices it offered, an "Other..." for your own words, and a Submit
 button, the same exchange the terminal shows as a wizard.
 
+What the bridge itself says comes in English or Swedish, picked with `/language`
+or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write to it, as it
+does in the terminal.
+
 ## Requirements
 
 - Node 22.12 or newer
