@@ -318,7 +318,7 @@ export class AgentBoard {
   private tokens(quantity: number): string {
     return quantity >= 1000
       ? this.say("units.kiloTokens", { thousands: (quantity / 1000).toFixed(1) })
-      : this.say("units.tokens", { quantity });
+      : this.say("units.tokens", { count: quantity });
   }
 }
 

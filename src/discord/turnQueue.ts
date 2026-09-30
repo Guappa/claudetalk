@@ -15,7 +15,7 @@ interface Lane {
 }
 
 export function describeQueued(say: Say, ahead: number): string {
-  return ahead === 1 ? say("queue.behindRunning") : say("queue.behind", { ahead });
+  return say("queue.behind", { count: ahead });
 }
 
 export function describeDepth(say: Say, depth: number): string {

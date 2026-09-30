@@ -3126,7 +3126,9 @@ describe("repo links against a real repository", () => {
   // A blob URL names the committed tree, so a file that is only on disk would link to a 404.
   it("links a committed file and leaves an untracked one plain", async () => {
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), "claudetalk-links-"));
-    const run = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
+    // Without this a contributor whose git signs every commit would be asked for a key here.
+    const run = (...args: string[]) =>
+      execFileSync("git", ["-C", repo, "-c", "commit.gpgsign=false", ...args], { stdio: "pipe" });
     run("init", "-q");
     run("config", "user.email", "tests@example.invalid");
     run("config", "user.name", "Tests");
@@ -3145,7 +3147,8 @@ describe("repo links against a real repository", () => {
   // A conversation can work in a folder below the repository's root, and a blob link is written from the root.
   it("links a file named from a folder inside the repository by its path from the root", async () => {
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), "links-subfolder-"));
-    const run = (...args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
+    const run = (...args: string[]) =>
+      execFileSync("git", ["-C", repo, "-c", "commit.gpgsign=false", ...args], { stdio: "pipe" });
     run("init", "-q");
     run("config", "user.email", "tests@example.invalid");
     run("config", "user.name", "Tests");
@@ -4697,6 +4700,7 @@ describe("turn queue", () => {
   it("names how many are ahead", () => {
     expect(describeQueued(say, 1)).toContain("still running");
     expect(describeQueued(say, 3)).toContain("3 messages");
+    expect(describeQueued(sayIn("sv"), 3)).toContain("3 meddelanden");
   });
 });
 

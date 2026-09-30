@@ -14,7 +14,8 @@ export const en = {
   units: {
     seconds: "{{seconds}}s",
     minutesSeconds: "{{minutes}}m {{seconds}}s",
-    tokens: "{{quantity}} tokens",
+    tokens_one: "{{count}} token",
+    tokens_other: "{{count}} tokens",
     kiloTokens: "{{thousands}}k tokens",
     minutesAgo: "{{quantity}}m ago",
     hoursAgo: "{{quantity}}h ago",
@@ -134,8 +135,8 @@ export const en = {
     notInterrupted: "The running turn could not be interrupted, so your message still waits for its next step.",
   },
   queue: {
-    behindRunning: "Queued behind the turn still running.",
-    behind: "Queued behind {{ahead}} messages.",
+    behind_one: "Queued behind the turn still running.",
+    behind_other: "Queued behind {{count}} messages.",
     runningAlone: "One turn is running, with nothing queued behind it.",
     runningWith_one: "One turn is running, with {{count}} message queued behind it.",
     runningWith_other: "One turn is running, with {{count}} messages queued behind it.",
@@ -405,6 +406,7 @@ export const en = {
     directory: "Directory",
     model: "Model",
     effort: "Effort",
+    version: "bridge v{{version}}",
   },
   usage: {
     notReported: "Plan usage: not reported yet. Claude Code sends it with each turn, so it appears after the first one.",

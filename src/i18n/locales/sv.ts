@@ -15,7 +15,8 @@ export const sv: Catalog = {
   units: {
     seconds: "{{seconds}} s",
     minutesSeconds: "{{minutes}} min {{seconds}} s",
-    tokens: "{{quantity}} tokens",
+    tokens_one: "{{count}} token",
+    tokens_other: "{{count}} tokens",
     kiloTokens: "{{thousands}}k tokens",
     minutesAgo: "{{quantity}} min sedan",
     hoursAgo: "{{quantity}} h sedan",
@@ -136,8 +137,8 @@ export const sv: Catalog = {
     notInterrupted: "Den pågående omgången kunde inte avbrytas, så ditt meddelande väntar fortfarande på nästa steg.",
   },
   queue: {
-    behindRunning: "I kö bakom omgången som fortfarande körs.",
-    behind: "I kö bakom {{ahead}} meddelanden.",
+    behind_one: "I kö bakom omgången som fortfarande körs.",
+    behind_other: "I kö bakom {{count}} meddelanden.",
     runningAlone: "En omgång körs, utan något i kö efter den.",
     runningWith_one: "En omgång körs, med {{count}} meddelande i kö efter den.",
     runningWith_other: "En omgång körs, med {{count}} meddelanden i kö efter den.",
@@ -408,6 +409,7 @@ export const sv: Catalog = {
     directory: "Katalog",
     model: "Modell",
     effort: "Effort",
+    version: "brygga v{{version}}",
   },
   usage: {
     notReported: "Plananvändning: inte rapporterad än. Claude Code skickar den med varje omgång, så den syns efter den första.",
