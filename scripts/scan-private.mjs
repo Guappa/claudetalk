@@ -5,15 +5,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SKIP_DIRS = new Set(["node_modules", ".git", "data", "dist", ".claude", "coverage"]);
-const TEXT = /\.(ts|mts|mjs|js|json|md|yml|yaml|sh|ps1|txt|example)$/;
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", ".claude", "coverage"]);
+// The bridge's own state lives in data/ at the root and is never committed; a folder of that name anywhere else is ordinary.
+const SKIP_AT_ROOT = new Set(["data"]);
+const TEXT = /\.(ts|tsx|mts|mjs|cjs|js|jsx|json|jsonc|md|yml|yaml|toml|sh|ps1|txt|example|plist|service)$/;
 
 // Shapes, not names: these mean the same thing in anyone's checkout.
 export const SHAPES = [
-  ["a credential", /(gh[pousr]_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9]{16,}|MT[A-Za-z0-9._-]{40,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/],
+  // A key's body takes hyphens and underscores after its prefix, as in sk-ant-api03-... and sk-proj-...
+  [
+    "a credential",
+    /(gh[pousr]_[A-Za-z0-9]{16,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|MT[A-Za-z0-9._-]{40,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/,
+  ],
+  // A Windows path in source or JSON is written with its separators doubled.
   [
     "a real home directory",
-    /([A-Za-z]:[\\/]Users[\\/](?!<|your|user|USER|me\b)[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!user|you|me\b)[a-z0-9._-]{2,}\/|\/Users\/(?!you|user|me\b)[A-Za-z0-9 ._-]{2,}\/)/,
+    /([A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}(?!<|your|user|USER|me\b)[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!user|you|me\b)[a-z0-9._-]{2,}\/|\/Users\/(?!you|user|me\b)[A-Za-z0-9 ._-]{2,}\/)/,
   ],
   ["an 8.3 short path", /[\\/][A-Za-z0-9]+~[0-9][\\/]/],
 ];
@@ -34,7 +41,7 @@ function localTerms() {
 function walk(dir) {
   const found = [];
   for (const entry of readdirSync(dir)) {
-    if (SKIP_DIRS.has(entry)) continue;
+    if (SKIP_DIRS.has(entry) || (dir === root && SKIP_AT_ROOT.has(entry))) continue;
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) found.push(...walk(full));
     else if (TEXT.test(entry)) found.push(full);

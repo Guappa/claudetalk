@@ -42,9 +42,13 @@ case "$action" in
       echo "Not installed. Run: scripts/install-autostart-macos.sh"
       exit 0
     fi
-    launchctl print "$domain/$label" 2>/dev/null || echo "Installed but not loaded. Log in again, or reinstall."
+    # The exit code says whether it is loaded, so a script asking can tell without reading the words.
+    loaded=0
+    launchctl print "$domain/$label" 2>/dev/null || loaded=1
+    [ "$loaded" -eq 0 ] || echo "Installed but not loaded. Log in again, or reinstall."
     echo
     echo "Logs: tail -f $log_path"
+    exit "$loaded"
     ;;
 
   uninstall)

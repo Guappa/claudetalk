@@ -55,25 +55,29 @@ case "$action" in
       exit 1
     }
 
+    # systemd reads % as the start of a specifier, so one that belongs to a path is doubled.
+    unit_root="${project_root//%/%%}"
+    unit_node="${node_bin//%/%%}"
+
     mkdir -p "$unit_dir"
     cat > "$unit_path" <<UNIT
 [Unit]
 Description=ClaudeTalk bridge
-Documentation=file://$project_root/README.md
 After=network-online.target
 Wants=network-online.target
+# A missing token fails the same way every time, so stop rather than loop on it forever. systemd reads these two only in this section.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
-WorkingDirectory=$project_root
-ExecStart=$node_bin --env-file-if-exists=.env --experimental-strip-types src/index.ts
+WorkingDirectory=$unit_root
+# Quoted, or a node installed under a folder with a space in its name is split into a command and an argument.
+ExecStart="$unit_node" --env-file-if-exists=.env --experimental-strip-types src/index.ts
 Restart=on-failure
 RestartSec=10
 # A stop waits for the turn in flight; a turn can run for many minutes, and a kill would cut it short.
 TimeoutStopSec=1800
-# A missing token fails the same way every time, so stop rather than loop on it forever.
-StartLimitIntervalSec=300
-StartLimitBurst=5
 # A systemd unit inherits almost no PATH, and the bridge has to find the claude executable.
 Environment=PATH=%h/.local/bin:%h/bin:/usr/local/bin:/usr/bin:/bin
 
