@@ -112,10 +112,14 @@ export function killTree(pid: number): void {
     killer.unref();
     return;
   }
-  try {
-    process.kill(-pid, "SIGTERM");
-  } catch {
-    process.kill(pid, "SIGTERM");
+  // The group first, then the process alone; one that is already gone is what a stop wanted, so failing to signal it is not a failure.
+  for (const target of [-pid, pid]) {
+    try {
+      process.kill(target, "SIGTERM");
+      return;
+    } catch {
+      continue;
+    }
   }
 }
 

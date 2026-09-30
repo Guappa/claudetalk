@@ -297,7 +297,14 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     return again === RESTART ? ORPHAN_TWICE : again;
   });
 
+  // Once the turn is over its pid belongs to nobody, or to somebody else.
+  let over = false;
+  void done.then(() => {
+    over = true;
+  });
+
   const stop = (): void => {
+    if (over) return;
     stopped = true;
     // Killing only the turn leaves whatever it was running alive, which is not what a stop means.
     if (pid !== undefined) killTree(pid);

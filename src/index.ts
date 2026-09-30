@@ -67,6 +67,9 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => void shutDown("drain"));
 }
 
+// One conversation's stray failure must not end every other conversation's turn, which is what Node does with a rejection nobody handled.
+process.on("unhandledRejection", (reason) => console.error("unhandled rejection, bridge kept running", reason));
+
 // A gateway error with no listener is an unhandled rejection, which would take the bridge down.
 client.on(Events.Error, (error) => console.error("discord client error", error));
 client.on(Events.ShardDisconnect, (event, id) => console.error(`shard ${id} disconnected`, event.code));

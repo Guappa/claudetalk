@@ -11,6 +11,7 @@ import {
   attachmentsRoot,
   expandShortPath,
   isWithin,
+  killTree,
   longTmpDir,
   samePath,
   turnSpawnOptions,
@@ -73,7 +74,7 @@ import {
   remoteWebUrl,
   resolveReferences,
 } from "../src/discord/repoLinks.ts";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
@@ -2864,6 +2865,16 @@ describe("toChannelName", () => {
 
   it("round-trips back to a resolvable conversation name", () => {
     expect(fromChannelName(toChannelName("Release Notes"))).toBe("release notes");
+  });
+});
+
+describe("killTree", () => {
+  // On POSIX both signals throw for a process that has exited, and the second was not caught: a late Stop took the bridge down.
+  it("does nothing, and does not throw, for a process that is already gone", async () => {
+    const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
+    const pid = child.pid!;
+    await new Promise((resolve) => child.once("exit", resolve));
+    expect(() => killTree(pid)).not.toThrow();
   });
 });
 
