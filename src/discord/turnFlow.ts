@@ -294,7 +294,7 @@ export class TurnFlow {
   // The agents go and the turn stays, which is what asking Claude to stop them would come to.
   async stopAgents(sessionId: string): Promise<number> {
     const turn = this.running.get(sessionId);
-    const taskIds = this.boards.get(sessionId)?.running() ?? [];
+    const taskIds = this.boards.get(sessionId)?.claim() ?? [];
     if (!turn || taskIds.length === 0) return 0;
     await turn.stopTasks(taskIds);
     return taskIds.length;
@@ -373,7 +373,9 @@ export class TurnFlow {
       if (stopAgents) offered.push({ id: stopAgentsActionId(sessionId), label: stopAgents });
       return offered;
     };
-    const board = new AgentBoard(sink, agentsTitle(options.asked ?? prompt));
+    const board = new AgentBoard(sink, agentsTitle(options.asked ?? prompt), Date.now, undefined, (taskId) => {
+      void this.running.get(sessionId)?.stopTasks([taskId]);
+    });
     this.boards.set(sessionId, board);
     const status = new StatusMessage(
       sink,
@@ -519,7 +521,11 @@ export class TurnFlow {
     const uses = toolUses(event);
     status.stepped(uses.length);
     // As in the terminal, an agent is shown working and on what; its own edits, commands and words are not the session's.
-    if (board.follows(parentToolUseId(event))) return;
+    const parent = parentToolUseId(event);
+    if (parent && board.follows(parent)) {
+      for (const use of uses) if (use.id) board.noteCall(parent, use.id);
+      return;
+    }
 
     for (const use of uses) {
       const shown = describeToolUse(use.name, use.input);

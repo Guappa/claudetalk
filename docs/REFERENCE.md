@@ -379,14 +379,17 @@ done in 1m 12s · 14 tools · 38.1k tokens
 
 Each entry ends as done, failed or stopped with its totals, and an agent that
 reports and is then sent back to work returns to running under the entry it
-already has. The trail stays the session's own: nothing about an agent appears
+already has. An agent that reports while a command it started is still running
+in the background reads as waiting on it, not as done. The trail stays the session's own: nothing about an agent appears
 in it, not its edits, its commands, its report or a count, and the session
 relays what its agents found in its own words. A task Claude Code runs in the
 cloud, a cloud review for one, is listed the same way with the type `cloud`.
 
 While any of them is running the progress message carries a **Stop agents**
 button, or **Stop cloud task** when that is all there is. It stops each one
-through the session and leaves the turn running: Claude is told they were
+through the session, along with any command an agent left running in the
+background, and an agent stopped this way is stopped again if Claude sends it
+back to work. The turn is left running: Claude is told they were
 stopped and carries on, which is what asking it to stop them would come to,
 without the turn that asking costs. **Stop** ends the turn as before, with one
 difference: killing the process would never reach a task running in the cloud,

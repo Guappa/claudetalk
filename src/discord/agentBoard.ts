@@ -39,6 +39,10 @@ interface Agent {
 export class AgentBoard {
   private readonly agents = new Map<string, Agent>();
   private readonly byToolUse = new Map<string, Agent>();
+  // Which agent made each tool call, so a command it leaves running can be traced back to it.
+  private readonly calls = new Map<string, Agent>();
+  private readonly background = new Map<string, Agent | null>();
+  private readonly cancelled = new Set<Agent>();
   private readonly pages: Array<DetailPost | null> = [];
   private readonly stale = new Set<number>();
   private detail: DetailSink | null = null;
@@ -49,17 +53,38 @@ export class AgentBoard {
   private readonly title: string;
   private readonly now: () => number;
   private readonly paceMs: number;
+  private readonly stopTask: (taskId: string) => void;
 
-  constructor(sink: MessageSink, title: string, now: () => number = Date.now, paceMs: number = PACE_MS) {
+  // stopTask is how an agent that was stopped is stopped again, should the session send it back to work.
+  constructor(
+    sink: MessageSink,
+    title: string,
+    now: () => number = Date.now,
+    paceMs: number = PACE_MS,
+    stopTask: (taskId: string) => void = () => undefined,
+  ) {
     this.sink = sink;
     this.title = title;
     this.now = now;
     this.paceMs = paceMs;
+    this.stopTask = stopTask;
   }
 
   observe(event: AgentEvent): void {
     if (event.kind === "started") {
       this.start(event);
+      return;
+    }
+    if (event.kind === "background") {
+      const owner = (event.toolUseId ? this.calls.get(event.toolUseId) : undefined) ?? null;
+      this.background.set(event.taskId, owner);
+      if (owner) this.touch(owner);
+      return;
+    }
+    if (event.kind === "ended" && this.background.has(event.taskId)) {
+      const owner = this.background.get(event.taskId);
+      this.background.delete(event.taskId);
+      if (owner) this.touch(owner);
       return;
     }
     const agent = this.agents.get(event.taskId);
@@ -82,9 +107,27 @@ export class AgentBoard {
     this.touch(agent);
   }
 
-  // What a stop would reach; asked for when someone wants the agents gone and the turn kept.
+  // What a stop would reach: the agents at work, and the commands agents left running behind them.
   running(): string[] {
-    return this.active().map((agent) => agent.taskId);
+    return [...this.active().map((agent) => agent.taskId), ...this.background.keys()];
+  }
+
+  // The same, and a note of whose work it was: an agent stopped here is stopped again if the session sends it back.
+  claim(): string[] {
+    const taskIds = this.running();
+    for (const agent of this.agents.values()) {
+      const waiting = this.waiting(agent);
+      if (agent.state !== "running" && !waiting) continue;
+      this.cancelled.add(agent);
+      if (waiting) agent.state = "stopped";
+      this.touch(agent);
+    }
+    return taskIds;
+  }
+
+  noteCall(agentToolUseId: string, callId: string): void {
+    const agent = this.byToolUse.get(agentToolUseId);
+    if (agent) this.calls.set(callId, agent);
   }
 
   runningRemote(): string[] {
@@ -96,12 +139,17 @@ export class AgentBoard {
   // Null when there is nothing to stop, so no button is offered for it.
   stopLabel(): string | null {
     const active = this.active();
-    if (active.length === 0) return null;
-    return active.every((agent) => agent.remote) ? "Stop cloud task" : "Stop agents";
+    if (active.length === 0 && this.background.size === 0) return null;
+    return this.background.size === 0 && active.every((agent) => agent.remote) ? "Stop cloud task" : "Stop agents";
   }
 
   private active(): Agent[] {
     return [...this.agents.values()].filter((agent) => agent.state === "running");
+  }
+
+  // Reported as finished while a command it started is still going; it is not done in any sense a reader means.
+  private waiting(agent: Agent): boolean {
+    return agent.state === "completed" && [...this.background.values()].includes(agent);
   }
 
   // True when the message came from inside an agent this board follows, not from the session itself.
@@ -114,10 +162,10 @@ export class AgentBoard {
     const all = [...this.agents.values()];
     if (all.length === 0 || this.detail) return "";
     if (!this.opened && this.sink.openDetail) return "";
-    const running = all.filter((agent) => agent.state === "running");
+    const running = all.filter((agent) => agent.state === "running" || this.waiting(agent));
     const tally = [
       tallied(running.length, "running"),
-      tallied(all.filter((agent) => agent.state === "completed").length, "done"),
+      tallied(all.filter((agent) => agent.state === "completed" && !this.waiting(agent)).length, "done"),
       tallied(all.filter((agent) => agent.state === "failed").length, "failed"),
       tallied(all.filter((agent) => agent.state === "stopped").length, "stopped"),
     ].filter(Boolean);
@@ -134,6 +182,8 @@ export class AgentBoard {
       agent.durationMs = agent.earlierMs + this.now() - agent.startedAt;
       this.stale.add(pageOf(agent));
     }
+    for (const owner of this.background.values()) if (owner) this.stale.add(pageOf(owner));
+    this.background.clear();
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.write();
@@ -181,6 +231,7 @@ export class AgentBoard {
     agent.state = "running";
     agent.activity = "";
     agent.startedAt = this.now();
+    if (this.cancelled.has(agent)) this.stopTask(agent.taskId);
   }
 
   private touch(agent: Agent): void {
@@ -236,6 +287,7 @@ export class AgentBoard {
   // A running time is only true in the trail, which is redrawn every few seconds; the roster is written on change.
   private standing(agent: Agent, live: boolean): string {
     const spent = agent.tokens > 0 ? `${count(agent.toolUses, "tool")} · ${tokens(agent.tokens)}` : count(agent.toolUses, "tool");
+    if (this.waiting(agent)) return `waiting on a background command · ${spent}`;
     if (agent.state !== "running") return `${ENDINGS[agent.state]} ${formatElapsed(agent.durationMs)} · ${spent}`;
     const doing = agent.activity ? `${truncate(agent.activity, ACTIVITY_CHARS)} · ` : live ? "" : "running · ";
     const elapsed = live ? ` · ${formatElapsed(agent.earlierMs + this.now() - agent.startedAt)}` : "";

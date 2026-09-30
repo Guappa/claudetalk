@@ -26,7 +26,7 @@ export interface InitEvent {
 export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string }
-  | { type: "tool_use"; name: string; input: Record<string, unknown> }
+  | { type: "tool_use"; id?: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; content: unknown };
 
 export interface BackgroundTask {
@@ -102,6 +102,7 @@ export type AgentOutcome = "completed" | "failed" | "stopped";
 
 export type AgentEvent =
   | { kind: "started"; taskId: string; toolUseId: string | null; description: string; agentType: string; remote: boolean }
+  | { kind: "background"; taskId: string; toolUseId: string | null }
   | { kind: "progress"; taskId: string; activity: string; toolUses: number; tokens: number }
   | { kind: "ended"; taskId: string; outcome: AgentOutcome; toolUses: number | null; tokens: number | null; durationMs: number | null };
 
@@ -117,6 +118,10 @@ export function agentEvent(event: ClaudeEvent): AgentEvent | null {
   if (!taskId) return null;
   const usage = usageOf(fields.usage);
 
+  // A command an agent left running behind it, which the agent is then said to have finished without.
+  if (event.subtype === "task_started" && fields.task_type === "local_bash" && fields.owned_by_subagent === true) {
+    return { kind: "background", taskId, toolUseId: text(fields.tool_use_id) || null };
+  }
   if (event.subtype === "task_started") {
     const remote = fields.task_type === "remote_agent";
     if (fields.task_type !== "local_agent" && !remote) return null;
