@@ -6,8 +6,9 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  ThreadAutoArchiveDuration,
 } from "discord.js";
-import type { AskHandle, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
+import type { AskHandle, DetailSink, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
 import { forDiscord } from "./outgoing.ts";
@@ -133,6 +134,25 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
       const components: AnyRow[] = [...menus.slice(0, 4).map(menuRow), ...buttonRow(actions)];
       const sent = await post({ content: shown, allowedMentions, components });
       return closable(sent, shown);
+    },
+    // Refused where Discord has no threads, or the bot may not create one; the caller then does without.
+    async openDetail(title: string): Promise<DetailSink | null> {
+      if (!owned) return null;
+      try {
+        const thread = await owned.startThread({ name: title, autoArchiveDuration: ThreadAutoArchiveDuration.OneHour });
+        return {
+          async post(text: string) {
+            const sent = await thread.send({ content: forDiscord(text), allowedMentions: NO_MENTIONS });
+            return {
+              async revise(next: string): Promise<void> {
+                await sent.edit({ content: forDiscord(next), allowedMentions: NO_MENTIONS });
+              },
+            };
+          },
+        };
+      } catch {
+        return null;
+      }
     },
     async sendFiles(text: string, files: SinkFile[]): Promise<void> {
       const attachments = files.map((file) => new AttachmentBuilder(file.data, { name: file.name }));

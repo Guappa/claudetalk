@@ -194,6 +194,8 @@ async function runTurn(
 export async function handleMessage(bridge: Bridge, message: Message): Promise<void> {
   if (!isFromGuild(bridge.config, message.guildId, message.author.bot)) return;
   if (!message.channel.isSendable()) return;
+  // A thread the bridge opened holds a turn's detail; it is not a place to start a conversation.
+  if (message.channel.isThread() && message.channel.ownerId === message.client.user.id) return;
   const channel = message.channel;
 
   // Before anything is fetched: a stranger's reply must cost nothing, not even one API call.

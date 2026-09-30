@@ -3,7 +3,8 @@ import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
 import { describeToolUse } from "./toolTrail.ts";
-import { compactMetadata, isCompactionStart, isInit, type ClaudeEvent } from "../claude/events.ts";
+import { agentEvent, compactMetadata, isCompactionStart, isInit, parentToolUseId, type ClaudeEvent } from "../claude/events.ts";
+import { AgentBoard } from "./agentBoard.ts";
 import type { ClaudeError } from "../claude/errors.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
 import type { ContextTracker } from "../claude/contextTracker.ts";
@@ -323,7 +324,15 @@ export class TurnFlow {
       if (this.queue.depth(sessionId) <= 1) return [stop];
       return [stop, { id: stopAllActionId(sessionId), label: "Stop all", tone: "danger" }];
     };
-    const status = new StatusMessage(sink, Date.now, actions, remember, (trail) => linkEverything(cwd, trail));
+    const board = new AgentBoard(sink);
+    const status = new StatusMessage(
+      sink,
+      Date.now,
+      actions,
+      remember,
+      (trail) => linkEverything(cwd, trail),
+      () => board.block(),
+    );
     await status.start();
     await remember();
     await options.onState?.("running");
@@ -346,7 +355,9 @@ export class TurnFlow {
           whileWaiting(options.onState, () => this.questions.ask(sessionId, sink, questions)),
       },
       (event) => {
-        pending.push(this.handleEvent(event, sessionId, status, sink, tracker, () => void (compaction.happened = true)));
+        pending.push(
+          this.handleEvent(event, sessionId, status, board, sink, tracker, () => void (compaction.happened = true)),
+        );
       },
     );
     this.running.set(sessionId, turn);
@@ -355,6 +366,7 @@ export class TurnFlow {
       const result = await turn.done;
       this.recordSpend(sessionId, result, options);
       await Promise.allSettled(pending);
+      board.end();
 
       if (!result.ok) {
         // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
@@ -378,6 +390,8 @@ export class TurnFlow {
       this.questions.finish(sessionId);
       // A move still queued would record the turn again after it was cleared, so the queue is emptied first.
       ended = true;
+      board.end();
+      await board.flush();
       await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
@@ -403,6 +417,7 @@ export class TurnFlow {
     event: ClaudeEvent,
     sessionId: string,
     status: StatusMessage,
+    board: AgentBoard,
     sink: MessageSink,
     tracker: ContextTracker,
     onCompactionStart: () => void,
@@ -437,8 +452,17 @@ export class TurnFlow {
       return;
     }
 
+    const agent = agentEvent(event);
+    if (agent) {
+      board.observe(agent);
+      return;
+    }
+
     const uses = toolUses(event);
     status.stepped(uses.length);
+    // As in the terminal, an agent is shown working and on what; its own edits, commands and words are not the session's.
+    if (board.follows(parentToolUseId(event))) return;
+
     for (const use of uses) {
       const shown = describeToolUse(use.name, use.input);
       if (shown) status.note(shown);

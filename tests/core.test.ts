@@ -33,7 +33,9 @@ import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
 import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
-import type { ClaudeEvent } from "../src/claude/events.ts";
+import { agentEvent, parentToolUseId, type ClaudeEvent } from "../src/claude/events.ts";
+import { AgentBoard } from "../src/discord/agentBoard.ts";
+import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
 import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
 import {
@@ -1664,6 +1666,152 @@ describe("stray markup never reaches past its own text", () => {
     ]);
     expect(out).toContain("why is \\`this open");
     expect(out.endsWith(block)).toBe(true);
+  });
+});
+
+// The shapes below are the ones real turns produced: two agents beside a background command, and one agent sent back to work.
+describe("agents in a turn", () => {
+  const started = (taskId: string, toolUseId: string, description: string, agentType = "general-purpose"): ClaudeEvent =>
+    ({ type: "system", subtype: "task_started", task_id: taskId, tool_use_id: toolUseId, description, subagent_type: agentType, task_type: "local_agent" }) as ClaudeEvent;
+  const progressed = (taskId: string, description: string, toolUses: number, totalTokens = 33_100): ClaudeEvent =>
+    ({ type: "system", subtype: "task_progress", task_id: taskId, description, usage: { total_tokens: totalTokens, tool_uses: toolUses, duration_ms: 1800 } }) as ClaudeEvent;
+  const notified = (taskId: string, status: string, toolUses = 2): ClaudeEvent =>
+    ({ type: "system", subtype: "task_notification", task_id: taskId, status, summary: "Nothing wrong.", usage: { total_tokens: 38_100, tool_uses: toolUses, duration_ms: 4200 } }) as ClaudeEvent;
+
+  it("reads an agent's start, progress and end off the stream, and leaves a background command out", () => {
+    expect(agentEvent(started("t1", "use1", "Audit the access checks", "Explore"))).toEqual({
+      kind: "started", taskId: "t1", toolUseId: "use1", description: "Audit the access checks", agentType: "Explore",
+    });
+    expect(agentEvent(progressed("t1", "Reading access.ts", 3))).toEqual({
+      kind: "progress", taskId: "t1", activity: "Reading access.ts", toolUses: 3, tokens: 33_100,
+    });
+    expect(agentEvent(notified("t1", "completed"))).toEqual({
+      kind: "ended", taskId: "t1", outcome: "completed", toolUses: 2, tokens: 38_100, durationMs: 4200,
+    });
+    const shell = { type: "system", subtype: "task_started", task_id: "t9", description: "sleep", task_type: "local_bash" } as ClaudeEvent;
+    expect(agentEvent(shell)).toBeNull();
+    expect(parentToolUseId({ type: "assistant", message: { content: [] }, parent_tool_use_id: "use1" })).toBe("use1");
+    expect(parentToolUseId({ type: "assistant", message: { content: [] } })).toBeNull();
+  });
+
+  const board = (sink: MessageSink, clock = { at: 0 }) => new AgentBoard(sink, () => clock.at, 0);
+  const feed = (target: AgentBoard, ...events: ClaudeEvent[]) => {
+    for (const event of events) target.observe(agentEvent(event)!);
+  };
+
+  it("tallies the agents in the trail where there is no side room: the running by name, the finished as a count", async () => {
+    const clock = { at: 0 };
+    const agents = board(quietSink(), clock);
+    expect(agents.block()).toBe("");
+
+    feed(agents, started("t1", "use1", "Audit the access checks", "Explore"), started("t2", "use2", "Write the fixtures"));
+    clock.at = 48_000;
+    feed(agents, progressed("t1", "Reading access.ts", 9), progressed("t2", "Write the fixtures", 1, 900));
+    await agents.flush();
+    expect(agents.block()).toBe(
+      "**Agents** · 2 running\n" +
+        "- Explore · Audit the access checks · Reading access.ts · 9 tools · 33.1k tokens · 48s\n" +
+        "- general-purpose · Write the fixtures · 1 tool · 900 tokens · 48s",
+    );
+
+    feed(agents, notified("t1", "completed"), notified("t2", "failed"));
+    expect(agents.block()).toBe("**Agents** · 1 done · 1 failed");
+  });
+
+  it("names only the first few of a large fan-out and counts the rest", () => {
+    const agents = board(quietSink());
+    feed(agents, ...Array.from({ length: 7 }, (_, index) => started(`t${index}`, `use${index}`, `Part ${index}`)));
+    const lines = agents.block().split("\n");
+    expect(lines[0]).toBe("**Agents** · 7 running");
+    expect(lines).toHaveLength(6);
+    expect(lines[5]).toBe("- and 3 more");
+    expect(lines[1]).toBe("- general-purpose · Part 0 · 0 tools · 0s");
+  });
+
+  // As in the terminal: that an agent is working, on what, and what it has spent. Never its own edits or report.
+  it("keeps one roster message in the side room, every agent in it, rewritten as they change", async () => {
+    const sink = recordingSink();
+    const agents = board(sink);
+    feed(agents, started("t1", "use1", "Audit the access checks", "Explore"), started("t2", "use2", "Write the fixtures"));
+    // With a side room the trail says nothing about agents, not even in the moment before the room has opened.
+    expect(agents.block()).toBe("");
+    await agents.flush();
+    expect(agents.block()).toBe("");
+    expect(sink.detailTitles).toEqual(["Agents"]);
+    expect(sink.details).toEqual([
+      "**1 · Explore** · Audit the access checks\nrunning · 0 tools\n\n" +
+        "**2 · general-purpose** · Write the fixtures\nrunning · 0 tools",
+    ]);
+
+    feed(agents, progressed("t1", "Reading access.ts", 3), notified("t2", "completed"));
+    await agents.flush();
+    expect(sink.details).toEqual([
+      "**1 · Explore** · Audit the access checks\nReading access.ts · 3 tools · 33.1k tokens\n\n" +
+        "**2 · general-purpose** · Write the fixtures\ndone in 4s · 2 tools · 38.1k tokens",
+    ]);
+    expect(agents.follows("use1")).toBe(true);
+    expect(agents.follows("other")).toBe(false);
+    expect(agents.follows(null)).toBe(false);
+  });
+
+  it("starts a second roster message past ten agents, so none outgrows a message", async () => {
+    const sink = recordingSink();
+    const agents = board(sink);
+    feed(agents, ...Array.from({ length: 12 }, (_, index) => started(`t${index}`, `use${index}`, `Part ${index}`)));
+    await agents.flush();
+    expect(sink.details).toHaveLength(2);
+    expect(sink.details[0]!.split("\n\n")).toHaveLength(10);
+    expect(sink.details[1]).toContain("**12 · general-purpose** · Part 11");
+  });
+
+  // An agent that backgrounded a command was reported done, then sent back to finish; it kept its first report's standing.
+  it("puts an agent that is sent back to work under the entry it already has, adding to what it had done", async () => {
+    const sink = recordingSink();
+    const agents = board(sink);
+    feed(agents, started("t1", "use1", "Create, wait, delete"), progressed("t1", "Writing two.txt", 3), notified("t1", "completed", 3));
+    await agents.flush();
+    expect(sink.details[0]).toContain("done in 4s · 3 tools");
+
+    feed(agents, started("t1", "use2", "Create, wait, delete"));
+    await agents.flush();
+    expect(sink.details[0]).toContain("running · 3 tools");
+    expect(agents.follows("use1")).toBe(true);
+    expect(agents.follows("use2")).toBe(true);
+
+    feed(agents, progressed("t1", "Running rm two.txt", 2), notified("t1", "completed", 2));
+    await agents.flush();
+    expect(sink.details).toEqual(["**1 · general-purpose** · Create, wait, delete\ndone in 8s · 5 tools · 38.1k tokens"]);
+  });
+
+  it("opens no side room for a turn without agents, and still tallies where there is none to open", async () => {
+    const idle = recordingSink();
+    await board(idle).flush();
+    expect(idle.detailTitles).toEqual([]);
+
+    const agents = board(quietSink());
+    feed(agents, started("t1", "use1", "Audit"));
+    await agents.flush();
+    expect(agents.block()).toBe("**Agents** · 1 running\n- general-purpose · Audit · 0 tools · 0s");
+  });
+
+  it("counts an agent still running when the turn ends as stopped, once", async () => {
+    const sink = recordingSink();
+    const agents = board(sink);
+    feed(agents, started("t1", "use1", "Audit"));
+    agents.end();
+    agents.end();
+    await agents.flush();
+    expect(sink.details).toEqual(["**1 · general-purpose** · Audit\nstopped after 0s · 0 tools"]);
+  });
+
+  it("carries the tally under the trail's heading while it runs and when it is done", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0, () => [], undefined, undefined, () => "**Agents** · 1 done");
+    await status.start();
+    expect(sink.messages[0]).toBe("⏳ **Working** 0s\n\n**Agents** · 1 done");
+    status.note("Looking at it.");
+    await status.settle();
+    expect(sink.messages[0]).toBe("✅ **Worked** 0s\n\n**Agents** · 1 done\n\nLooking at it.");
   });
 });
 

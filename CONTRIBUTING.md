@@ -256,3 +256,14 @@ not the answer, not commits.
 boundary is what will let a voice sink drop in later without touching the turn
 logic. A question is a list of `SinkMenu`s and two actions; how a menu is drawn
 and how the "Other..." entry collects free text is the Discord sink's business.
+The same goes for agents: `AgentBoard` asks the sink for a side room and keeps
+a roster in it, and only the Discord sink knows that a side room is a thread.
+
+**An agent is told apart by the stream, never guessed.** A task counts as an
+agent when its start event says `local_agent`; a background command is
+`local_bash` and is left out. Everything an agent says or does carries the id
+of the tool call that first launched it, which its start event names, and that
+is what keeps an agent's work out of the trail. An agent sent back to work gets
+a second start event with the same task id and a new tool call id, while its
+messages go on carrying the first; its usage then counts from zero again. These
+shapes were captured from real turns, not read off the type definitions.
