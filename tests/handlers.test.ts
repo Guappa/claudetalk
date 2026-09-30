@@ -392,6 +392,28 @@ describe("/resume", () => {
     expect(answers.filter((answer) => answer.startsWith("Opened"))).toHaveLength(1);
   });
 
+  // A session resumed from another folder leaves a transcript under each, and the picker hands back only its id.
+  it("opens the copy written to last when the conversation picked has a transcript under two folders", async () => {
+    const moved = await fs.mkdtemp(path.join(os.tmpdir(), "moved-"));
+    const earlier = record({
+      sessionId: SESSION,
+      name: "ledger notes",
+      cwd: os.tmpdir(),
+      lastActivity: new Date("2026-09-01T10:00:00Z"),
+    });
+    const later = record({
+      sessionId: SESSION,
+      name: "ledger notes",
+      cwd: moved,
+      lastActivity: new Date("2026-09-20T10:00:00Z"),
+    });
+    const bridge = await testBridge([earlier, later]);
+    const command = fakeCommand(fakeChannel("r4"), OWNER, { name: SESSION }, fakeGuild().guild);
+    await handleResume(bridge, command.interaction);
+
+    expect(bridge.store.bySession(SESSION)?.cwd).toBe(moved);
+  });
+
   it("does not act on a Resume button once the question it belongs to has expired", async () => {
     const known = record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() });
     const bridge = await testBridge([known]);

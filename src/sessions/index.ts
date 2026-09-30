@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { claudeProjectsDir, expandShortPath } from "../platform.ts";
+import { newestCopy } from "./resolve.ts";
 import { scanTranscript } from "./transcriptScanner.ts";
 import { listActiveSessions, type ActiveSession } from "./activeSessions.ts";
 
@@ -39,40 +40,55 @@ async function readDirSafe(dir: string): Promise<string[]> {
 
 // Listing live sessions spawns the CLI, and a picker keystroke or a turn's bookkeeping asks several times a second.
 const LIVE_CACHE_MS = 5000;
+// Long enough to ride out a CLI that is briefly too busy to answer, short enough that a terminal closed since stops holding its conversation.
+const LIVE_TRUST_MS = 60_000;
 
 type ListLive = () => Promise<ActiveSession[] | null>;
 
+interface LiveListing {
+  asked: number;
+  listed: number;
+  sessions: ActiveSession[];
+}
+
 export class SessionIndex {
   private readonly scanned = new Map<string, CacheEntry>();
-  private live: { at: number; sessions: ActiveSession[] } | null = null;
+  private live: LiveListing | null = null;
+  private forgotten = 0;
   private readonly listLive: ListLive;
   private readonly root: string;
+  private readonly now: () => number;
 
-  // Both default to the host's own; a test hands in a folder and a listing of its making.
-  constructor(listLive: ListLive = listActiveSessions, root: string = claudeProjectsDir()) {
+  // Each defaults to the host's own; a test hands in a folder, a listing and a clock of its making.
+  constructor(listLive: ListLive = listActiveSessions, root: string = claudeProjectsDir(), now: () => number = Date.now) {
     this.listLive = listLive;
     this.root = root;
+    this.now = now;
   }
 
   private async liveSessions(): Promise<ActiveSession[]> {
-    if (this.live && Date.now() - this.live.at < LIVE_CACHE_MS) return this.live.sessions;
+    if (this.live && this.now() - this.live.asked < LIVE_CACHE_MS) return this.live.sessions;
+    const forgotten = this.forgotten;
     const sessions = await this.listLive();
-    // A listing that failed is not remembered as "nothing is live": the last one known stands until a listing succeeds.
-    if (sessions === null) return this.live?.sessions ?? [];
-    this.live = { at: Date.now(), sessions };
-    return sessions;
+    const asked = this.now();
+    const known = this.live;
+    // A listing that failed is not word that nothing is live, so the last one that worked stands for a while; held for good it would refuse a conversation over a terminal closed days ago.
+    const believed = known !== null && asked - known.listed < LIVE_TRUST_MS ? known.sessions : [];
+    const listing =
+      sessions !== null ? { asked, listed: asked, sessions } : { asked, listed: known?.listed ?? 0, sessions: believed };
+    // A listing that was out while something was stopped may still name it, and is not kept.
+    if (forgotten === this.forgotten) this.live = listing;
+    return listing.sessions;
   }
 
   // What was live a moment ago stops being true the instant something is stopped.
   forgetLive(): void {
     this.live = null;
+    this.forgotten += 1;
   }
 
-  // A session resumed from another folder can leave a transcript under each; the one written to last is the conversation.
   async find(sessionId: string): Promise<SessionRecord | null> {
-    const copies = (await this.build()).filter((record) => record.sessionId === sessionId);
-    const written = (record: SessionRecord): number => record.lastActivity?.getTime() ?? 0;
-    return copies.sort((first, second) => written(second) - written(first))[0] ?? null;
+    return newestCopy(await this.build(), sessionId);
   }
 
   async build(): Promise<SessionRecord[]> {

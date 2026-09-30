@@ -9,6 +9,11 @@ export function byRecencyDesc(left: SessionRecord, right: SessionRecord): number
   return (right.lastActivity?.getTime() ?? 0) - (left.lastActivity?.getTime() ?? 0);
 }
 
+// A session resumed from another folder can leave a transcript under each; the one written to last is the conversation.
+export function newestCopy<Found extends SessionRecord>(records: Found[], sessionId: string): Found | null {
+  return records.filter((record) => record.sessionId === sessionId).sort(byRecencyDesc)[0] ?? null;
+}
+
 export function resolveByName(records: SessionRecord[], query: string): Resolution {
   const needle = query.trim().toLowerCase();
   if (!needle) return { match: null, candidates: [] };

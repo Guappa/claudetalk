@@ -8,9 +8,28 @@ export interface TranscriptInfo {
   hasContent: boolean;
 }
 
-// Claude Code files a session under the directory it was started in, with every character that is not a letter or a digit made a dash.
+const LONGEST_FOLDER_NAME = 200;
+
+// The string hash Claude Code appends, in base 36, to a folder name it had to cut short.
+function pathHash(directory: string): string {
+  let hash = 0;
+  for (let index = 0; index < directory.length; index += 1) hash = ((hash << 5) - hash + directory.charCodeAt(index)) | 0;
+  return Math.abs(hash).toString(36);
+}
+
+// Claude Code files a session under the directory it was started in, with every character that is not a letter or a digit made a dash, and a name past its limit cut there and told apart by a hash of the whole path.
 function projectFolderName(directory: string): string {
-  return directory.replace(/[^A-Za-z0-9]/g, "-").toLowerCase();
+  const flat = directory.replace(/[^A-Za-z0-9]/g, "-");
+  const named = flat.length <= LONGEST_FOLDER_NAME ? flat : `${flat.slice(0, LONGEST_FOLDER_NAME)}-${pathHash(directory)}`;
+  return named.toLowerCase();
+}
+
+// A drive letter is stamped in either case, and the hash of a long path depends on which it was given in.
+function spellings(directory: string): string[] {
+  const drive = /^[A-Za-z](?=:)/.exec(directory)?.[0];
+  if (!drive) return [directory];
+  const other = drive === drive.toUpperCase() ? drive.toLowerCase() : drive.toUpperCase();
+  return [directory, `${other}${directory.slice(1)}`];
 }
 
 // Either separator, so a transcript written on Windows reads the same wherever the bridge runs.
@@ -23,7 +42,7 @@ function startedIn(stamped: string[], projectFolder: string): string | null {
   const wanted = projectFolder.toLowerCase();
   for (const stamp of stamped.toReversed()) {
     for (let candidate = stamp; candidate; candidate = parentOf(candidate)) {
-      if (projectFolderName(candidate) === wanted) return candidate;
+      if (spellings(candidate).some((spelled) => projectFolderName(spelled) === wanted)) return candidate;
       if (parentOf(candidate) === candidate) break;
     }
   }

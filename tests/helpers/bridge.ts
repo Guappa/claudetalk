@@ -17,6 +17,7 @@ import { TurnFlow } from "../../src/discord/turnFlow.ts";
 import { LanguageChoice } from "../../src/i18n/languageChoice.ts";
 import { OperatorStore } from "../../src/operators.ts";
 import type { SessionIndex, SessionRecord } from "../../src/sessions/index.ts";
+import { newestCopy } from "../../src/sessions/resolve.ts";
 
 export const GUILD = "200000000000000001";
 export const OWNER = "100000000000000001";
@@ -53,7 +54,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
   const outbox = new OutboxDelivery();
   const sessions = {
     build: async () => records,
-    find: async (sessionId: string) => records.find((record) => record.sessionId === sessionId) ?? null,
+    find: async (sessionId: string) => newestCopy(records, sessionId),
     forgetLive: () => undefined,
   } as unknown as SessionIndex;
 

@@ -312,6 +312,22 @@ describe("scanTranscript", () => {
       expect((await scanTranscript(file)).cwd).toBe("c:\\work\\my app");
     });
 
+    // Claude Code cuts a folder's name at 200 characters and ends it with a hash of the whole path.
+    it("is found for a path too long for its folder's name to hold", async () => {
+      const started = `/srv/${"a-rather-long-folder-name-for-a-project/".repeat(5)}app`;
+      const folder = `${started.replace(/[^A-Za-z0-9]/g, "-").slice(0, 200)}-87cf77`;
+      const file = await transcriptIn(folder, [started, `${started}/scripts`]);
+      expect((await scanTranscript(file)).cwd).toBe(started);
+
+      const stamped = `c:\\work\\${"a rather long folder name for a project\\".repeat(5)}app`;
+      const named = `C${stamped
+        .slice(1)
+        .replace(/[^A-Za-z0-9]/g, "-")
+        .slice(0, 199)}-zgx6i8`;
+      const onWindows = await transcriptIn(named, [`${stamped}\\tools\\release`]);
+      expect((await scanTranscript(onWindows)).cwd).toBe(stamped);
+    });
+
     it("falls back to the last directory stamped when none matches the folder's name", async () => {
       const file = await transcriptIn("somewhere-else", ["/srv/app", "/srv/app/scripts"]);
       expect((await scanTranscript(file)).cwd).toBe("/srv/app/scripts");
@@ -3623,13 +3639,66 @@ describe("the session index", () => {
   };
   const live = { pid: 4321, cwd: "/srv/app", kind: "interactive" as const, sessionId: "s1" };
 
+  const SECOND = 1000;
+  const clocked = async (listings: Array<(typeof live)[] | null>) => {
+    const clock = { now: 0, asked: 0 };
+    const listLive = async () => {
+      clock.asked += 1;
+      return listings.shift() ?? null;
+    };
+    const index = new SessionIndex(listLive, await indexed([{ folder: "-srv-app", minute: 1 }]), () => clock.now);
+    return { index, clock };
+  };
+
   // A listing that timed out is not word that nothing is live, and a turn let through on it would collide with an open terminal.
   it("does not take a listing that failed for nothing being live", async () => {
-    const listings: Array<(typeof live)[] | null> = [null, [live]];
-    const index = new SessionIndex(async () => listings.shift() ?? null, await indexed([{ folder: "-srv-app", minute: 1 }]));
+    const { index, clock } = await clocked([[live], null]);
 
-    expect((await index.find("s1"))?.live).toBeNull();
     expect((await index.find("s1"))?.live).toEqual(live);
+    clock.now = 6 * SECOND;
+    expect((await index.find("s1"))?.live).toEqual(live);
+  });
+
+  // Every look at a conversation asks what is live, and a listing that fails costs a spawned process each time it is asked for.
+  it("asks again only after a while when the listing fails, as it does when it works", async () => {
+    const { index, clock } = await clocked([null, null, [live]]);
+
+    for (const _look of [1, 2, 3]) expect((await index.find("s1"))?.live).toBeNull();
+    expect(clock.asked).toBe(1);
+    clock.now = 6 * SECOND;
+    await index.find("s1");
+    await index.find("s1");
+    expect(clock.asked).toBe(2);
+    clock.now = 12 * SECOND;
+    expect((await index.find("s1"))?.live).toEqual(live);
+  });
+
+  // The terminal it names may have been closed long since, and a conversation must not be refused over it for as long as listings fail.
+  it("stops believing the last listing that worked once it is a minute old", async () => {
+    const { index, clock } = await clocked([[live]]);
+
+    expect((await index.find("s1"))?.live).toEqual(live);
+    clock.now = 50 * SECOND;
+    expect((await index.find("s1"))?.live).toEqual(live);
+    clock.now = 70 * SECOND;
+    expect((await index.find("s1"))?.live).toBeNull();
+  });
+
+  it("does not keep a listing that was out while it was told to forget", async () => {
+    const asked: Array<(sessions: (typeof live)[]) => void> = [];
+    const listLive = () => new Promise<(typeof live)[]>((resolve) => asked.push(resolve));
+    const index = new SessionIndex(listLive, await indexed([{ folder: "-srv-app", minute: 1 }]));
+
+    const before = index.find("s1");
+    await vi.waitFor(() => expect(asked).toHaveLength(1));
+    index.forgetLive();
+    asked[0]!([live]);
+    await before;
+
+    const after = index.find("s1");
+    await vi.waitFor(() => expect(asked).toHaveLength(2));
+    asked[1]!([]);
+    expect((await after)?.live).toBeNull();
   });
 
   it("asks again at once after being told to forget what was live", async () => {
