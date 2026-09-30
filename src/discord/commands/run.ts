@@ -8,13 +8,14 @@ import {
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { SessionCommand } from "../../claude/events.ts";
+import type { Say } from "../../i18n/index.ts";
 import { truncate } from "../../text.ts";
 import { requireConversation } from "../binding.ts";
 import { RUN_CANCEL, RUN_CONFIRM } from "../menus.ts";
 import { respond, settleMenu } from "../respond.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
-import { classifyPrompt } from "./settings.ts";
+import { classifyPrompt, describeNotRun } from "./settings.ts";
 
 // Discord's limits: twenty-five choices to an autocomplete, a hundred characters to a choice's label and value.
 const CHOICE_LIMIT = 25;
@@ -23,9 +24,6 @@ const SHOWN_PROMPT_CHARS = 300;
 const SHOWN_DESCRIPTION_CHARS = 300;
 // Offered when no list is known yet; never a command name, so picking it explains itself.
 const NO_LIST = "-";
-const NO_LIST_YET =
-  "This conversation's commands are not known yet: they are learned the first time a turn runs in its folder. " +
-  "Send a message here first, then `/run` will list them as you type.";
 const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)*$/i;
 
 export interface CommandChoice {
@@ -82,7 +80,7 @@ export async function suggestCommands(bridge: Bridge, interaction: AutocompleteI
   }
   const commands = bridge.capabilities.commands(conversation.cwd);
   if (commands.length === 0) {
-    await interaction.respond([{ name: "No command list yet: send a message here first, then try again", value: NO_LIST }]);
+    await interaction.respond([{ name: truncate(bridge.language.say("run.noListChoice"), CHOICE_CHARS - 3), value: NO_LIST }]);
     return;
   }
   await interaction.respond(
@@ -93,40 +91,36 @@ export async function suggestCommands(bridge: Bridge, interaction: AutocompleteI
 const named = (command: string) => (entry: SessionCommand) => entry.name === command || entry.aliases.includes(command);
 
 // Null when it may run; otherwise what to tell whoever asked.
-export function refusal(command: string, prompt: string, known: SessionCommand[], terminalOnly: string[]): string | null {
-  if (command === NO_LIST) return NO_LIST_YET;
-  if (!NAME.test(command)) {
-    return `\`${truncate(command, 60)}\` is not a command name. Pick one from the list \`/run\` offers as you type.`;
-  }
+export function refusal(
+  say: Say,
+  command: string,
+  prompt: string,
+  known: SessionCommand[],
+  terminalOnly: string[],
+): string | null {
+  if (command === NO_LIST) return say("run.noListYet");
+  if (!NAME.test(command)) return say("run.notAName", { command: truncate(command, 60) });
   const classified = classifyPrompt(prompt, terminalOnly);
   if (classified.kind === "terminal-only" || classified.kind === "bridge-owned" || classified.kind === "ambiguous") {
-    return classified.message;
+    return describeNotRun(say, classified);
   }
-  if (known.length > 0 && !known.some(named(command))) {
-    return (
-      `\`/${command}\` is not a command this conversation has. Pick one from the list \`/run\` offers as you type; ` +
-      "a plugin installed since the last turn here shows up after the next one."
-    );
-  }
+  if (known.length > 0 && !known.some(named(command))) return say("run.unknown", { command });
   return null;
 }
 
 // Everything someone needs to decide: the exact line, what it does, what it takes, and what it will cost if that is known.
-export function describeRun(prompt: string, command: SessionCommand | undefined, caution: string | null): string {
-  const lines = ["Run this in the conversation?", `\`\`\`\n${truncate(prompt, SHOWN_PROMPT_CHARS)}\n\`\`\``];
+export function describeRun(say: Say, prompt: string, command: SessionCommand | undefined, caution: string | null): string {
+  const lines: string[] = [say("run.confirm"), `\`\`\`\n${truncate(prompt, SHOWN_PROMPT_CHARS)}\n\`\`\``];
   if (command?.description) lines.push(truncate(command.description, SHOWN_DESCRIPTION_CHARS));
-  if (command?.argumentHint) lines.push(`Takes: \`${command.argumentHint}\``);
+  if (command?.argumentHint) lines.push(say("run.takes", { hint: command.argumentHint }));
   if (caution) lines.push(`**${caution}**`);
-  lines.push("Nothing starts until you press Run.");
+  lines.push(say("run.nothingStarts"));
   return lines.join("\n");
 }
 
 export async function handleRun(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
-  const conversation = await requireConversation(
-    bridge,
-    interaction,
-    "This channel isn't bound to a conversation, so there is nothing to run a command in.",
-  );
+  const say = bridge.language.say;
+  const conversation = await requireConversation(bridge, interaction, say("run.unbound"));
   if (!conversation) return;
 
   const command = interaction.options.getString("command", true).trim().replace(/^\//, "");
@@ -135,43 +129,44 @@ export async function handleRun(bridge: Bridge, interaction: ChatInputCommandInt
   const known = bridge.capabilities.commands(conversation.cwd);
   const terminalOnly = bridge.capabilities.terminalOnly(conversation.sessionId);
 
-  const refused = refusal(command, prompt, known, terminalOnly);
+  const refused = refusal(say, command, prompt, known, terminalOnly);
   if (refused) {
     await respond(interaction, refused);
     return;
   }
 
   const classified = classifyPrompt(prompt, terminalOnly);
-  const caution = classified.kind === "asks-first" ? classified.caution : null;
+  const caution = classified.kind === "asks-first" ? say(classified.caution) : null;
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(RUN_CONFIRM).setLabel("Run").setStyle(caution ? ButtonStyle.Danger : ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(RUN_CANCEL).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(RUN_CONFIRM)
+      .setLabel(say("run.runButton"))
+      .setStyle(caution ? ButtonStyle.Danger : ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(RUN_CANCEL).setLabel(say("common.cancel")).setStyle(ButtonStyle.Secondary),
   );
-  await respond(interaction, { content: describeRun(prompt, known.find(named(command)), caution), components: [row] });
+  await respond(interaction, { content: describeRun(say, prompt, known.find(named(command)), caution), components: [row] });
   const reply = await interaction.fetchReply();
   bridge.pendingRuns.remember(reply.id, { prompt });
 }
 
 export async function cancelRun(bridge: Bridge, interaction: ButtonInteraction): Promise<void> {
   bridge.pendingRuns.take(interaction.message.id);
-  await settleMenu(interaction, "Left it alone. Nothing was run.");
+  await settleMenu(interaction, bridge.language.say("run.cancelled"));
 }
 
 export async function confirmRun(bridge: Bridge, interaction: ButtonInteraction): Promise<void> {
+  const say = bridge.language.say;
   const pending = bridge.pendingRuns.take(interaction.message.id);
   if (!pending) {
-    await settleMenu(interaction, "That `/run` is too old to act on now. Run it again.");
+    await settleMenu(interaction, say("run.tooOld"));
     return;
   }
   const conversation = bridge.store.byChannel(interaction.channelId);
   if (!conversation || !interaction.channel?.isSendable()) {
-    await settleMenu(
-      interaction,
-      "This channel is no longer bound to a conversation, so there is nothing to run this in. `/resume` opens a conversation in a channel of its own.",
-    );
+    await settleMenu(interaction, say("common.noLongerBound"));
     return;
   }
-  await settleMenu(interaction, `Sent \`${truncate(pending.prompt, 200)}\` to the conversation.`);
+  await settleMenu(interaction, say("common.sent", { prompt: truncate(pending.prompt, 200) }));
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,
     prompt: pending.prompt,

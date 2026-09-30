@@ -1,7 +1,6 @@
 export const DISCORD_MESSAGE_LIMIT = 2000;
 const FENCE_CLOSE = "\n```";
 const FENCE = /^```/;
-const PLACEHOLDER = "_(no output)_";
 
 // A chunk split inside a fence closes and reopens it, and the opener can carry a language tag.
 function roomForLine(openFence: string | null, limit: number): number {
@@ -18,8 +17,9 @@ function splitOverlongLine(line: string, max: number): string[] {
   return pieces;
 }
 
+// Nothing to say is no chunks at all; what stands in for an empty answer is the caller's to word.
 export function chunkForDiscord(text: string, limit = DISCORD_MESSAGE_LIMIT): string[] {
-  if (!text.trim()) return [PLACEHOLDER];
+  if (!text.trim()) return [];
 
   const chunks: string[] = [];
   let lines: string[] = [];
@@ -47,5 +47,5 @@ export function chunkForDiscord(text: string, limit = DISCORD_MESSAGE_LIMIT): st
 
   // A flush that only reopened a fence leaves an empty code block, which is not worth sending.
   if (lines.length > (openFence ? 1 : 0)) flush();
-  return chunks.length > 0 ? chunks : [PLACEHOLDER];
+  return chunks;
 }

@@ -1,5 +1,6 @@
+import type { Say } from "../i18n/index.ts";
 import type { Exchange } from "../sessions/exchanges.ts";
-import { count, truncate } from "../text.ts";
+import { truncate } from "../text.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 
 const MAX_EXCHANGE_CHARS = 1200;
@@ -14,32 +15,28 @@ function clock(at: Date, style: ClockStyle): string {
   return `<t:${Math.floor(at.getTime() / 1000)}:t>`;
 }
 
-function formatExchange(exchange: Exchange, style: ClockStyle): string {
-  const who = exchange.role === "user" ? "You" : "Claude";
+function formatExchange(say: Say, exchange: Exchange, style: ClockStyle): string {
+  const heading = say(exchange.role === "user" ? "sync.fromYou" : "sync.fromClaude", { clock: clock(exchange.at, style) });
   // Several exchanges share one message, so each is sealed on its own.
-  return `**${who}** · terminal · ${clock(exchange.at, style)}\n${defuseStrayMarkup(truncate(exchange.text, MAX_EXCHANGE_CHARS))}`;
+  return `${heading}\n${defuseStrayMarkup(truncate(exchange.text, MAX_EXCHANGE_CHARS))}`;
 }
 
-export function formatExchanges(exchanges: Exchange[], style: ClockStyle = "discord"): string {
-  return exchanges.map((exchange) => formatExchange(exchange, style)).join("\n\n");
+export function formatExchanges(say: Say, exchanges: Exchange[], style: ClockStyle = "discord"): string {
+  return exchanges.map((exchange) => formatExchange(say, exchange, style)).join("\n\n");
 }
 
 // Newest last, as many of the latest as fit the budget together; the newest one always fits on its own.
-export function latestThatFit(exchanges: Exchange[], budget: number): Exchange[] {
+export function latestThatFit(say: Say, exchanges: Exchange[], budget: number): Exchange[] {
   const recent: Exchange[] = [];
   for (let index = exchanges.length - 1; index >= 0 && recent.length < MAX_RECENT; index -= 1) {
     const exchange = exchanges[index]!;
-    if (recent.length > 0 && formatExchanges([exchange, ...recent]).length > budget) break;
+    if (recent.length > 0 && formatExchanges(say, [exchange, ...recent]).length > budget) break;
     recent.unshift(exchange);
   }
   return recent;
 }
 
-export function describeDrift(exchanges: Exchange[]): string {
-  const last = exchanges.at(-1);
-  const when = last ? ` The last was at ${clock(last.at, "discord")}.` : "";
-  return (
-    `${count(exchanges.length, "message")} happened in this conversation outside Discord since you were last here.` +
-    `${when} Run \`/sync\` to see them.`
-  );
+// Only ever asked about drift that exists, so there is always a last exchange to give the time of.
+export function describeDrift(say: Say, exchanges: Exchange[]): string {
+  return say("sync.drift", { count: exchanges.length, clock: clock(exchanges.at(-1)!.at, "discord") });
 }

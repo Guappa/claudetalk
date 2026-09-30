@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction, TextChannel } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
+import { helloToBranch } from "../../claude/prompts.ts";
 import type { Conversation } from "../../conversations.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
@@ -19,9 +20,7 @@ export async function runFork(
 
   await runConversationTurn(bridge, source, {
     actorId: interaction.user.id,
-    prompt:
-      `This conversation has been branched into a copy named "${name}". ` +
-      `Say in one line what it was about, so the branch starts with its bearings.`,
+    prompt: helloToBranch(name),
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     resume: true,
     fork: true,

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Say } from "../i18n/index.ts";
 import type { SinkFile } from "./messageSink.ts";
 
 export const OUTBOX_DIR = ".discord-outbox";
@@ -22,10 +23,9 @@ export function outboxRelative(sessionId: string): string {
   return `${OUTBOX_DIR}/${sessionId}/`;
 }
 
-export function describeSkipped(skipped: string[], sessionId: string): string {
+export function describeSkipped(say: Say, skipped: string[], sessionId: string): string {
   if (skipped.length === 0) return "";
-  const names = skipped.join(", ");
-  return `Too large to attach, left in \`${outboxRelative(sessionId)}\`: ${names}.`;
+  return say("outbox.tooLarge", { folder: outboxRelative(sessionId), names: skipped.join(", ") });
 }
 
 // A file still being written must not be sent half-finished, so a sweep waits for it to settle.

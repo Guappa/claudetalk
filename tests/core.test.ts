@@ -48,7 +48,7 @@ import {
 } from "../src/discord/statusMessage.ts";
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
-import { classifyPrompt } from "../src/discord/commands/settings.ts";
+import { classifyPrompt, describeNotRun } from "../src/discord/commands/settings.ts";
 import { describeClear } from "../src/discord/commands/clear.ts";
 import {
   describeHidden,
@@ -138,7 +138,8 @@ import {
   screenAttachments,
 } from "../src/attachments.ts";
 import { nothingToSend } from "../src/discord/handlers/message.ts";
-import { TurnQueue, describeDepth, describeQueued, MAX_QUEUE_DEPTH } from "../src/discord/turnQueue.ts";
+import { sayIn } from "../src/i18n/index.ts";
+import { TurnQueue, describeDepth, describeFull, describeQueued, MAX_QUEUE_DEPTH } from "../src/discord/turnQueue.ts";
 import {
   collectOutbox,
   describeSkipped,
@@ -163,6 +164,7 @@ import { tierFor, canRunCommand, workspaceFor } from "../src/access.ts";
 import { conversationOverwrites } from "../src/discord/channelAccess.ts";
 import { PermissionFlagsBits } from "discord.js";
 
+const say = sayIn("en");
 const fixture = (name: string) => path.join(import.meta.dirname, "fixtures", name);
 
 describe("platform", () => {
@@ -495,8 +497,8 @@ describe("chunkForDiscord", () => {
     expect(chunks[1]!.startsWith("```")).toBe(true);
   });
 
-  it("returns a placeholder for empty text so Discord never rejects the send", () => {
-    expect(chunkForDiscord("")).toEqual(["_(no output)_"]);
+  it("gives nothing for empty text, leaving what stands in for it to the caller", () => {
+    expect(chunkForDiscord("")).toEqual([]);
   });
 });
 
@@ -504,7 +506,7 @@ describe("StatusMessage", () => {
 
   it("shows the turn as working before anything has happened", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.stop();
     expect(sink.written.at(-1)).toBe("⏳ **Working** 0s");
@@ -512,7 +514,7 @@ describe("StatusMessage", () => {
 
   it("replaces the activity log with the answer when the turn ends", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("Looking at the schema first.");
     await status.finish("Done.");
@@ -521,7 +523,7 @@ describe("StatusMessage", () => {
 
   it("does not keep the answer in the trail it is about to be posted under", () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     status.note("Weighing whether the field is optional.");
     status.note("It is optional, so the validator warns rather than fails.");
     status.dropEcho("It is optional, so the validator warns rather than fails.");
@@ -530,7 +532,7 @@ describe("StatusMessage", () => {
 
   it("leaves no trail at all when the only thing said was the answer", () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     status.note("The tree is clean, nothing to back out.");
     status.dropEcho("The tree is clean, nothing to back out.");
     expect(status.hasNotes()).toBe(false);
@@ -538,7 +540,7 @@ describe("StatusMessage", () => {
 
   it("matches a remark that was cut short against the full answer", () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     const long = "a".repeat(2500);
     status.note(long);
     status.dropEcho(long);
@@ -547,7 +549,7 @@ describe("StatusMessage", () => {
 
   it("keeps a remark the answer does not repeat", () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     status.note("Checking the schema first.");
     status.dropEcho("Something else entirely.");
     expect(status.hasNotes()).toBe(true);
@@ -555,7 +557,7 @@ describe("StatusMessage", () => {
 
   it("ignores an empty thought rather than logging a blank line", () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     status.note("   ");
     status.note("");
     expect(status.hasNotes()).toBe(false);
@@ -564,7 +566,7 @@ describe("StatusMessage", () => {
   // The terminal scrolls; a trail that no longer fits carries on below instead of eliding what came first.
   it("continues in a new message once the trail would not fit, keeping every remark in order", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0, () => [{ id: "stop", label: "Stop" }]);
+    const status = new StatusMessage(say, sink, () => 0, () => [{ id: "stop", label: "Stop" }]);
     await status.start();
     const remarks = Array.from({ length: 12 }, (_, index) => `Remark ${index + 1}: ${"x".repeat(240)}`);
     for (const remark of remarks) status.note(remark);
@@ -581,7 +583,7 @@ describe("StatusMessage", () => {
 
   it("moves the trail below anything lasting posted beneath it, rather than writing above it", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("Before the question.");
     sink.othersBelow = true;
@@ -597,7 +599,7 @@ describe("StatusMessage", () => {
   // Several remarks can land in one stream chunk before the queued move has run; they belong to the same new message.
   it("moves once for a burst of remarks arriving while the trail is still buried", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("Before.");
     sink.othersBelow = true;
@@ -613,7 +615,7 @@ describe("StatusMessage", () => {
 
   it("leaves a plain marker, not a live heading, when it moves before any remark was made", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     sink.othersBelow = true;
     status.note("First remark, after an approval prompt.");
@@ -627,7 +629,7 @@ describe("StatusMessage", () => {
   it("finalizes a sealed segment and the settled trail, and nothing in between", async () => {
     const sink = recordingSink();
     const finalize = vi.fn(async (text: string) => text.replace("e2ea070", "[e2ea070](<url>)"));
-    const status = new StatusMessage(sink, () => 0, () => [], undefined, finalize);
+    const status = new StatusMessage(say, sink, () => 0, () => [], undefined, finalize);
     await status.start();
     status.note("Landed e2ea070.");
     sink.othersBelow = true;
@@ -642,7 +644,7 @@ describe("StatusMessage", () => {
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
     const sink = recordingSink();
     const moved = vi.fn(async () => undefined);
-    const status = new StatusMessage(sink, () => 0, () => [], moved);
+    const status = new StatusMessage(say, sink, () => 0, () => [], moved);
     await status.start();
     status.note("First.");
     sink.othersBelow = true;
@@ -918,7 +920,7 @@ describe("categories", () => {
   });
 
   it("explains a full category rather than letting Discord refuse opaquely", () => {
-    const message = describeCategoryFull("Projects");
+    const message = describeCategoryFull(say, "Projects");
     expect(message).toContain("Projects");
     expect(message).toContain(String(CHANNELS_PER_CATEGORY));
   });
@@ -1022,46 +1024,46 @@ describe("displayPath", () => {
 
 describe("renderActivity", () => {
   it("shows what Claude said, newest last, as paragraphs", () => {
-    const rendered = renderActivity(["Checking the schema first.", "It is a rounding bug."], 5000);
+    const rendered = renderActivity(say, ["Checking the schema first.", "It is a rounding bug."], 5000);
     const expected = ["⏳ **Working** 5s", "", "Checking the schema first.", "", "It is a rounding bug."];
     expect(rendered.split("\n")).toEqual(expected);
   });
 
   it("says only that it is working when nothing has been said yet", () => {
-    expect(renderActivity([], 12_000)).toBe("⏳ **Working** 12s");
+    expect(renderActivity(say, [], 12_000)).toBe("⏳ **Working** 12s");
   });
 
   it("counts the steps taken, so a quiet turn still shows it is getting somewhere", () => {
-    expect(renderActivity([], 272_000, 7)).toBe("⏳ **Working** 4m 32s · 7 steps");
-    expect(renderActivity([], 5000, 1)).toBe("⏳ **Working** 5s · 1 step");
+    expect(renderActivity(say, [], 272_000, 7)).toBe("⏳ **Working** 4m 32s · 7 steps");
+    expect(renderActivity(say, [], 5000, 1)).toBe("⏳ **Working** 5s · 1 step");
   });
 
   it("leaves the count off before anything has been done", () => {
-    expect(renderActivity([], 5000, 0)).toBe("⏳ **Working** 5s");
+    expect(renderActivity(say, [], 5000, 0)).toBe("⏳ **Working** 5s");
   });
 
   it("shows the newest notes and elides the rest", () => {
     const notes = Array.from({ length: 40 }, (_, index) => `Note ${index}`);
-    const paragraphs = renderActivity(notes, 0).split("\n\n");
+    const paragraphs = renderActivity(say, notes, 0).split("\n\n");
     expect(paragraphs[1]).toBe("...");
     expect(paragraphs.at(-1)).toBe("Note 39");
   });
 
   it("stays inside a Discord message however much was said", () => {
     const notes = Array.from({ length: 40 }, (_, index) => `${index} `.repeat(120));
-    expect(renderActivity(notes, 600_000).length).toBeLessThan(2000);
+    expect(renderActivity(say, notes, 600_000).length).toBeLessThan(2000);
   });
 
   it("keeps a long remark whole while the budget has room for it", () => {
     const long = "word ".repeat(150).trim();
-    const rendered = renderActivity([long], 1000);
+    const rendered = renderActivity(say, [long], 1000);
     expect(rendered).toContain(long);
     expect(rendered).not.toContain("...");
   });
 
   it("drops an older remark rather than cutting it in half", () => {
     const big = "a".repeat(1000);
-    const rendered = renderActivity([big, big], 1000);
+    const rendered = renderActivity(say, [big, big], 1000);
     const paragraphs = rendered.split("\n\n");
     expect(paragraphs[1]).toBe("...");
     expect(paragraphs[2]).toBe(big);
@@ -1069,7 +1071,7 @@ describe("renderActivity", () => {
 
   it("cuts only when one remark alone is larger than the whole budget", () => {
     const huge = "b".repeat(4000);
-    const rendered = renderActivity([huge], 1000);
+    const rendered = renderActivity(say, [huge], 1000);
     expect(rendered.length).toBeLessThan(2000);
     expect(rendered.endsWith("...")).toBe(true);
   });
@@ -1078,12 +1080,12 @@ describe("renderActivity", () => {
     const sentence =
       "Prices are identical to last week, but something else moved: 25 articles now have a " +
       "takeawayPrice that differs from price, where last week only three did.";
-    expect(renderActivity([sentence], 1000)).toContain("where last week only three did.");
+    expect(renderActivity(say, [sentence], 1000)).toContain("where last week only three did.");
   });
 
   it("counts elapsed time in minutes past a minute", () => {
-    expect(formatElapsed(72_000)).toBe("1m 12s");
-    expect(formatElapsed(9_000)).toBe("9s");
+    expect(formatElapsed(say, 72_000)).toBe("1m 12s");
+    expect(formatElapsed(say, 9_000)).toBe("9s");
   });
 
   it("slows its edits as a turn drags on", () => {
@@ -1097,7 +1099,7 @@ describe("preflight", () => {
   const base = record({ sessionId: "s1", name: "Deploy Scripts", cwd: "/p" });
 
   it("allows a session nothing is holding", () => {
-    expect(preflight(base).kind).toBe("ok");
+    expect(preflight(say, base).kind).toBe("ok");
   });
 
   it("offers takeover for a background holder", () => {
@@ -1105,7 +1107,7 @@ describe("preflight", () => {
       ...base,
       live: { pid: 1, cwd: "/p", kind: "background" as const, sessionId: "s1", id: "abc123" },
     };
-    const result = preflight(held);
+    const result = preflight(say, held);
     expect(result.kind).toBe("takeover-available");
     expect(result.kind === "takeover-available" && result.shortId).toBe("abc123");
   });
@@ -1115,7 +1117,7 @@ describe("preflight", () => {
       ...base,
       live: { pid: 42, cwd: "/home/u/projects/deploy-scripts", kind: "interactive" as const, sessionId: "s1" },
     };
-    const result = preflight(held);
+    const result = preflight(say, held);
     expect(result.kind).toBe("refused");
     expect(result.kind === "refused" && result.message).toContain("/home/u/projects/deploy-scripts");
   });
@@ -1140,15 +1142,16 @@ describe("attachment screening", () => {
 
   it("refuses a file too large to be worth saving", () => {
     const { refused } = screenAttachments([file("dump.bin", MAX_ATTACHMENT_BYTES + 1)]);
-    expect(refused[0]?.reason).toContain("over 25 MB");
+    expect(refused[0]?.reason).toBe("too-large");
+    expect(describeRefused(say, refused)).toContain("over 25 MB");
   });
 
   it("says which file was refused and why, and stays quiet when none was", () => {
     const { refused } = screenAttachments([file("setup.exe")]);
-    const notice = describeRefused(refused);
+    const notice = describeRefused(say, refused);
     expect(notice).toContain("setup.exe");
     expect(notice).toContain("executable format");
-    expect(describeRefused([])).toBeNull();
+    expect(describeRefused(say, [])).toBeNull();
   });
 });
 
@@ -1157,8 +1160,8 @@ describe("ApprovalPrompts", () => {
 
   it("allows the tool once an owner approves", async () => {
     const prompts = new ApprovalPrompts();
-    const decision = prompts.ask("turn-1", askingSink((actions) => {
-      prompts.decide(actionId(actions, "approve"), OWNER, "approve");
+    const decision = prompts.ask(say, "turn-1", askingSink((actions) => {
+      prompts.decide(say, actionId(actions, "approve"), OWNER, "approve");
     }), [OWNER], "Bash", { command: "ls" });
 
     expect(await decision).toEqual({ allow: true });
@@ -1166,8 +1169,8 @@ describe("ApprovalPrompts", () => {
 
   it("denies, and says so where the model can read it", async () => {
     const prompts = new ApprovalPrompts();
-    const decision = await prompts.ask("turn-1", askingSink((actions) => {
-      prompts.decide(actionId(actions, "deny"), OWNER, "deny");
+    const decision = await prompts.ask(say, "turn-1", askingSink((actions) => {
+      prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
     }), [OWNER], "Bash", { command: "rm -rf /" });
 
     expect(decision.allow).toBe(false);
@@ -1178,9 +1181,9 @@ describe("ApprovalPrompts", () => {
   it("refuses a decision from anyone but an owner", async () => {
     const prompts = new ApprovalPrompts();
     let refusal = "";
-    const decision = prompts.ask("turn-1", askingSink((actions) => {
-      refusal = prompts.decide(actionId(actions, "approve"), "someone-else", "approve");
-      prompts.decide(actionId(actions, "deny"), OWNER, "deny");
+    const decision = prompts.ask(say, "turn-1", askingSink((actions) => {
+      refusal = prompts.decide(say, actionId(actions, "approve"), "someone-else", "approve");
+      prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
     }), [OWNER], "Bash", { command: "ls" });
 
     await decision;
@@ -1192,11 +1195,11 @@ describe("ApprovalPrompts", () => {
     let asks = 0;
     const sink = askingSink((actions) => {
       asks += 1;
-      prompts.decide(actionId(actions, "approve-all"), OWNER, "approve-all");
+      prompts.decide(say, actionId(actions, "approve-all"), OWNER, "approve-all");
     });
 
-    expect(await prompts.ask("turn-1", sink, [OWNER], "Bash", { command: "ls" })).toEqual({ allow: true });
-    expect(await prompts.ask("turn-1", sink, [OWNER], "Edit", { file_path: "a.ts" })).toEqual({ allow: true });
+    expect(await prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "ls" })).toEqual({ allow: true });
+    expect(await prompts.ask(say, "turn-1", sink, [OWNER], "Edit", { file_path: "a.ts" })).toEqual({ allow: true });
     expect(asks).toBe(1);
   });
 
@@ -1206,23 +1209,23 @@ describe("ApprovalPrompts", () => {
     let asks = 0;
     const sink = askingSink((actions) => {
       asks += 1;
-      prompts.decide(actionId(actions, "approve-all"), OWNER, "approve-all");
+      prompts.decide(say, actionId(actions, "approve-all"), OWNER, "approve-all");
     });
 
-    await prompts.ask("turn-1", sink, [OWNER], "Bash", { command: "ls" });
+    await prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "ls" });
     prompts.finish("turn-1");
-    await prompts.ask("turn-2", sink, [OWNER], "Bash", { command: "ls" });
+    await prompts.ask(say, "turn-2", sink, [OWNER], "Bash", { command: "ls" });
     expect(asks).toBe(2);
   });
 
   it("denies when the conversation has no way to show buttons", async () => {
     const prompts = new ApprovalPrompts();
-    const decision = await prompts.ask("turn-1", quietSink(), [OWNER], "Bash", { command: "ls" });
+    const decision = await prompts.ask(say, "turn-1", quietSink(), [OWNER], "Bash", { command: "ls" });
     expect(decision.allow).toBe(false);
   });
 
   it("names the tool and shows what it would run", () => {
-    const text = describeRequest("Bash", { command: "git push --force" });
+    const text = describeRequest(say, "Bash", { command: "git push --force" });
     expect(text).toContain("Bash");
     expect(text).toContain("git push --force");
   });
@@ -1254,12 +1257,12 @@ describe("QuestionPrompts", () => {
   it("turns picks into an answer per question, keyed by the question text", async () => {
     const prompts = new QuestionPrompts();
     let shown: MenuAsk | undefined;
-    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
       shown = ask;
       const askId = askIdOf(ask);
-      prompts.pick(askId, 0, ["1"]);
-      prompts.pick(askId, 1, ["0", "1"]);
-      expect(prompts.submit(askId)).toBeUndefined();
+      prompts.pick(say, askId, 0, ["1"]);
+      prompts.pick(say, askId, 1, ["0", "1"]);
+      expect(prompts.submit(say, askId)).toBeUndefined();
     }), [library, features]);
 
     expect(outcome).toEqual({
@@ -1271,11 +1274,11 @@ describe("QuestionPrompts", () => {
 
   it("takes an answer in the asker's own words alongside the picks", async () => {
     const prompts = new QuestionPrompts();
-    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
       const askId = askIdOf(ask);
-      prompts.pick(askId, 0, ["0", OTHER_VALUE]);
-      prompts.answerFreeText(askId, 0, "  Retries with jitter ");
-      prompts.submit(askId);
+      prompts.pick(say, askId, 0, ["0", OTHER_VALUE]);
+      prompts.answerFreeText(say, askId, 0, "  Retries with jitter ");
+      prompts.submit(say, askId);
     }), [features]);
 
     expect(outcome.answered && outcome.answers[features.question]).toBe("Caching, Retries with jitter");
@@ -1284,12 +1287,12 @@ describe("QuestionPrompts", () => {
   it("refuses to send while a question has nothing picked", async () => {
     const prompts = new QuestionPrompts();
     let complaint: string | undefined;
-    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
       const askId = askIdOf(ask);
-      prompts.pick(askId, 0, ["0"]);
-      complaint = prompts.submit(askId);
-      prompts.pick(askId, 1, ["2"]);
-      prompts.submit(askId);
+      prompts.pick(say, askId, 0, ["0"]);
+      complaint = prompts.submit(say, askId);
+      prompts.pick(say, askId, 1, ["2"]);
+      prompts.submit(say, askId);
     }), [library, features]);
 
     expect(complaint).toContain("Question 2");
@@ -1299,41 +1302,41 @@ describe("QuestionPrompts", () => {
   it("lets the model continue without answers when skipped, and says so", async () => {
     const prompts = new QuestionPrompts();
     let shown: MenuAsk | undefined;
-    const outcome = await prompts.ask("turn-1", menuAskingSink((ask) => {
+    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
       shown = ask;
-      prompts.skip(actionId(ask.actions, "question:skip"));
+      prompts.skip(say, actionId(ask.actions, "question:skip"));
     }), [library]);
 
     expect(outcome.answered).toBe(false);
-    expect(outcome.answered === false && outcome.reason).toContain("Skipped");
+    expect(outcome.answered === false && outcome.reason).toContain("skipped");
     expect(shown?.closed[0]).toContain("Skipped");
   });
 
   it("settles what a turn asked when that turn ends", async () => {
     const prompts = new QuestionPrompts();
-    const outcome = prompts.ask("turn-1", menuAskingSink(() => prompts.finish("turn-1")), [library]);
+    const outcome = prompts.ask(say, "turn-1", menuAskingSink(() => prompts.finish("turn-1")), [library]);
     expect(await outcome).toEqual({ answered: false, reason: expect.stringContaining("turn ended") });
   });
 
   it("tells a late press that the questions are gone", async () => {
     const prompts = new QuestionPrompts();
     let askId = "";
-    await prompts.ask("turn-1", menuAskingSink((ask) => {
+    await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
       askId = askIdOf(ask);
-      prompts.skip(askId);
+      prompts.skip(say, askId);
     }), [library]);
 
-    expect(prompts.submit(askId)).toContain("already answered");
-    expect(prompts.pick(askId, 0, ["0"])).toContain("already answered");
+    expect(prompts.submit(say, askId)).toContain("already answered");
+    expect(prompts.pick(say, askId, 0, ["0"])).toContain("already answered");
   });
 
   it("continues without an answer when the conversation cannot show menus", async () => {
-    const outcome = await new QuestionPrompts().ask("turn-1", quietSink(), [library]);
+    const outcome = await new QuestionPrompts().ask(say, "turn-1", quietSink(), [library]);
     expect(outcome.answered).toBe(false);
   });
 
   it("draws one menu per question with an entry for an answer of one's own", () => {
-    const menus = menusFor("ask-1", [library, features]);
+    const menus = menusFor(say, "ask-1", [library, features]);
     expect(menus.map((menu) => menu.id)).toEqual([questionPickId("ask-1", 0), questionPickId("ask-1", 1)]);
     expect(menus[0]?.multiple).toBe(false);
     expect(menus[1]?.multiple).toBe(true);
@@ -1346,7 +1349,7 @@ describe("QuestionPrompts", () => {
       ...library,
       options: [{ label: "Day.js", description: "Small", preview: "dayjs().format()" }],
     };
-    const text = describeQuestions([withPreview, features]);
+    const text = describeQuestions(say, [withPreview, features]);
     expect(text).toContain("Claude has 2 questions.");
     expect(text).toContain("**1. Library**");
     expect(text).toContain("**2. Features**");
@@ -1597,10 +1600,10 @@ describe("stopping one turn or all of them", () => {
   });
 
   it("says what runs next when only the turn in flight was stopped", () => {
-    expect(describeStopTurn({ stopped: true, queued: 0 })).toContain("Nothing was queued");
-    expect(describeStopTurn({ stopped: true, queued: 1 })).toContain("1 message queued behind it runs next");
-    expect(describeStopTurn({ stopped: true, queued: 3 })).toContain("3 messages queued behind it run next");
-    expect(describeStopTurn({ stopped: false, queued: 0 })).toBe("Nothing is running here.");
+    expect(describeStopTurn(say, { stopped: true, queued: 0 })).toContain("Nothing was queued");
+    expect(describeStopTurn(say, { stopped: true, queued: 1 })).toContain("1 message queued behind it runs next");
+    expect(describeStopTurn(say, { stopped: true, queued: 3 })).toContain("3 messages queued behind it run next");
+    expect(describeStopTurn(say, { stopped: false, queued: 0 })).toBe("Nothing is running here.");
   });
 
   // The fixed set: standard Unicode, one per state, and nothing else in the bridge uses emoji.
@@ -1612,7 +1615,7 @@ describe("stopping one turn or all of them", () => {
 
 describe("describeToolUse", () => {
   it("shows an edit as a diff block with the removed and added lines under the file's path", () => {
-    const shown = describeToolUse("Edit", {
+    const shown = describeToolUse(say, "Edit", {
       file_path: "/srv/app/src/thing.ts",
       old_string: "const alpha = 1;\nconst beta = 2;",
       new_string: "const alpha = 10;",
@@ -1623,31 +1626,31 @@ describe("describeToolUse", () => {
   // Discord read the underscores in a plain path as italics that ran into the fence and broke it.
   it("keeps a path with underscores out of Markdown, whichever tool drew it", () => {
     const input = { file_path: "/srv/app/memory/project_backup_notes.md", old_string: "a", new_string: "b", content: "c" };
-    expect(describeToolUse("Edit", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md`");
-    expect(describeToolUse("MultiEdit", { ...input, edits: [{ old_string: "a", new_string: "b" }] })?.split("\n")[0]).toBe(
+    expect(describeToolUse(say, "Edit", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md`");
+    expect(describeToolUse(say, "MultiEdit", { ...input, edits: [{ old_string: "a", new_string: "b" }] })?.split("\n")[0]).toBe(
       "`/srv/app/memory/project_backup_notes.md`",
     );
-    expect(describeToolUse("Write", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md` (1 line)");
+    expect(describeToolUse(say, "Write", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md` (1 line)");
   });
 
   it("shows a written file in a block tagged with its language, capped, saying how much is left", () => {
-    const shown = describeToolUse("Write", { file_path: "/srv/app/big.py", content: Array(40).fill("x = 1").join("\n") });
+    const shown = describeToolUse(say, "Write", { file_path: "/srv/app/big.py", content: Array(40).fill("x = 1").join("\n") });
     expect(shown).toContain("(40 lines)");
     expect(shown).toContain("```python\n");
     expect(shown?.split("\n").filter((line) => line === "x = 1")).toHaveLength(24);
     expect(shown).toContain("... 16 more lines");
-    expect(describeToolUse("Write", { file_path: "/srv/app/notes.unknownext", content: "a" })).toContain("```\na\n```");
+    expect(describeToolUse(say, "Write", { file_path: "/srv/app/notes.unknownext", content: "a" })).toContain("```\na\n```");
   });
 
   it("shows a command as a prompt line in a shell block and keeps the rest of the tools counted only", () => {
-    expect(describeToolUse("Bash", { command: "npm   test\n  --run" })).toBe("```bash\n$ npm test --run\n```");
-    expect(describeToolUse("PowerShell", { command: "Get-Date" })).toBe("```powershell\n$ Get-Date\n```");
-    expect(describeToolUse("Read", { file_path: "/srv/app/x.ts" })).toBeNull();
-    expect(describeToolUse("Grep", { pattern: "x" })).toBeNull();
+    expect(describeToolUse(say, "Bash", { command: "npm   test\n  --run" })).toBe("```bash\n$ npm test --run\n```");
+    expect(describeToolUse(say, "PowerShell", { command: "Get-Date" })).toBe("```powershell\n$ Get-Date\n```");
+    expect(describeToolUse(say, "Read", { file_path: "/srv/app/x.ts" })).toBeNull();
+    expect(describeToolUse(say, "Grep", { pattern: "x" })).toBeNull();
   });
 
   it("never lets a fence inside the content close the block early", () => {
-    const shown = describeToolUse("Edit", { file_path: "/srv/app/README.md", old_string: "```js", new_string: "```ts" });
+    const shown = describeToolUse(say, "Edit", { file_path: "/srv/app/README.md", old_string: "```js", new_string: "```ts" });
     expect(shown?.match(/```/g)).toHaveLength(2);
   });
 });
@@ -1703,14 +1706,14 @@ describe("stray markup never reaches past its own text", () => {
 
   it("seals each remark in the trail on its own, and still recognises the echoed answer", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("The chip `[Guide \\`intro\\`](#top)` loses its underline.");
     status.note(block);
     await status.settle();
     expect(sink.messages[0]).toContain(`\\\` loses its underline.\n\n${block}`);
 
-    const echo = new StatusMessage(recordingSink(), () => 0);
+    const echo = new StatusMessage(say, recordingSink(), () => 0);
     echo.note("Renamed old_name only.");
     echo.dropEcho("Renamed old_name only.");
     expect(echo.hasNotes()).toBe(false);
@@ -1718,7 +1721,7 @@ describe("stray markup never reaches past its own text", () => {
 
   it("seals each exchange /sync posts, since they share a message", () => {
     const at = new Date("2026-09-13T14:32:00Z");
-    const out = formatExchanges([
+    const out = formatExchanges(say, [
       { at, role: "user", text: "why is `this open" },
       { at, role: "assistant", text: block },
     ]);
@@ -1756,7 +1759,7 @@ describe("agents in a turn", () => {
     expect(parentToolUseId({ type: "assistant", message: { content: [] } })).toBeNull();
   });
 
-  const board = (sink: MessageSink, clock = { at: 0 }) => new AgentBoard(sink, "Agents: tidy the ledger", () => clock.at, 0);
+  const board = (sink: MessageSink, clock = { at: 0 }) => new AgentBoard(say, sink, "Agents: tidy the ledger", () => clock.at, 0);
   const feed = (target: AgentBoard, ...events: ClaudeEvent[]) => {
     for (const event of events) target.observe(agentEvent(event)!);
   };
@@ -1818,10 +1821,10 @@ describe("agents in a turn", () => {
 
   // Each agent can be on something different, so one agent's task would misname the rest.
   it("names the side room after what was asked of the turn, within what a thread name may hold", () => {
-    expect(agentsTitle("Rework the   ledger\nand its tests")).toBe("Agents: Rework the ledger and its tests");
-    expect(agentsTitle("/code-review high")).toBe("Agents: /code-review high");
-    expect(agentsTitle("   ")).toBe("Agents");
-    expect(agentsTitle("y".repeat(300)).length).toBeLessThanOrEqual(100);
+    expect(agentsTitle(say, "Rework the   ledger\nand its tests")).toBe("Agents: Rework the ledger and its tests");
+    expect(agentsTitle(say, "/code-review high")).toBe("Agents: /code-review high");
+    expect(agentsTitle(say, "   ")).toBe("Agents");
+    expect(agentsTitle(say, "y".repeat(300)).length).toBeLessThanOrEqual(100);
   });
 
   it("starts a second roster message past ten agents, so none outgrows a message", async () => {
@@ -1869,17 +1872,17 @@ describe("agents in a turn", () => {
     expect(agents.runningRemote()).toEqual([]);
     expect(parseCustomId(stopAgentsActionId("s1"))).toEqual({ kind: "turn-stop-agents", sessionId: "s1" });
     expect(parseCustomId(sendNowActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1" });
-    expect(describeSendNow("nothing-waiting")).toContain("already taken");
-    expect(describeSendNow("sent")).toContain("cut short so it could read your message");
-    expect(describeStopAgents(0)).toContain("nothing to stop");
-    expect(describeStopAgents(2)).toContain("Asked 2 tasks to stop");
+    expect(describeSendNow(say, "nothing-waiting")).toContain("already taken");
+    expect(describeSendNow(say, "sent")).toContain("cut short so it could read your message");
+    expect(describeStopAgents(say, 0)).toContain("nothing to stop");
+    expect(describeStopAgents(say, 2)).toContain("Asked 2 tasks to stop");
   });
 
   // Two agents each left a sleep running and were reported done; nothing looked stoppable, and the roster said done.
   it("treats an agent that left a command running as waiting, and reaches that command when stopping", async () => {
     const sink = recordingSink();
     const stopped: string[] = [];
-    const agents = new AgentBoard(sink, "Agents: tidy the ledger", () => 0, 0, (taskId) => void stopped.push(taskId));
+    const agents = new AgentBoard(say, sink, "Agents: tidy the ledger", () => 0, 0, (taskId) => void stopped.push(taskId));
     const shell = { type: "system", subtype: "task_started", task_id: "b1", tool_use_id: "call1", description: "sleep", task_type: "local_bash", owned_by_subagent: true } as ClaudeEvent;
     expect(agentEvent(shell)).toEqual({ kind: "background", taskId: "b1", toolUseId: "call1" });
 
@@ -1925,7 +1928,7 @@ describe("agents in a turn", () => {
 
   it("carries the tally under the trail's heading while it runs and when it is done", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0, () => [], undefined, undefined, () => "**Agents** · 1 done");
+    const status = new StatusMessage(say, sink, () => 0, () => [], undefined, undefined, () => "**Agents** · 1 done");
     await status.start();
     expect(sink.messages[0]).toBe("⏳ **Working** 0s\n\n**Agents** · 1 done");
     status.note("Looking at it.");
@@ -1989,14 +1992,14 @@ describe("/run finds a conversation's commands", () => {
   });
 
   it("refuses what could not run, saying why, and lets the rest through", () => {
-    expect(refusal("ledger:audit", "/ledger:audit 2026", known, ["doctor"])).toBeNull();
-    expect(refusal("review", "/review", known, ["doctor"])).toBeNull();
-    expect(refusal("nope", "/nope", known, ["doctor"])).toContain("not a command this conversation has");
-    expect(refusal("nope", "/nope", [], ["doctor"])).toBeNull();
-    expect(refusal("doctor", "/doctor", known, ["doctor"])).toContain("interactive terminal");
-    expect(refusal("model", "/model opus", known, ["doctor"])).toContain("bot's own");
-    expect(refusal("rm -rf", "/rm -rf", known, ["doctor"])).toContain("not a command name");
-    expect(refusal("-", "/-", known, ["doctor"])).toContain("not known yet");
+    expect(refusal(say, "ledger:audit", "/ledger:audit 2026", known, ["doctor"])).toBeNull();
+    expect(refusal(say, "review", "/review", known, ["doctor"])).toBeNull();
+    expect(refusal(say, "nope", "/nope", known, ["doctor"])).toContain("not a command this conversation has");
+    expect(refusal(say, "nope", "/nope", [], ["doctor"])).toBeNull();
+    expect(refusal(say, "doctor", "/doctor", known, ["doctor"])).toContain("interactive terminal");
+    expect(refusal(say, "model", "/model opus", known, ["doctor"])).toContain("bot's own");
+    expect(refusal(say, "rm -rf", "/rm -rf", known, ["doctor"])).toContain("not a command name");
+    expect(refusal(say, "-", "/-", known, ["doctor"])).toContain("not known yet");
   });
 
   // Someone used to the terminal types the command; there it asks before starting, here it would not.
@@ -2005,11 +2008,11 @@ describe("/run finds a conversation's commands", () => {
       expect(classifyPrompt(typed, []).kind).toBe("asks-first");
     }
     const ultra = classifyPrompt("/code-review ultra --fix", []);
-    expect(ultra.kind === "asks-first" && ultra.message).toContain("`/run command:code-review args:ultra --fix`");
-    expect(ultra.kind === "asks-first" && ultra.message).toContain("billed");
-    expect(ultra.kind === "asks-first" && ultra.message).toContain("waits for you to press Run");
+    expect(ultra.kind === "asks-first" && describeNotRun(say, ultra)).toContain("`/run command:code-review args:ultra --fix`");
+    expect(ultra.kind === "asks-first" && describeNotRun(say, ultra)).toContain("billed");
+    expect(ultra.kind === "asks-first" && describeNotRun(say, ultra)).toContain("waits for you to press Run");
     const bare = classifyPrompt("/ultrareview", []);
-    expect(bare.kind === "asks-first" && bare.message).toContain("`/run command:ultrareview`");
+    expect(bare.kind === "asks-first" && describeNotRun(say, bare)).toContain("`/run command:ultrareview`");
 
     for (const typed of ["/code-review", "/code-review high --fix", "/code-review ultrawide", "/review 12"]) {
       expect(classifyPrompt(typed, []).kind).toBe("passthrough");
@@ -2017,18 +2020,18 @@ describe("/run finds a conversation's commands", () => {
   });
 
   it("lets /run take what a typed message may not, since /run is where it gets asked", () => {
-    expect(refusal("code-review", "/code-review ultra", known, ["doctor"])).toBeNull();
-    expect(refusal("ultrareview", "/ultrareview", [], ["doctor"])).toBeNull();
+    expect(refusal(say, "code-review", "/code-review ultra", known, ["doctor"])).toBeNull();
+    expect(refusal(say, "ultrareview", "/ultrareview", [], ["doctor"])).toBeNull();
   });
 
   it("shows the exact line, what it does and what it takes before anything runs, with the cost where one is known", () => {
-    expect(describeRun("/ledger:code-review 12", known[2], null)).toBe(
+    expect(describeRun(say, "/ledger:code-review 12", known[2], null)).toBe(
       "Run this in the conversation?\n```\n/ledger:code-review 12\n```\n" +
         "Review a pull request against the ledger rules\nTakes: `[pr]`\nNothing starts until you press Run.",
     );
-    const billed = describeRun("/code-review ultra", known[1], "It starts a cloud review, which is billed.");
+    const billed = describeRun(say, "/code-review ultra", known[1], "It starts a cloud review, which is billed.");
     expect(billed).toContain("**It starts a cloud review, which is billed.**");
-    expect(describeRun("/unlisted", undefined, null)).toBe(
+    expect(describeRun(say, "/unlisted", undefined, null)).toBe(
       "Run this in the conversation?\n```\n/unlisted\n```\nNothing starts until you press Run.",
     );
   });
@@ -2067,7 +2070,7 @@ describe("/run finds a conversation's commands", () => {
 describe("StatusMessage formatting", () => {
   it("keeps a remark's paragraphs and code blocks instead of flattening them", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("First point.\n\n- one\n- two\n\n```diff\n- old\n+ new\n```");
     await status.settle();
@@ -2077,7 +2080,7 @@ describe("StatusMessage formatting", () => {
   // A report the model writes mid-turn is shown whole, continued across messages, never cut with an ellipsis.
   it("continues a remark longer than a message across messages without cutting it", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     const paragraphs = Array.from({ length: 30 }, (_, index) => `Paragraph ${index + 1}: ${"y".repeat(150)}`);
     status.note(paragraphs.join("\n\n"));
@@ -2094,7 +2097,7 @@ describe("StatusMessage formatting", () => {
     const table = "| Kind | Tokens |\n|---|---|\n| System | 2.5k |\n| Tools | 8k |\n| Files | 5k |";
     const answer = `Context usage\n\n${table}\n\nMemory file: ${homePath}\n\n${"A long paragraph of remark. ".repeat(120)}`;
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("Looking it up.");
     status.note(answer);
@@ -2106,7 +2109,7 @@ describe("StatusMessage formatting", () => {
 
   it("draws a table in a remark the way it draws one in an answer", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("| Kind | Tokens | Share |\n|---|---|---|\n| System | 2.5k | 1% |");
     await status.settle();
@@ -2116,7 +2119,7 @@ describe("StatusMessage formatting", () => {
 
   it("still drops the echoed answer when the remark kept its line breaks", () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     status.note("Two findings.\n\n- one\n- two");
     status.dropEcho("Two findings.\n\n- one\n- two");
     expect(status.hasNotes()).toBe(false);
@@ -2124,7 +2127,7 @@ describe("StatusMessage formatting", () => {
 
   it("puts the answer under the heading when the current message has no remarks of its own", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.note("Earlier remark.");
     sink.othersBelow = true;
@@ -2389,7 +2392,7 @@ describe("ContextTracker", () => {
     tracker.observe(usage(150_000));
     const warning = tracker.observe(usage(185_000));
     expect(warning?.level).toBe("critical");
-    expect(warning?.message).toContain("/compact");
+    expect(say("context.critical", { percent: warning!.percent })).toContain("/compact");
   });
 
   it("rearms after a compaction", () => {
@@ -2428,13 +2431,13 @@ describe("classifyPrompt", () => {
   it("rejects a terminal-only command with an explanation", () => {
     const result = classifyPrompt("/doctor", terminalOnly);
     expect(result.kind).toBe("terminal-only");
-    expect(result.kind === "terminal-only" && result.message).toContain("doctor");
+    expect(result.kind === "terminal-only" && describeNotRun(say, result)).toContain("doctor");
   });
 
   it("refuses to pass through /model, which would silently revert", () => {
     const result = classifyPrompt("/model opus", terminalOnly);
     expect(result.kind).toBe("bridge-owned");
-    expect(result.kind === "bridge-owned" && result.message).toContain("/model");
+    expect(result.kind === "bridge-owned" && describeNotRun(say, result)).toContain("/model");
   });
 
   it("refuses to pass through /effort for the same reason", () => {
@@ -2448,7 +2451,7 @@ describe("classifyPrompt", () => {
 
 describe("formatSessionList", () => {
   it("marks a live session", () => {
-    const output = formatSessionList([
+    const output = formatSessionList(say, [
       record({
         sessionId: "a",
         name: "Deploy Scripts",
@@ -2461,7 +2464,7 @@ describe("formatSessionList", () => {
   });
 
   it("says so when there is nothing to list", () => {
-    expect(formatSessionList([])).toMatch(/no conversations/i);
+    expect(formatSessionList(say, [])).toMatch(/no conversations/i);
   });
 });
 
@@ -2492,8 +2495,9 @@ describe("workingDirFor", () => {
     expect(dir).toBe(path.resolve("/srv/other"));
   });
 
-  it("refuses an operator with no workspace root configured", () => {
-    expect(() => workingDirFor(bridge(), "operator", "u1")).toThrow(/WORKSPACES_ROOT/);
+  it("has nowhere to put an operator with no workspace root configured", () => {
+    expect(workingDirFor(bridge(), "operator", "u1")).toBeNull();
+    expect(say("create.ownersOnlyHere")).toContain("WORKSPACES_ROOT");
   });
 });
 
@@ -2600,21 +2604,21 @@ describe("pluginSelectOptions", () => {
   ]);
 
   it("shows the enabled state in the description", () => {
-    const options = pluginSelectOptions(parsePluginList(raw));
+    const options = pluginSelectOptions(say, parsePluginList(raw));
     expect(options[0]!.description).toMatch(/enabled/);
     expect(options[1]!.description).toMatch(/disabled/);
   });
 
   it("keeps labels within the Discord 100 character limit", () => {
     const long = JSON.stringify([{ id: "x".repeat(200), version: "1", scope: "user", enabled: true, installPath: "/z" }]);
-    expect(pluginSelectOptions(parsePluginList(long))[0]!.label.length).toBeLessThanOrEqual(100);
+    expect(pluginSelectOptions(say, parsePluginList(long))[0]!.label.length).toBeLessThanOrEqual(100);
   });
 
   it("caps at the Discord 25 option limit", () => {
     const many = JSON.stringify(
       Array.from({ length: 40 }, (_, index) => ({ id: `p${index}`, version: "1", scope: "user", enabled: true, installPath: "/z" })),
     );
-    expect(pluginSelectOptions(parsePluginList(many))).toHaveLength(25);
+    expect(pluginSelectOptions(say, parsePluginList(many))).toHaveLength(25);
   });
 
   it("returns an empty list for unparseable output", () => {
@@ -2729,20 +2733,20 @@ describe("transcript view", () => {
   const stamp = (at: Date) => `<t:${Math.floor(at.getTime() / 1000)}:t>`;
 
   it("labels the source, and the time as a Discord timestamp so it shows in the reader's zone", () => {
-    const out = formatExchanges(exchanges);
+    const out = formatExchanges(say, exchanges);
     expect(out).toContain(`**You** · terminal · ${stamp(exchanges[0]!.at)}`);
     expect(out).toContain(`**Claude** · terminal · ${stamp(exchanges[1]!.at)}`);
   });
 
   it("uses a plain clock where Discord will not render one", () => {
-    const out = formatExchanges(exchanges, "plain");
+    const out = formatExchanges(say, exchanges, "plain");
     expect(out).toContain("**You** · terminal · 14:32 UTC");
     expect(out).not.toContain("<t:");
   });
 
   it("truncates a very long exchange", () => {
     const long = [{ at: new Date("2026-09-13T14:32:00Z"), role: "assistant" as const, text: "x".repeat(5000) }];
-    expect(formatExchanges(long).length).toBeLessThan(1400);
+    expect(formatExchanges(say, long).length).toBeLessThan(1400);
   });
 
   // Catching up means where you left off; fifty-five messages inline is a wall, not a glance.
@@ -2752,25 +2756,25 @@ describe("transcript view", () => {
       role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
       text: `message ${index}`,
     }));
-    expect(latestThatFit(many, 1880).map((exchange) => exchange.text)).toEqual([
+    expect(latestThatFit(say, many, 1880).map((exchange) => exchange.text)).toEqual([
       "message 6", "message 7", "message 8", "message 9",
     ]);
 
     const long = many.map((exchange) => ({ ...exchange, text: "y".repeat(1200) }));
-    const fitted = latestThatFit(long, 1880);
+    const fitted = latestThatFit(say, long, 1880);
     expect(fitted).toEqual([long[9]]);
-    expect(latestThatFit(long.slice(0, 1), 10)).toEqual([long[0]]);
+    expect(latestThatFit(say, long.slice(0, 1), 10)).toEqual([long[0]]);
   });
 
   it("describes drift with a count and the last time", () => {
-    const notice = describeDrift(exchanges);
+    const notice = describeDrift(say, exchanges);
     expect(notice).toContain("2 messages");
     expect(notice).toContain(stamp(exchanges[1]!.at));
     expect(notice).toContain("/sync");
   });
 
   it("uses the singular for one message", () => {
-    expect(describeDrift(exchanges.slice(0, 1))).toContain("1 message happened");
+    expect(describeDrift(say, exchanges.slice(0, 1))).toContain("1 message happened");
   });
 });
 
@@ -3054,18 +3058,18 @@ describe("session choices", () => {
 
   it("renders ages at a readable scale", () => {
     const now = new Date("2026-09-14T12:00:00Z");
-    expect(humanAge(new Date("2026-09-14T11:45:00Z"), now)).toBe("15m ago");
-    expect(humanAge(new Date("2026-09-14T09:00:00Z"), now)).toBe("3h ago");
-    expect(humanAge(new Date("2026-09-11T12:00:00Z"), now)).toBe("3d ago");
-    expect(humanAge(null, now)).toBe("unknown");
+    expect(humanAge(say, new Date("2026-09-14T11:45:00Z"), now)).toBe("15m ago");
+    expect(humanAge(say, new Date("2026-09-14T09:00:00Z"), now)).toBe("3h ago");
+    expect(humanAge(say, new Date("2026-09-11T12:00:00Z"), now)).toBe("3d ago");
+    expect(humanAge(say, null, now)).toBe("unknown");
   });
 
   it("submits the session id so duplicate names stay distinguishable", () => {
     const large = record({ sessionId: "id-a", name: "project-notes", sizeBytes: 48 * 1024 ** 2 });
     const small = record({ sessionId: "id-b", name: "project-notes", sizeBytes: 1024 });
-    expect(sessionChoice(large).value).toBe("id-a");
-    expect(sessionChoice(small).value).toBe("id-b");
-    expect(sessionChoice(large).name).not.toBe(sessionChoice(small).name);
+    expect(sessionChoice(say, large).value).toBe("id-a");
+    expect(sessionChoice(say, small).value).toBe("id-b");
+    expect(sessionChoice(say, large).name).not.toBe(sessionChoice(say, small).name);
   });
 
   // Every untitled conversation in a folder takes that folder's name, so size and age alone
@@ -3073,19 +3077,19 @@ describe("session choices", () => {
   it("tags an untitled conversation with its id", () => {
     const one = record({ sessionId: "4e5b4e8e-ec44-4942", name: null, cwd: "/p/claudetalk", sizeBytes: 1024 });
     const two = record({ sessionId: "89e4c5e6-ccfd-4880", name: null, cwd: "/p/claudetalk", sizeBytes: 1024 });
-    expect(sessionChoice(one).name).toContain("4e5b4e8e");
-    expect(sessionChoice(two).name).toContain("89e4c5e6");
-    expect(sessionChoice(one).name).not.toBe(sessionChoice(two).name);
+    expect(sessionChoice(say, one).name).toContain("4e5b4e8e");
+    expect(sessionChoice(say, two).name).toContain("89e4c5e6");
+    expect(sessionChoice(say, one).name).not.toBe(sessionChoice(say, two).name);
   });
 
   it("leaves a titled conversation's label alone", () => {
     const named = record({ sessionId: "4e5b4e8e-ec44-4942", name: "Deploy Scripts", sizeBytes: 1024 });
-    expect(sessionChoice(named).name).not.toContain("4e5b4e8e");
-    expect(sessionChoice(named).name).toBe("Deploy Scripts · 1 KB · unknown");
+    expect(sessionChoice(say, named).name).not.toContain("4e5b4e8e");
+    expect(sessionChoice(say, named).name).toBe("Deploy Scripts · 1 KB · unknown");
   });
 
   it("tags untitled conversations in the listing too", () => {
-    const output = formatSessionList([
+    const output = formatSessionList(say, [
       record({ sessionId: "4e5b4e8e-ec44-4942", name: null, cwd: "/p/claudetalk", sizeBytes: 1024 }),
     ]);
     expect(output).toContain("4e5b4e8e");
@@ -3114,22 +3118,22 @@ describe("session choices", () => {
 
   it("says how many older ones a row stands in for", () => {
     const one = record({ sessionId: "4e5b4e8e-x", name: null, cwd: "/p/notes", sizeBytes: 1024 });
-    expect(sessionChoice(one, 6).name).toContain("+6 older");
-    expect(sessionChoice(one, 0).name).not.toContain("older");
+    expect(sessionChoice(say, one, 6).name).toContain("+6 older");
+    expect(sessionChoice(say, one, 0).name).not.toContain("older");
   });
 
   it("shows the size so the primary conversation is obvious", () => {
     const big = record({ sessionId: "s", name: "project-notes", sizeBytes: 48 * 1024 ** 2 });
-    expect(sessionChoice(big).name).toContain("48 MB");
+    expect(sessionChoice(say, big).name).toContain("48 MB");
   });
 
   it("keeps a label within the Discord 100 character limit", () => {
     const long = record({ sessionId: "s", name: "x".repeat(300), sizeBytes: 1024 ** 3 });
-    expect(sessionChoice(long).name.length).toBeLessThanOrEqual(100);
+    expect(sessionChoice(say, long).name.length).toBeLessThanOrEqual(100);
   });
 
   it("lists sizes so an oversized transcript is visible", () => {
-    const output = formatSessionList([record({ sessionId: "s", name: "Big", sizeBytes: 923_000_000 })]);
+    const output = formatSessionList(say, [record({ sessionId: "s", name: "Big", sizeBytes: 923_000_000 })]);
     expect(output).toContain("880 MB");
   });
 });
@@ -3162,12 +3166,12 @@ describe("ContextTracker ceiling", () => {
     const tracker = new ContextTracker(951_650);
     const warning = tracker.observe(usage(800_000));
     expect(warning?.level).toBe("approaching");
-    expect(warning?.message).toContain("84%");
+    expect(warning?.percent).toBe(84);
   });
 
   it("never reports more than 99 percent", () => {
     const tracker = new ContextTracker(200_000);
-    expect(tracker.observe(usage(10_000_000))?.message).toContain("99%");
+    expect(tracker.observe(usage(10_000_000))?.percent).toBe(99);
   });
 });
 
@@ -3183,34 +3187,34 @@ describe("purge", () => {
   });
 
   it("reports a plain total", () => {
-    expect(describePurge({ bulkDeleted: 42, slowDeleted: 0, failed: 0 }, true)).toContain("Deleted 42 messages");
+    expect(describePurge(say, { bulkDeleted: 42, slowDeleted: 0, failed: 0 }, true)).toContain("Deleted 42 messages");
   });
 
   it("says how many needed the slow path", () => {
-    const text = describePurge({ bulkDeleted: 10, slowDeleted: 3, failed: 0 }, true);
+    const text = describePurge(say, { bulkDeleted: 10, slowDeleted: 3, failed: 0 }, true);
     expect(text).toContain("Deleted 13 messages");
     expect(text).toContain("older than 14 days");
   });
 
   it("reports failures rather than hiding them", () => {
-    expect(describePurge({ bulkDeleted: 5, slowDeleted: 0, failed: 2 }, true)).toContain("2 could not be deleted");
+    expect(describePurge(say, { bulkDeleted: 5, slowDeleted: 0, failed: 2 }, true)).toContain("2 could not be deleted");
   });
 
   it("says the conversation survives when the channel is one", () => {
-    expect(describePurge({ bulkDeleted: 1, slowDeleted: 0, failed: 0 }, true)).toContain(
+    expect(describePurge(say, { bulkDeleted: 1, slowDeleted: 0, failed: 0 }, true)).toContain(
       "conversation itself is untouched",
     );
   });
 
   it("says nothing about /sync in a channel that is not a conversation", () => {
-    const text = describePurge({ bulkDeleted: 1, slowDeleted: 0, failed: 0 }, false);
+    const text = describePurge(say, { bulkDeleted: 1, slowDeleted: 0, failed: 0 }, false);
     expect(text).not.toContain("/sync");
     expect(text).not.toContain("conversation");
     expect(text).toContain("Deleted 1 message");
   });
 
   it("handles an already empty channel", () => {
-    expect(describePurge({ bulkDeleted: 0, slowDeleted: 0, failed: 0 }, true)).toMatch(/already empty/);
+    expect(describePurge(say, { bulkDeleted: 0, slowDeleted: 0, failed: 0 }, true)).toMatch(/already empty/);
   });
 
   it("round-trips the confirm and cancel buttons", () => {
@@ -3223,8 +3227,8 @@ describe("/clear is not passed through", () => {
   it("points at the bridge's own command instead of starting a session the channel cannot see", () => {
     const result = classifyPrompt("/clear", ["doctor"]);
     expect(result.kind).toBe("ambiguous");
-    expect(result.kind === "ambiguous" && result.message).toContain("own `/clear` command");
-    expect(result.kind === "ambiguous" && result.message).toContain("/purge");
+    expect(result.kind === "ambiguous" && describeNotRun(say, result)).toContain("own `/clear` command");
+    expect(result.kind === "ambiguous" && describeNotRun(say, result)).toContain("/purge");
   });
 
 });
@@ -3300,9 +3304,9 @@ describe("turn queue", () => {
     const running = Array.from({ length: MAX_QUEUE_DEPTH }, () => queue.enqueue("s1", () => wait(20)));
     const outcome = queue.admit("s1");
     expect(outcome.kind).toBe("full");
-    expect(outcome.kind === "full" && outcome.message).toContain("/stop");
+    expect(outcome.kind === "full" && describeFull(say)).toContain("/stop");
     // The lane counts the running turn, so the refusal must not call all five of them queued.
-    expect(outcome.kind === "full" && outcome.message).toContain("one running");
+    expect(outcome.kind === "full" && describeFull(say)).toContain("one running");
     await Promise.all(running);
   });
 
@@ -3328,8 +3332,8 @@ describe("turn queue", () => {
   });
 
   it("names how many are ahead", () => {
-    expect(describeQueued(1)).toContain("still running");
-    expect(describeQueued(3)).toContain("3 messages");
+    expect(describeQueued(say, 1)).toContain("still running");
+    expect(describeQueued(say, 3)).toContain("3 messages");
   });
 });
 
@@ -3392,8 +3396,8 @@ describe("outbox", () => {
   });
 
   it("says where a skipped file still is", () => {
-    expect(describeSkipped(["huge.bin"], "s1")).toContain(".discord-outbox");
-    expect(describeSkipped([], "s1")).toBe("");
+    expect(describeSkipped(say, ["huge.bin"], "s1")).toContain(".discord-outbox");
+    expect(describeSkipped(say, [], "s1")).toBe("");
   });
 });
 
@@ -3638,11 +3642,11 @@ describe("stopping drains the queue", () => {
   });
 
   it("tells the stopper how many messages went with the turn", () => {
-    expect(describeStop({ stopped: true, dropped: 0 })).toMatch(/^Stopped\./);
-    expect(describeStop({ stopped: true, dropped: 0 })).not.toContain("dropped");
-    expect(describeStop({ stopped: true, dropped: 1 })).toContain("The message queued behind it was dropped");
-    expect(describeStop({ stopped: true, dropped: 3 })).toContain("3 messages queued behind it were dropped");
-    expect(describeStop({ stopped: false, dropped: 0 })).toBe("Nothing is running here.");
+    expect(describeStop(say, { stopped: true, dropped: 0 })).toMatch(/^Stopped\./);
+    expect(describeStop(say, { stopped: true, dropped: 0 })).not.toContain("dropped");
+    expect(describeStop(say, { stopped: true, dropped: 1 })).toContain("The message queued behind it was dropped");
+    expect(describeStop(say, { stopped: true, dropped: 3 })).toContain("3 messages queued behind it were dropped");
+    expect(describeStop(say, { stopped: false, dropped: 0 })).toBe("Nothing is running here.");
   });
 
   // It once said plain /stop dropped the queue, long after /stop had stopped doing that.
@@ -3650,16 +3654,16 @@ describe("stopping drains the queue", () => {
     const queue = new TurnQueue();
     const running = Array.from({ length: MAX_QUEUE_DEPTH }, () => queue.enqueue("s1", () => wait(5)));
     const outcome = queue.admit("s1");
-    expect(outcome.kind === "full" && outcome.message).toContain("`/stop all:true` to drop the queue");
-    expect(outcome.kind === "full" && outcome.message).toContain("`/stop` to end the one in flight");
+    expect(outcome.kind === "full" && describeFull(say)).toContain("`/stop all:true` to drop the queue");
+    expect(outcome.kind === "full" && describeFull(say)).toContain("`/stop` to end the one in flight");
     await Promise.all(running);
   });
 
   it("describes the lane for /queue", () => {
-    expect(describeDepth(0)).toBe("Nothing is running here.");
-    expect(describeDepth(1)).toContain("nothing queued");
-    expect(describeDepth(2)).toContain("1 message queued");
-    expect(describeDepth(4)).toContain("3 messages queued");
+    expect(describeDepth(say, 0)).toBe("Nothing is running here.");
+    expect(describeDepth(say, 1)).toContain("nothing queued");
+    expect(describeDepth(say, 2)).toContain("1 message queued");
+    expect(describeDepth(say, 4)).toContain("3 messages queued");
   });
 });
 
@@ -3667,7 +3671,7 @@ describe("a repeated status reads as one line", () => {
 
   it("does not grow the trail when the same status arrives again", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.noteOnce("Compacting the conversation, which can take a while.");
     status.noteOnce("Compacting the conversation, which can take a while.");
@@ -3678,7 +3682,7 @@ describe("a repeated status reads as one line", () => {
 
   it("still records the status again once something else has been said", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(sink, () => 0);
+    const status = new StatusMessage(say, sink, () => 0);
     await status.start();
     status.noteOnce("Compacting.");
     status.note("Reading the schema.");
@@ -3740,10 +3744,10 @@ describe("scratch conversations stay out of the picker", () => {
   });
 
   it("says how many were left out and how to see them", () => {
-    expect(describeHidden(0)).toBe("");
-    expect(describeHidden(1)).toContain("1 conversation in the temp folder is left out");
-    expect(describeHidden(3)).toContain("3 conversations in the temp folder are left out");
-    expect(describeHidden(3)).toContain("filter");
+    expect(describeHidden(say, 0)).toBe("");
+    expect(describeHidden(say, 1)).toContain("1 conversation in the temp folder is left out");
+    expect(describeHidden(say, 3)).toContain("3 conversations in the temp folder are left out");
+    expect(describeHidden(say, 3)).toContain("filter");
   });
 });
 
@@ -3806,14 +3810,14 @@ describe("plan usage", () => {
   it("renders percentages and Discord timestamps, and says when it was seen", () => {
     const usage = new PlanUsage();
     usage.record(event, new Date("2026-09-22T18:00:00Z"));
-    const text = describePlanUsage(usage.latest());
+    const text = describePlanUsage(say, usage.latest());
     expect(text).toContain("5-hour window 17% used, resets <t:1790109600:R>");
     expect(text).toContain("week, all models 4% used");
     expect(text).toContain("as of <t:");
   });
 
   it("says so before any turn has reported", () => {
-    expect(describePlanUsage(new PlanUsage().latest())).toContain("not reported yet");
+    expect(describePlanUsage(say, new PlanUsage().latest())).toContain("not reported yet");
   });
 
   it("keeps the latest value per window across turns", () => {
@@ -3839,9 +3843,9 @@ describe("host defaults", () => {
   });
 
   it("says where a value comes from, so 'session default' never has to be asked about", () => {
-    expect(describeDefault("low", "high")).toBe("`low`");
-    expect(describeDefault(undefined, "high")).toBe("`high` (host default)");
-    expect(describeDefault(undefined, null)).toBe("Claude Code's default");
+    expect(describeDefault(say, "low", "high")).toBe("`low`");
+    expect(describeDefault(say, undefined, "high")).toBe("`high` (host default)");
+    expect(describeDefault(say, undefined, null)).toBe("Claude Code's default");
   });
 });
 
@@ -3849,7 +3853,7 @@ describe("skills across several menus", () => {
   const names = (count: number) => Array.from({ length: count }, (_, index) => `skill-${String(index).padStart(3, "0")}`);
 
   it("splits sixty-three skills across three sorted menus and leaves none out", () => {
-    const menus = skillSelectMenus(["zeta", ...names(62)]);
+    const menus = skillSelectMenus(say, ["zeta", ...names(62)]);
     expect(menus.pages.map((page) => page.length)).toEqual([25, 25, 13]);
     expect(menus.pages[0]![0]!.label).toBe("skill-000");
     expect(menus.pages[2]!.at(-1)!.label).toBe("zeta");
@@ -3857,22 +3861,22 @@ describe("skills across several menus", () => {
   });
 
   it("stops at the five menus a message can hold and counts the rest", () => {
-    const menus = skillSelectMenus(names(130));
+    const menus = skillSelectMenus(say, names(130));
     expect(menus.pages).toHaveLength(DISCORD_MENUS_PER_MESSAGE);
     expect(menus.omitted).toBe(5);
   });
 
   it("labels each menu by the range it covers", () => {
-    const menus = skillSelectMenus(names(30));
-    expect(menuPlaceholder(menus.pages[0]!)).toBe("skill-000 to skill-024");
-    expect(menuPlaceholder(menus.pages[1]!)).toBe("skill-025 to skill-029");
-    expect(menuPlaceholder([{ label: "only", value: "only", description: "" }])).toBe("only");
+    const menus = skillSelectMenus(say, names(30));
+    expect(menuPlaceholder(say, menus.pages[0]!)).toBe("skill-000 to skill-024");
+    expect(menuPlaceholder(say, menus.pages[1]!)).toBe("skill-025 to skill-029");
+    expect(menuPlaceholder(say, [{ label: "only", value: "only", description: "" }])).toBe("only");
   });
 
   it("tells the reader how many there are, and how to reach the ones that did not fit", () => {
-    expect(describeSkillMenus(63, skillSelectMenus(names(63)))).toBe("63 skills available in this conversation, A to Z across 3 menus.");
-    expect(describeSkillMenus(130, skillSelectMenus(names(130)))).toContain("The last 5 did not fit; send `/name`");
-    expect(describeSkillMenus(1, skillSelectMenus(["one"]))).toBe("1 skill available in this conversation.");
+    expect(describeSkillMenus(say, 63, skillSelectMenus(say, names(63)))).toBe("63 skills available in this conversation, A to Z across 3 menus.");
+    expect(describeSkillMenus(say, 130, skillSelectMenus(say, names(130)))).toContain("The last 5 did not fit; send `/name`");
+    expect(describeSkillMenus(say, 1, skillSelectMenus(say, ["one"]))).toBe("1 skill available in this conversation.");
   });
 
   it("reads a chosen skill from any page's menu", () => {
@@ -3909,13 +3913,13 @@ describe("the ceiling comes only from automatic compactions", () => {
 
 describe("an approval names a file the way the rest of the bridge does", () => {
   it("shows a path under the home folder as ~/ with forward slashes", () => {
-    const text = describeRequest("Write", { file_path: path.join(os.homedir(), "Documents", "notes.txt") });
+    const text = describeRequest(say, "Write", { file_path: path.join(os.homedir(), "Documents", "notes.txt") });
     expect(text).toContain("~/Documents/notes.txt");
     expect(text).not.toContain("\\");
   });
 
   it("still hides the home folder inside a command", () => {
-    const text = describeRequest("Bash", { command: `cat ${path.join(os.homedir(), "x.txt")}` });
+    const text = describeRequest(say, "Bash", { command: `cat ${path.join(os.homedir(), "x.txt")}` });
     expect(text).not.toContain(path.basename(os.homedir()));
   });
 });
@@ -3926,17 +3930,17 @@ describe("an approval belongs to the turn that asked", () => {
   it("ending one conversation's turn leaves another conversation's prompt waiting", async () => {
     const prompts = new ApprovalPrompts();
     let otherId = "";
-    const other = prompts.ask("turn-b", askingSink((actions) => void (otherId = actionId(actions, "approve"))), [OWNER], "Bash", { command: "ls" });
+    const other = prompts.ask(say, "turn-b", askingSink((actions) => void (otherId = actionId(actions, "approve"))), [OWNER], "Bash", { command: "ls" });
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     prompts.finish("turn-a");
-    expect(prompts.decide(otherId, OWNER, "approve")).toBe("Approved once.");
+    expect(prompts.decide(say, otherId, OWNER, "approve")).toBe("Approved once.");
     expect(await other).toEqual({ allow: true });
   });
 
   it("still denies its own turn's pending prompt when that turn ends", async () => {
     const prompts = new ApprovalPrompts();
-    const own = prompts.ask("turn-a", askingSink(() => undefined), [OWNER], "Bash", { command: "ls" });
+    const own = prompts.ask(say, "turn-a", askingSink(() => undefined), [OWNER], "Bash", { command: "ls" });
     await new Promise((resolve) => setTimeout(resolve, 5));
     prompts.finish("turn-a");
     expect((await own).allow).toBe(false);
@@ -3981,8 +3985,8 @@ describe("a download that fails is named, not skipped in silence", () => {
     );
     expect(saved).toEqual([]);
     expect(failed).toEqual(["shot.png"]);
-    expect(describeUnfetched(failed)).toContain("`shot.png`");
-    expect(describeUnfetched([])).toBeNull();
+    expect(describeUnfetched(say, failed)).toContain("`shot.png`");
+    expect(describeUnfetched(say, [])).toBeNull();
   });
 });
 
@@ -3995,9 +3999,9 @@ describe("outbox delivery", () => {
     const delivery = new OutboxDelivery();
     const sink = recordingSink();
 
-    await delivery.deliver(cwd, "s1", sink);
-    await delivery.deliver(cwd, "s1", sink);
-    await delivery.deliver(cwd, "s1", sink);
+    await delivery.deliver(say, cwd, "s1", sink);
+    await delivery.deliver(say, cwd, "s1", sink);
+    await delivery.deliver(say, cwd, "s1", sink);
     expect(sink.written.filter((line) => line.includes("huge.bin"))).toHaveLength(1);
   });
 
@@ -4009,12 +4013,12 @@ describe("outbox delivery", () => {
     const delivery = new OutboxDelivery();
     const sink = recordingSink();
 
-    await delivery.deliver(cwd, "s1", sink);
+    await delivery.deliver(say, cwd, "s1", sink);
     await fs.rm(big);
-    await delivery.deliver(cwd, "s1", sink);
+    await delivery.deliver(say, cwd, "s1", sink);
     await fs.mkdir(outboxPath(cwd, "s1"), { recursive: true });
     await fs.writeFile(big, Buffer.alloc(MAX_FILE_BYTES + 1));
-    await delivery.deliver(cwd, "s1", sink);
+    await delivery.deliver(say, cwd, "s1", sink);
     expect(sink.written.filter((line) => line.includes("huge.bin"))).toHaveLength(2);
   });
 
@@ -4025,7 +4029,7 @@ describe("outbox delivery", () => {
     const delivery = new OutboxDelivery();
     const sink = recordingSink();
 
-    await Promise.all([delivery.deliver(cwd, "s1", sink), delivery.deliver(cwd, "s1", sink)]);
+    await Promise.all([delivery.deliver(say, cwd, "s1", sink), delivery.deliver(say, cwd, "s1", sink)]);
     expect(sink.files).toEqual(["report.md"]);
   });
 
@@ -4038,7 +4042,7 @@ describe("outbox delivery", () => {
     const sink = recordingSink();
 
     expect(await delivery.hasFiles(cwd, "public")).toBe(false);
-    await delivery.deliver(cwd, "public", sink);
+    await delivery.deliver(say, cwd, "public", sink);
     expect(sink.files).toEqual([]);
     expect(await delivery.hasFiles(cwd, "private")).toBe(true);
   });
@@ -4070,7 +4074,7 @@ describe("clear asks before starting over", () => {
   });
 
   it("names what is kept and what is lost, and how to get the old one back", () => {
-    const text = describeClear("/srv/work/ledger");
+    const text = describeClear(say, "/srv/work/ledger");
     expect(text).toContain("none of what was said in this one");
     expect(text).toContain("/resume");
     expect(text).toContain("/purge");

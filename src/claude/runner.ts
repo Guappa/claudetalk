@@ -210,7 +210,7 @@ async function consumeStream(
   } catch (error) {
     if (held.needsRestart) return RESTART;
     if (abort.signal.aborted) {
-      return { ...outcome, ok: false, error: { kind: "unknown", message: "The turn was stopped." } };
+      return { ...outcome, ok: false, error: { kind: "stopped" } };
     }
     return { ...outcome, ok: false, error: failure(error) };
   }
@@ -218,16 +218,7 @@ async function consumeStream(
   return { ...outcome, ok: true };
 }
 
-const ORPHAN_TWICE: TurnResult = {
-  text: "",
-  ok: false,
-  error: {
-    kind: "unknown",
-    message:
-      "Claude Code reported a background command left over from an earlier turn twice in a row, and a session " +
-      "that starts by reporting one refuses every tool call. Send the message again; it normally clears on the next try.",
-  },
-};
+const ORPHAN_TWICE: TurnResult = { text: "", ok: false, error: { kind: "orphan-twice" } };
 
 export interface RunningTurn {
   stop: () => void;
@@ -281,7 +272,7 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
   // A process that met an orphaned task is thrown away before the prompt goes out, and a fresh one gets the turn.
   const done = attempt.done.then(async (result) => {
     if (result !== RESTART) return result;
-    if (stopped) return { text: "", ok: false, error: { kind: "unknown", message: "The turn was stopped." } } as TurnResult;
+    if (stopped) return { text: "", ok: false, error: { kind: "stopped" } } as TurnResult;
     attempt = start();
     const again = await attempt.done;
     return again === RESTART ? ORPHAN_TWICE : again;
@@ -311,22 +302,10 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
 }
 
 function resultError(subtype: string, text: string): ClaudeError {
-  return (
-    detectClaudeError(text) ?? {
-      kind: "unknown",
-      message: `The turn ended as ${subtype}.${text ? `\n${text}` : ""} Try sending your message again.`,
-    }
-  );
+  return detectClaudeError(text) ?? { kind: "ended", subtype, text };
 }
 
 function failure(error: unknown): ClaudeError {
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    detectClaudeError(message) ?? {
-      kind: "unknown",
-      message:
-        `Claude Code could not run this turn: ${message}. ` +
-        `Check that it is installed and logged in on the host, then try again.`,
-    }
-  );
+  return detectClaudeError(message) ?? { kind: "could-not-run", message };
 }

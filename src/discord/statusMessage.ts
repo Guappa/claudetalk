@@ -1,5 +1,6 @@
 import { redactHome } from "../displayPath.ts";
-import { count, truncate } from "../text.ts";
+import type { Say } from "../i18n/index.ts";
+import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 import { DISCORD_MESSAGE_LIMIT, chunkForDiscord } from "./renderer.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
@@ -14,10 +15,10 @@ const MAX_NOTES_KEPT = 30;
 // Discord clears the typing indicator after about ten seconds.
 const TYPING_MS = 8000;
 
-export function formatElapsed(ms: number): string {
+export function formatElapsed(say: Say, ms: number): string {
   const seconds = Math.max(Math.round(ms / 1000), 0);
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  if (seconds < 60) return say("units.seconds", { seconds });
+  return say("units.minutesSeconds", { minutes: Math.floor(seconds / 60), seconds: seconds % 60 });
 }
 
 // Every tick is an edit against Discord, and a long turn does not need second-by-second precision.
@@ -31,18 +32,31 @@ export function tickIntervalMs(elapsedMs: number): number {
 export type Mood = "working" | "done" | "stopped" | "failed";
 
 // The one place the trail uses emoji: the state at a glance, heading only, standard Unicode only.
-const HEADINGS: Record<Mood, string> = {
-  working: "⏳ **Working**",
-  done: "✅ **Worked**",
-  stopped: "⏹️ **Stopped after**",
-  failed: "❌ **Failed after**",
+const EMOJI: Record<Mood, string> = {
+  working: "⏳",
+  done: "✅",
+  stopped: "⏹️",
+  failed: "❌",
 };
 
-function heading(elapsedMs: number, steps: number, mood: Mood = "working"): string {
-  const verb = HEADINGS[mood];
-  return steps > 0
-    ? `${verb} ${formatElapsed(elapsedMs)} · ${count(steps, "step")}`
-    : `${verb} ${formatElapsed(elapsedMs)}`;
+const HEADINGS = {
+  working: "trail.working",
+  done: "trail.done",
+  stopped: "trail.stopped",
+  failed: "trail.failed",
+} as const;
+
+const HEADINGS_WITH_STEPS = {
+  working: "trail.workingSteps",
+  done: "trail.doneSteps",
+  stopped: "trail.stoppedSteps",
+  failed: "trail.failedSteps",
+} as const;
+
+function heading(say: Say, elapsedMs: number, steps: number, mood: Mood = "working"): string {
+  const elapsed = formatElapsed(say, elapsedMs);
+  const words = steps > 0 ? say(HEADINGS_WITH_STEPS[mood], { elapsed, count: steps }) : say(HEADINGS[mood], { elapsed });
+  return `${EMOJI[mood]} ${words}`;
 }
 
 interface Selection {
@@ -69,13 +83,20 @@ function selectShown(notes: string[], headLength: number): Selection {
 }
 
 // Whatever rides under the heading, the agents' tally for one, counts against the message like the heading does.
-function headWith(elapsedMs: number, steps: number, mood: Mood, extra: string): string {
-  const head = heading(elapsedMs, steps, mood);
+function headWith(say: Say, elapsedMs: number, steps: number, mood: Mood, extra: string): string {
+  const head = heading(say, elapsedMs, steps, mood);
   return extra ? `${head}\n\n${extra}` : head;
 }
 
-export function renderActivity(notes: string[], elapsedMs: number, steps = 0, mood: Mood = "working", extra = ""): string {
-  const head = headWith(elapsedMs, steps, mood, extra);
+export function renderActivity(
+  say: Say,
+  notes: string[],
+  elapsedMs: number,
+  steps = 0,
+  mood: Mood = "working",
+  extra = "",
+): string {
+  const head = headWith(say, elapsedMs, steps, mood, extra);
   if (notes.length === 0) return head;
   const { shown, elided } = selectShown(notes, head.length);
   if (elided) shown.unshift("...");
@@ -83,8 +104,8 @@ export function renderActivity(notes: string[], elapsedMs: number, steps = 0, mo
 }
 
 // True when every remark would be shown whole.
-function fitsInOne(notes: string[], elapsedMs: number, steps: number, extra: string): boolean {
-  const { shown, elided } = selectShown(notes, headWith(elapsedMs, steps, "working", extra).length);
+function fitsInOne(say: Say, notes: string[], elapsedMs: number, steps: number, extra: string): boolean {
+  const { shown, elided } = selectShown(notes, headWith(say, elapsedMs, steps, "working", extra).length);
   return !elided && shown.length === notes.length && shown.every((note, index) => note === notes[index]);
 }
 
@@ -113,6 +134,7 @@ export class StatusMessage {
   private startedAt = 0;
   private stopped = false;
   private moving = false;
+  private readonly say: Say;
   private readonly sink: MessageSink;
   private readonly now: () => number;
   private readonly actions: () => SinkAction[];
@@ -122,6 +144,7 @@ export class StatusMessage {
 
   // finalize runs once per message when it is final, so a lookup per edit is never paid.
   constructor(
+    say: Say,
     sink: MessageSink,
     now: () => number = Date.now,
     actions: () => SinkAction[] = () => [],
@@ -129,6 +152,7 @@ export class StatusMessage {
     finalize: (text: string) => Promise<string> = async (text) => text,
     extra: () => string = () => "",
   ) {
+    this.say = say;
     this.sink = sink;
     this.now = now;
     this.actions = actions;
@@ -139,7 +163,7 @@ export class StatusMessage {
 
   async start(): Promise<void> {
     this.startedAt = this.now();
-    this.lastSent = renderActivity(this.notes, 0, this.steps, "working", this.extra());
+    this.lastSent = renderActivity(this.say, this.notes, 0, this.steps, "working", this.extra());
     await this.sink.send(this.lastSent);
     const actions = this.actions();
     if (actions.length > 0) await this.sink.edit(this.lastSent, actions).catch(() => undefined);
@@ -179,7 +203,7 @@ export class StatusMessage {
   private rollOverOverflow(): void {
     if (!this.sink.continueIn) return;
     const elapsed = this.now() - this.startedAt;
-    while (this.notes.length > 1 && !fitsInOne(this.notes, elapsed, this.steps, this.extra())) {
+    while (this.notes.length > 1 && !fitsInOne(this.say, this.notes, elapsed, this.steps, this.extra())) {
       const sealed = this.oldestThatFit();
       this.rollOver(sealed);
     }
@@ -238,7 +262,7 @@ export class StatusMessage {
     this.stop();
     this.rollOverOverflow();
     await this.pendingEdit;
-    const trail = renderActivity(this.notes, this.now() - this.startedAt, this.steps, mood, this.extra());
+    const trail = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, mood, this.extra());
     await this.sink.edit(await this.finalize(trail), []);
   }
 
@@ -258,7 +282,7 @@ export class StatusMessage {
 
   // A segment that holds no remarks of its own carries the answer under its heading rather than a heading alone.
   async finishWithHeading(text: string, mood: Mood = "done"): Promise<boolean> {
-    const combined = `${headWith(this.now() - this.startedAt, this.steps, mood, this.extra())}\n\n${text}`;
+    const combined = `${headWith(this.say, this.now() - this.startedAt, this.steps, mood, this.extra())}\n\n${text}`;
     if (combined.length > DISCORD_MESSAGE_LIMIT) return false;
     await this.finish(combined);
     return true;
@@ -275,13 +299,13 @@ export class StatusMessage {
     this.origins = this.origins.slice(sealed.length);
     this.sealed += sealed.length;
     // A message with no remarks yet must not be left reading as live work, so it becomes a plain marker.
-    const sealedText = sealed.length > 0 ? sealed.join("\n\n") : "**Started**";
+    const sealedText = sealed.length > 0 ? sealed.join("\n\n") : this.say("trail.started");
     this.lastSent = "";
     this.moving = true;
     this.chain(async () => {
       try {
         await this.sink.edit(await this.finalize(sealedText), []);
-        const live = renderActivity(this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
+        const live = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
         await this.sink.continueIn!(live, this.actions());
         await this.onContinue?.();
       } finally {
@@ -305,7 +329,7 @@ export class StatusMessage {
     if (this.stopped) return;
 
     this.rollOverOverflow();
-    const text = renderActivity(this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
+    const text = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
     if (text !== this.lastSent) {
       this.lastSent = text;
       this.chain(() => this.sink.edit(text, this.actions()));

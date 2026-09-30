@@ -1,4 +1,5 @@
 import { ChannelType, type CategoryChannel, type Guild } from "discord.js";
+import type { Say } from "../i18n/index.ts";
 
 export const MAX_CATEGORY_NAME = 100;
 // Discord refuses a 51st channel in a category, and the error it gives says nothing useful.
@@ -20,11 +21,8 @@ export function findCategory(categories: NamedCategory[], name: string): NamedCa
   return categories.find((category) => category.name.toLowerCase() === wanted) ?? null;
 }
 
-export function describeCategoryFull(name: string): string {
-  return (
-    `**${name}** already holds ${CHANNELS_PER_CATEGORY} channels, which is all Discord allows. ` +
-    `Use another category, or move something out of that one first.`
-  );
+export function describeCategoryFull(say: Say, name: string): string {
+  return say("category.full", { name, limit: CHANNELS_PER_CATEGORY });
 }
 
 export async function resolveCategory(guild: Guild, name: string): Promise<CategoryChannel> {

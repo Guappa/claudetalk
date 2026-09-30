@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentOutcome } from "../claude/events.ts";
-import { count, truncate } from "../text.ts";
+import type { Say } from "../i18n/index.ts";
+import { truncate } from "../text.ts";
 import type { DetailPost, DetailSink, MessageSink } from "./messageSink.ts";
 import { formatElapsed } from "./statusMessage.ts";
 
@@ -15,7 +16,7 @@ const PACE_MS = 3000;
 // Discord allows a thread name a hundred characters.
 const TITLE_CHARS = 97;
 
-const ENDINGS: Record<AgentOutcome, string> = { completed: "done in", failed: "failed after", stopped: "stopped after" };
+type TallyKey = "agents.tallyRunning" | "agents.tallyDone" | "agents.tallyFailed" | "agents.tallyStopped";
 
 interface Agent {
   index: number;
@@ -49,6 +50,7 @@ export class AgentBoard {
   private opened = false;
   private timer: NodeJS.Timeout | null = null;
   private writes: Promise<void> = Promise.resolve();
+  private readonly say: Say;
   private readonly sink: MessageSink;
   private readonly title: string;
   private readonly now: () => number;
@@ -57,12 +59,14 @@ export class AgentBoard {
 
   // stopTask is how an agent that was stopped is stopped again, should the session send it back to work.
   constructor(
+    say: Say,
     sink: MessageSink,
     title: string,
     now: () => number = Date.now,
     paceMs: number = PACE_MS,
     stopTask: (taskId: string) => void = () => undefined,
   ) {
+    this.say = say;
     this.sink = sink;
     this.title = title;
     this.now = now;
@@ -140,7 +144,8 @@ export class AgentBoard {
   stopLabel(): string | null {
     const active = this.active();
     if (active.length === 0 && this.background.size === 0) return null;
-    return this.background.size === 0 && active.every((agent) => agent.remote) ? "Stop cloud task" : "Stop agents";
+    const cloudOnly = this.background.size === 0 && active.every((agent) => agent.remote);
+    return this.say(cloudOnly ? "stop.cloudTaskButton" : "stop.agentsButton");
   }
 
   private active(): Agent[] {
@@ -164,14 +169,18 @@ export class AgentBoard {
     if (!this.opened && this.sink.openDetail) return "";
     const running = all.filter((agent) => agent.state === "running" || this.waiting(agent));
     const tally = [
-      tallied(running.length, "running"),
-      tallied(all.filter((agent) => agent.state === "completed" && !this.waiting(agent)).length, "done"),
-      tallied(all.filter((agent) => agent.state === "failed").length, "failed"),
-      tallied(all.filter((agent) => agent.state === "stopped").length, "stopped"),
+      this.tallied("agents.tallyRunning", running.length),
+      this.tallied("agents.tallyDone", all.filter((agent) => agent.state === "completed" && !this.waiting(agent)).length),
+      this.tallied("agents.tallyFailed", all.filter((agent) => agent.state === "failed").length),
+      this.tallied("agents.tallyStopped", all.filter((agent) => agent.state === "stopped").length),
     ].filter(Boolean);
     const lines = running.slice(0, MAX_LISTED).map((agent) => `- ${this.line(agent)}`);
-    if (running.length > MAX_LISTED) lines.push(`- and ${running.length - MAX_LISTED} more`);
-    return [`**Agents** · ${tally.join(" · ")}`, ...lines].join("\n");
+    if (running.length > MAX_LISTED) lines.push(`- ${this.say("agents.more", { quantity: running.length - MAX_LISTED })}`);
+    return [this.say("agents.tally", { tally: tally.join(" · ") }), ...lines].join("\n");
+  }
+
+  private tallied(key: TallyKey, quantity: number): string {
+    return quantity > 0 ? this.say(key, { quantity }) : "";
   }
 
   // A turn that is over has no agent still working, whatever the stream managed to say before it ended.
@@ -286,29 +295,32 @@ export class AgentBoard {
 
   // A running time is only true in the trail, which is redrawn every few seconds; the roster is written on change.
   private standing(agent: Agent, live: boolean): string {
-    const spent = agent.tokens > 0 ? `${count(agent.toolUses, "tool")} · ${tokens(agent.tokens)}` : count(agent.toolUses, "tool");
-    if (this.waiting(agent)) return `waiting on a background command · ${spent}`;
-    if (agent.state !== "running") return `${ENDINGS[agent.state]} ${formatElapsed(agent.durationMs)} · ${spent}`;
-    const doing = agent.activity ? `${truncate(agent.activity, ACTIVITY_CHARS)} · ` : live ? "" : "running · ";
-    const elapsed = live ? ` · ${formatElapsed(agent.earlierMs + this.now() - agent.startedAt)}` : "";
+    const tools = this.say("agents.tools", { count: agent.toolUses });
+    const spent = agent.tokens > 0 ? `${tools} · ${this.tokens(agent.tokens)}` : tools;
+    if (this.waiting(agent)) return `${this.say("agents.waiting")} · ${spent}`;
+    if (agent.state !== "running") return `${this.ending(agent.state, agent.durationMs)} · ${spent}`;
+    const doing = agent.activity ? `${truncate(agent.activity, ACTIVITY_CHARS)} · ` : live ? "" : `${this.say("agents.running")} · `;
+    const elapsed = live ? ` · ${formatElapsed(this.say, agent.earlierMs + this.now() - agent.startedAt)}` : "";
     return `${doing}${spent}${elapsed}`;
+  }
+
+  private ending(outcome: AgentOutcome, durationMs: number): string {
+    return this.say(`agents.${outcome}`, { elapsed: formatElapsed(this.say, durationMs) });
+  }
+
+  private tokens(quantity: number): string {
+    return quantity >= 1000
+      ? this.say("units.kiloTokens", { thousands: (quantity / 1000).toFixed(1) })
+      : this.say("units.tokens", { quantity });
   }
 }
 
 // A turn's agents can each be on something different, so their thread is named after what was asked of the turn as a whole.
-export function agentsTitle(asked: string): string {
+export function agentsTitle(say: Say, asked: string): string {
   const line = asked.replace(/\s+/g, " ").trim();
-  return line ? truncate(`Agents: ${line}`, TITLE_CHARS) : "Agents";
+  return line ? truncate(say("agents.title", { asked: line }), TITLE_CHARS) : say("agents.titleBare");
 }
 
 function pageOf(agent: Agent): number {
   return Math.floor((agent.index - 1) / PAGE_SIZE);
-}
-
-function tallied(quantity: number, word: string): string {
-  return quantity > 0 ? `${quantity} ${word}` : "";
-}
-
-function tokens(quantity: number): string {
-  return quantity >= 1000 ? `${(quantity / 1000).toFixed(1)}k tokens` : `${quantity} tokens`;
 }

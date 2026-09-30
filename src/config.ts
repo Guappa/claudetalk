@@ -1,3 +1,5 @@
+import { LANGUAGES, isLanguage, type Language } from "./i18n/index.ts";
+
 export interface Config {
   botToken: string;
   guildId: string;
@@ -6,6 +8,7 @@ export interface Config {
   bindingsPath: string;
   operatorsPath: string;
   toolApprovals: boolean;
+  language: Language;
   categoryId?: string;
   workspacesRoot?: string;
 }
@@ -55,6 +58,18 @@ function toolApprovals(env: NodeJS.ProcessEnv): boolean {
   return value === "true";
 }
 
+// What the bridge itself says starts in this language, and stays in it until someone picks another in Discord.
+function language(env: NodeJS.ProcessEnv): Language {
+  const value = env.BRIDGE_LANGUAGE?.trim() || "en";
+  if (!isLanguage(value)) {
+    throw new Error(
+      `BRIDGE_LANGUAGE is "${value}", which is not a language this bridge speaks. ` +
+        `Use one of: ${Object.keys(LANGUAGES).join(", ")}. Set it in .env, then restart the bridge.`,
+    );
+  }
+  return value;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     botToken: required(env, "DISCORD_BOT_TOKEN"),
@@ -64,6 +79,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bindingsPath: env.BINDINGS_PATH?.trim() || "data/conversations.json",
     operatorsPath: env.OPERATORS_PATH?.trim() || "data/operators.json",
     toolApprovals: toolApprovals(env),
+    language: language(env),
     categoryId: env.DISCORD_CATEGORY_ID?.trim() || undefined,
     workspacesRoot: env.WORKSPACES_ROOT?.trim() || undefined,
   };

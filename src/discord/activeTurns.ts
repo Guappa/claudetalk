@@ -1,11 +1,9 @@
 import type { Client } from "discord.js";
 import { readJsonOr, writeJsonAtomic } from "../jsonFile.ts";
+import type { Say } from "../i18n/index.ts";
 import type { SinkAnchor } from "./messageSink.ts";
 import { errorMessage } from "../text.ts";
 import { replaceText } from "./outgoing.ts";
-
-export const INTERRUPTED =
-  "**Interrupted: the bridge stopped while this was running. Send a message to continue.**";
 
 type Anchors = Record<string, SinkAnchor>;
 
@@ -52,18 +50,18 @@ export class ActiveTurns {
   }
 }
 
-async function markOne(client: Client, anchor: SinkAnchor): Promise<void> {
+async function markOne(client: Client, anchor: SinkAnchor, interrupted: string): Promise<void> {
   const channel = await client.channels.fetch(anchor.channelId);
   if (!channel?.isTextBased() || !("messages" in channel)) return;
   const message = await channel.messages.fetch(anchor.messageId);
-  if (message.content.includes(INTERRUPTED)) return;
-  await replaceText(message, `${message.content}\n\n${INTERRUPTED}`);
+  if (message.content.includes(interrupted)) return;
+  await replaceText(message, `${message.content}\n\n${interrupted}`);
 }
 
 // A progress message the previous process never finished would otherwise read as working forever.
-export async function markInterrupted(client: Client, anchors: SinkAnchor[]): Promise<void> {
+export async function markInterrupted(client: Client, anchors: SinkAnchor[], say: Say): Promise<void> {
   for (const anchor of anchors) {
-    await markOne(client, anchor).catch((error: unknown) => {
+    await markOne(client, anchor, say("trail.interrupted")).catch((error: unknown) => {
       console.error(`could not mark an interrupted turn in channel ${anchor.channelId}: ${errorMessage(error)}`);
     });
   }

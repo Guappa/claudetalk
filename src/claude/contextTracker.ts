@@ -4,7 +4,7 @@ export type WarningLevel = "approaching" | "critical";
 
 export interface Warning {
   level: WarningLevel;
-  message: string;
+  percent: number;
 }
 
 const APPROACHING = 0.75;
@@ -43,13 +43,6 @@ export class ContextTracker {
     if (!level || this.fired.has(level)) return null;
     this.fired.add(level);
 
-    const rounded = Math.min(Math.round(percent * 100), 99);
-    return {
-      level,
-      message:
-        level === "critical"
-          ? `Context is about ${rounded}% full. Run \`/compact\` soon, or it will compact on its own mid-task.`
-          : `Context is about ${rounded}% full. \`/context\` shows the breakdown, \`/compact\` frees space.`,
-    };
+    return { level, percent: Math.min(Math.round(percent * 100), 99) };
   }
 }

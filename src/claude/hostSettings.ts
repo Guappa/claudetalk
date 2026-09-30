@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import type { Say } from "../i18n/index.ts";
 import { claudeSettingsPath } from "../platform.ts";
 
 export interface HostDefaults {
@@ -29,7 +30,7 @@ export async function readHostDefaults(): Promise<HostDefaults> {
   }
 }
 
-export function describeDefault(override: string | undefined, hostValue: string | null): string {
+export function describeDefault(say: Say, override: string | undefined, hostValue: string | null): string {
   if (override) return `\`${override}\``;
-  return hostValue ? `\`${hostValue}\` (host default)` : "Claude Code's default";
+  return hostValue ? say("settings.hostDefault", { value: hostValue }) : say("settings.claudeDefault");
 }

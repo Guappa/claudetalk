@@ -11,6 +11,7 @@ import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import type { Config } from "../src/config.ts";
 import { TurnFlow } from "../src/discord/turnFlow.ts";
 import { quietSink, recordingSink } from "./helpers/sinks.ts";
+import { sayIn, type Language, type Say } from "../src/i18n/index.ts";
 import path from "node:path";
 
 const started = vi.hoisted(() => [] as string[]);
@@ -47,7 +48,7 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   };
 });
 
-function makeFlow(): TurnFlow {
+function makeFlow(language: () => Say = () => sayIn("en")): TurnFlow {
   const config = { toolApprovals: false, ownerIds: [] } as unknown as Config;
   return new TurnFlow(
     new CapabilityCache(),
@@ -59,6 +60,7 @@ function makeFlow(): TurnFlow {
     new OutboxDelivery(),
     new ActiveTurns(path.join(os.tmpdir(), `claudetalk-turns-${process.pid}-${Math.random()}.json`)),
     config,
+    language,
     1,
   );
 }
@@ -253,6 +255,26 @@ describe("TurnFlow", () => {
     expect(await flow.run("s15", cwd, "nobody home", {}, quietSink(), { resume: true, foldable: true })).toBe(true);
     expect(started).toContain("nobody home");
     expect(await flow.sendNow("s15")).toBe("not-running");
+  });
+
+  // What the /language reply promises: a pick applies from then on, and a turn already running ends as it began.
+  it("finishes a turn in the language it started in, and starts the next in the one picked since", async () => {
+    const remark = { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: "Looking." }] } };
+    scripted.set("before the pick", [remark]);
+    scripted.set("after the pick", [remark]);
+    const spoken: { language: Language } = { language: "en" };
+    const flow = makeFlow(() => sayIn(spoken.language));
+
+    const first = recordingSink();
+    const running = flow.run("s16", cwd, "before the pick", {}, first, { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    spoken.language = "sv";
+    await running;
+    expect(first.messages[0]).toContain("**Worked**");
+
+    const second = recordingSink();
+    await flow.run("s16", cwd, "after the pick", {}, second, { resume: true });
+    expect(second.messages[0]).toContain("**Arbetade**");
   });
 
   it("stops everything at once when told to, dropping what was queued", async () => {

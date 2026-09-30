@@ -22,6 +22,9 @@ const lock = await acquireInstanceLock(lockPath);
 console.log(`Owners: ${config.ownerIds.join(", ")}.`);
 
 const bridge = await createBridge(config);
+console.log(
+  `Language: ${bridge.language.current()}, ${bridge.language.wasPicked() ? "picked with /language" : "from BRIDGE_LANGUAGE"}.`,
+);
 await sweepAttachments();
 
 const client = new Client({
@@ -75,7 +78,7 @@ client.on(Events.ShardReconnecting, (id) => console.log(`shard ${id} reconnectin
 
 client.once(Events.ClientReady, async (ready) => {
   await ready.application.commands.set(bridgeCommandDefinitions(), config.guildId);
-  await markInterrupted(ready, await bridge.activeTurns.takeLeftovers());
+  await markInterrupted(ready, await bridge.activeTurns.takeLeftovers(), bridge.language.say);
   watchOutboxes(bridge, ready);
   console.log(
     `Ready as ${ready.user.tag} on v${bridgeVersion()}. ` +

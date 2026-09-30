@@ -8,7 +8,9 @@ import {
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
+import { HELLO_AFTER_CLEAR } from "../../claude/prompts.ts";
 import { displayPath } from "../../displayPath.ts";
+import type { Say } from "../../i18n/index.ts";
 import { displayName } from "../../sessions/displayName.ts";
 import { requireConversation } from "../binding.ts";
 import { CLEAR_CANCEL, CLEAR_CONFIRM } from "../menus.ts";
@@ -16,64 +18,49 @@ import { respond, settleMenu } from "../respond.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 
-const RUNNING = "A turn is running here. Let it finish or `/stop` it, then `/clear`.";
-
-export function describeClear(cwd: string): string {
-  return (
-    `This starts this channel over with a fresh conversation in \`${displayPath(cwd)}\`: the same folder, ` +
-    "model, effort and members, but with none of what was said in this one. The current conversation stays on the " +
-    "host, listed by `/sessions`, and `/resume` with its session id opens it in a channel of its own. The channel's " +
-    "messages stay; `/purge` removes them."
-  );
+export function describeClear(say: Say, cwd: string): string {
+  return say("clear.confirm", { cwd: displayPath(cwd) });
 }
 
 export async function handleClear(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
-  const conversation = await requireConversation(
-    bridge,
-    interaction,
-    "This channel isn't bound to a conversation, so there is nothing to clear.",
-  );
+  const say = bridge.language.say;
+  const conversation = await requireConversation(bridge, interaction, say("clear.unbound"));
   if (!conversation) return;
 
   if (bridge.flow.isRunning(conversation.sessionId)) {
-    await respond(interaction, RUNNING);
+    await respond(interaction, say("clear.running"));
     return;
   }
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(CLEAR_CONFIRM).setLabel("Start over").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(CLEAR_CANCEL).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(CLEAR_CONFIRM).setLabel(say("clear.startOver")).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(CLEAR_CANCEL).setLabel(say("common.cancel")).setStyle(ButtonStyle.Secondary),
   );
-  await respond(interaction, { content: describeClear(conversation.cwd), components: [row] });
+  await respond(interaction, { content: describeClear(say, conversation.cwd), components: [row] });
 }
 
 // The same channel, settings and members, wrapped around a conversation that remembers nothing.
 export async function clearConversation(bridge: Bridge, interaction: ButtonInteraction): Promise<void> {
+  const say = bridge.language.say;
   const previous = bridge.store.byChannel(interaction.channelId);
   if (!previous) {
-    await settleMenu(interaction, "This channel is no longer bound to a conversation, so there is nothing to clear.");
+    await settleMenu(interaction, say("clear.noLongerBound"));
     return;
   }
   if (bridge.flow.isRunning(previous.sessionId)) {
-    await settleMenu(interaction, RUNNING);
+    await settleMenu(interaction, say("clear.running"));
     return;
   }
 
   const record = await bridge.sessions.find(previous.sessionId);
   const fresh = await rebindFresh(bridge, previous);
-  await settleMenu(
-    interaction,
-    `Started over. This channel now holds a fresh conversation in \`${displayPath(fresh.cwd)}\`; ` +
-      `the previous one is still on the host as \`${previous.sessionId}\`.`,
-  );
+  await settleMenu(interaction, say("clear.done", { cwd: displayPath(fresh.cwd), sessionId: previous.sessionId }));
 
   const channel = interaction.channel;
   if (!channel?.isSendable()) return;
   await runConversationTurn(bridge, fresh, {
     actorId: interaction.user.id,
-    prompt:
-      "This conversation was just started over from Discord in place of an earlier one in the same folder. " +
-      "Say hello in one short line, naming the folder you are working in but not its full path.",
+    prompt: HELLO_AFTER_CLEAR,
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     resume: false,
     name: record ? displayName(record) : undefined,

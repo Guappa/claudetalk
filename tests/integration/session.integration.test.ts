@@ -23,7 +23,7 @@ describe("real session lifecycle", () => {
   it("creates a named session and gets a reply", async () => {
     cwd = await fs.mkdtemp(path.join(os.tmpdir(), "cdb-int-"));
     const result = await turn("Reply with exactly: ALPHA", false, "integration-probe");
-    expect(result.ok ? "" : result.error.message).toBe("");
+    expect(result.ok ? "" : JSON.stringify(result.error)).toBe("");
     expect(result.ok).toBe(true);
     expect(result.text).toContain("ALPHA");
   });

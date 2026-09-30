@@ -110,6 +110,7 @@ cp .env.example .env
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
 | `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |
 | `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
+| `BRIDGE_LANGUAGE` | Optional, `en` by default. The language the bridge itself speaks: `en` or `sv`. `/language` changes it from Discord. Claude's answers are not affected |
 | `BINDINGS_PATH` | Optional, defaults to `data/conversations.json` |
 | `OPERATORS_PATH` | Optional, defaults to `data/operators.json` |
 

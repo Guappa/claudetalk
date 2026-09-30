@@ -1,11 +1,11 @@
-import { count } from "../text.ts";
+import type { Say } from "../i18n/index.ts";
 
 export const MAX_QUEUE_DEPTH = 5;
 
 export type QueueOutcome =
   | { kind: "run-now" }
   | { kind: "queued"; ahead: number }
-  | { kind: "full"; message: string };
+  | { kind: "full" };
 
 interface Ticket {
   started: boolean;
@@ -17,16 +17,18 @@ interface Lane {
   tickets: Ticket[];
 }
 
-export function describeQueued(ahead: number): string {
-  return ahead === 1
-    ? "Queued behind the turn still running."
-    : `Queued behind ${ahead} messages.`;
+export function describeQueued(say: Say, ahead: number): string {
+  return ahead === 1 ? say("queue.behindRunning") : say("queue.behind", { ahead });
 }
 
-export function describeDepth(depth: number): string {
-  if (depth === 0) return "Nothing is running here.";
-  if (depth === 1) return "One turn is running, with nothing queued behind it.";
-  return `One turn is running, with ${count(depth - 1, "message")} queued behind it.`;
+export function describeDepth(say: Say, depth: number): string {
+  if (depth === 0) return say("common.nothingRunning");
+  if (depth === 1) return say("queue.runningAlone");
+  return say("queue.runningWith", { count: depth - 1 });
+}
+
+export function describeFull(say: Say): string {
+  return say("queue.full", { limit: MAX_QUEUE_DEPTH, queued: MAX_QUEUE_DEPTH - 1 });
 }
 
 // One lane per conversation, so messages run in order instead of being dropped mid-turn.
@@ -50,15 +52,7 @@ export class TurnQueue {
   admit(key: string): QueueOutcome {
     const waiting = this.depth(key);
     if (waiting === 0) return { kind: "run-now" };
-    if (waiting >= MAX_QUEUE_DEPTH) {
-      return {
-        kind: "full",
-        message:
-          `This conversation already holds ${MAX_QUEUE_DEPTH} messages: one running and ` +
-          `${MAX_QUEUE_DEPTH - 1} queued behind it. Let it catch up, run \`/stop\` to end the one in flight and ` +
-          `let the next start, or \`/stop all:true\` to drop the queue with it.`,
-      };
-    }
+    if (waiting >= MAX_QUEUE_DEPTH) return { kind: "full" };
     return { kind: "queued", ahead: waiting };
   }
 

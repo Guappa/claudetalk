@@ -5,7 +5,6 @@ import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
 import { resolveByChannelName } from "../../sessions/resolve.ts";
 import { displayName } from "../../sessions/displayName.ts";
-import { describeAlreadyOpen } from "../binding.ts";
 import {
   appendAttachmentPaths,
   describeRefused,
@@ -14,7 +13,7 @@ import {
   screenAttachments,
   sweepAttachments,
 } from "../../attachments.ts";
-import { classifyPrompt } from "../commands/settings.ts";
+import { classifyPrompt, describeNotRun } from "../commands/settings.ts";
 import { channelSink } from "../sink.ts";
 import { sendNotice } from "../notice.ts";
 import { runConversationTurn } from "../turn.ts";
@@ -78,13 +77,15 @@ async function bindExisting(
   const resolution = resolveByChannelName(await bridge.sessions.build(), channelNameOf(message));
   if (!resolution.match?.cwd) return null;
 
+  const say = bridge.language.say;
   const open = bridge.store.bySession(resolution.match.sessionId);
   if (open) {
-    await sendNotice(channel, describeAlreadyOpen(displayName(resolution.match), open.channels.text));
+    const alreadyOpen = { name: displayName(resolution.match), channelId: open.channels.text };
+    await sendNotice(channel, say("binding.alreadyOpen", alreadyOpen));
     return "already-open";
   }
 
-  await sendNotice(channel, `Bound to **${channelNameOf(message)}**.`);
+  await sendNotice(channel, say("binding.bound", { channel: channelNameOf(message) }));
   return await bridge.store.bindNew({
     sessionId: resolution.match.sessionId,
     cwd: resolution.match.cwd,
@@ -97,11 +98,7 @@ async function bindExisting(
 async function startMentionOnly(bridge: Bridge, message: Message, channel: SendableChannels): Promise<Conversation | null> {
   const cwd = adHocWorkingDir(bridge, tierOf(bridge, message.author.id), message.author.id);
   if (!cwd) {
-    await sendNotice(
-      channel,
-      "You have no workspace to answer from. Ask an owner to set `WORKSPACES_ROOT`, " +
-        "or use `/create` to start a conversation of your own.",
-    );
+    await sendNotice(channel, bridge.language.say("binding.noWorkspace"));
     return null;
   }
 
@@ -168,12 +165,12 @@ async function runTurn(
     })),
   );
   // A reply, not a notice: it stays under the upload it is about, and a plain message has no ephemeral.
-  const refusal = describeRefused(refused);
+  const refusal = describeRefused(bridge.language.say, refused);
   if (refusal) await reply(message, refusal);
   if (nothingToSend(prompt, allowed.length)) return;
 
   const { saved, failed } = await downloadAttachments(allowed, randomUUID());
-  const unfetched = describeUnfetched(failed);
+  const unfetched = describeUnfetched(bridge.language.say, failed);
   if (unfetched) await reply(message, unfetched);
   if (nothingToSend(prompt, saved.length)) return;
 
@@ -213,7 +210,7 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
   const existing = bridge.store.byChannel(message.channelId);
   const classification = classifyPrompt(prompt, bridge.capabilities.terminalOnly(existing?.sessionId ?? ""));
   if (classification.kind !== "turn" && classification.kind !== "passthrough") {
-    await sendNotice(channel, classification.message);
+    await sendNotice(channel, describeNotRun(bridge.language.say, classification));
     return;
   }
 

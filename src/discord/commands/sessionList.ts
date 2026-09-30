@@ -3,7 +3,7 @@ import { displayPath } from "../../displayPath.ts";
 import { displayName } from "../../sessions/displayName.ts";
 import { isWithin, longTmpDir } from "../../platform.ts";
 import { byRecencyDesc } from "../../sessions/resolve.ts";
-import { count } from "../../text.ts";
+import type { Say } from "../../i18n/index.ts";
 
 const MAX_LISTED = 25;
 const CHOICE_LABEL_LIMIT = 100;
@@ -21,12 +21,12 @@ export function humanSize(bytes: number): string {
   return `${bytes} B`;
 }
 
-export function humanAge(at: Date | null, now = new Date()): string {
-  if (!at) return "unknown";
+export function humanAge(say: Say, at: Date | null, now = new Date()): string {
+  if (!at) return say("common.unknown");
   const minutes = Math.round((now.getTime() - at.getTime()) / 60000);
-  if (minutes < 60) return `${Math.max(minutes, 0)}m ago`;
-  if (minutes < 60 * 24) return `${Math.round(minutes / 60)}h ago`;
-  return `${Math.round(minutes / (60 * 24))}d ago`;
+  if (minutes < 60) return say("units.minutesAgo", { quantity: Math.max(minutes, 0) });
+  if (minutes < 60 * 24) return say("units.hoursAgo", { quantity: Math.round(minutes / 60) });
+  return say("units.daysAgo", { quantity: Math.round(minutes / (60 * 24)) });
 }
 
 // Probes and scratch runs live under the temp folder and bury real work in a picker.
@@ -36,10 +36,8 @@ export function withoutScratch(records: SessionRecord[]): { shown: SessionRecord
   return { shown, hidden: records.length - shown.length };
 }
 
-export function describeHidden(hidden: number): string {
-  if (hidden === 0) return "";
-  const noun = `${count(hidden, "conversation")} in the temp folder ${hidden === 1 ? "is" : "are"}`;
-  return `\n\n${noun} left out. Pass a filter to include ${hidden === 1 ? "it" : "them"}.`;
+export function describeHidden(say: Say, hidden: number): string {
+  return hidden === 0 ? "" : `\n\n${say("sessions.hidden", { count: hidden })}`;
 }
 
 // Conversations sharing a name are the same folder's, and the newest is nearly always the one meant.
@@ -59,16 +57,16 @@ export function newestPerName(records: SessionRecord[]): Array<[SessionRecord, n
 }
 
 // The session id is the value because several conversations can share a name.
-export function sessionChoice(record: SessionRecord, older = 0): { name: string; value: string } {
-  const olderTag = older > 0 ? ` · +${older} older` : "";
-  const suffix = `${tagFor(record)} · ${humanSize(record.sizeBytes)} · ${humanAge(record.lastActivity)}${olderTag}`;
+export function sessionChoice(say: Say, record: SessionRecord, older = 0): { name: string; value: string } {
+  const olderTag = older > 0 ? ` · ${say("sessions.older", { older })}` : "";
+  const suffix = `${tagFor(record)} · ${humanSize(record.sizeBytes)} · ${humanAge(say, record.lastActivity)}${olderTag}`;
   const room = CHOICE_LABEL_LIMIT - suffix.length;
   const name = displayName(record).slice(0, Math.max(room, 1));
   return { name: `${name}${suffix}`.slice(0, CHOICE_LABEL_LIMIT), value: record.sessionId };
 }
 
-export function formatSessionList(records: SessionRecord[]): string {
-  if (records.length === 0) return "No conversations found yet. Start one with `/create <name>`.";
+export function formatSessionList(say: Say, records: SessionRecord[]): string {
+  if (records.length === 0) return say("sessions.none");
 
   return records
     .slice()
@@ -77,8 +75,10 @@ export function formatSessionList(records: SessionRecord[]): string {
     .map((record) => {
       const when = record.lastActivity
         ? record.lastActivity.toISOString().slice(0, 16).replace("T", " ")
-        : "unknown";
-      const live = record.live ? ` · live (${record.live.kind}, ${record.live.status ?? "starting"})` : "";
+        : say("common.unknown");
+      const live = record.live
+        ? ` · ${say("sessions.live", { kind: record.live.kind, status: record.live.status ?? say("sessions.starting") })}`
+        : "";
       return `**${displayName(record)}**${tagFor(record)} · ${humanSize(record.sizeBytes)} · ${record.cwd ? displayPath(record.cwd) : "?"} · ${when}${live}`;
     })
     .join("\n");
