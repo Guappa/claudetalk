@@ -1,15 +1,16 @@
 import { displayPath } from "../displayPath.ts";
-import { count, truncate } from "../text.ts";
+import type { Say } from "../i18n/index.ts";
+import { truncate } from "../text.ts";
 
 // What the terminal shows for a tool call, drawn from the call's own input, so it costs the model nothing.
-export function describeToolUse(name: string, input: Record<string, unknown>): string | null {
+export function describeToolUse(say: Say, name: string, input: Record<string, unknown>): string | null {
   switch (name) {
     case "Edit":
-      return editDiff(input);
+      return editDiff(say, input);
     case "MultiEdit":
-      return multiEditDiff(input);
+      return multiEditDiff(say, input);
     case "Write":
-      return writeSummary(input);
+      return writeSummary(say, input);
     case "Bash":
       return command(input, "bash");
     case "PowerShell":
@@ -30,9 +31,9 @@ function safe(line: string): string {
   return line.replace(/```/g, "` ` `");
 }
 
-function capped(lines: string[]): string[] {
+function capped(say: Say, lines: string[]): string[] {
   if (lines.length <= MAX_DIFF_LINES) return lines;
-  return [...lines.slice(0, MAX_DIFF_LINES), `... ${count(lines.length - MAX_DIFF_LINES, "more line")}`];
+  return [...lines.slice(0, MAX_DIFF_LINES), say("trail.moreLines", { count: lines.length - MAX_DIFF_LINES })];
 }
 
 function fenced(kind: string, lines: string[]): string {
@@ -50,13 +51,13 @@ function diffLines(before: string, after: string): string[] {
   return [...removed, ...added];
 }
 
-function editDiff(input: Record<string, unknown>): string | null {
+function editDiff(say: Say, input: Record<string, unknown>): string | null {
   const filePath = text(input.file_path);
   if (!filePath) return null;
-  return `${pathHeading(filePath)}\n${fenced("diff", capped(diffLines(text(input.old_string), text(input.new_string))))}`;
+  return `${pathHeading(filePath)}\n${fenced("diff", capped(say, diffLines(text(input.old_string), text(input.new_string))))}`;
 }
 
-function multiEditDiff(input: Record<string, unknown>): string | null {
+function multiEditDiff(say: Say, input: Record<string, unknown>): string | null {
   const filePath = text(input.file_path);
   const edits = Array.isArray(input.edits) ? (input.edits as Array<Record<string, unknown>>) : [];
   if (!filePath || edits.length === 0) return null;
@@ -64,7 +65,7 @@ function multiEditDiff(input: Record<string, unknown>): string | null {
     ...(index > 0 ? [""] : []),
     ...diffLines(text(edit.old_string), text(edit.new_string)),
   ]);
-  return `${pathHeading(filePath)}\n${fenced("diff", capped(lines))}`;
+  return `${pathHeading(filePath)}\n${fenced("diff", capped(say, lines))}`;
 }
 
 // Discord highlights a block by its tag; an extension it does not know gets no tag rather than a wrong one.
@@ -109,11 +110,12 @@ export function languageFor(filePath: string): string {
   return LANGUAGES[extension] ?? "";
 }
 
-function writeSummary(input: Record<string, unknown>): string | null {
+function writeSummary(say: Say, input: Record<string, unknown>): string | null {
   const filePath = text(input.file_path);
   if (!filePath) return null;
   const lines = text(input.content).split("\n");
-  return `${pathHeading(filePath)} (${count(lines.length, "line")})\n${fenced(languageFor(filePath), capped(lines))}`;
+  const heading = say("trail.written", { path: pathHeading(filePath), count: lines.length });
+  return `${heading}\n${fenced(languageFor(filePath), capped(say, lines))}`;
 }
 
 function command(input: Record<string, unknown>, shell: string): string | null {

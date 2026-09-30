@@ -128,7 +128,8 @@ replying outside `respond`, a turn spent outside `runConversationTurn`, a stacke
 block, a single-letter name for anything but a loop counter, module-scope mutable state, a `process.platform`
 outside `platform.ts`, a `shell: true`, a slash command with no row in
 `docs/REFERENCE.md`, a registered command with no handler behind it or a handler
-no command reaches, an access tier naming a command that does not exist, or an
+no command reaches, an access tier naming a command that does not exist, a sentence for a person
+written outside the catalog, or an
 environment variable missing from `.env.example` or the README. CI runs it on
 Linux and Windows.
 
@@ -205,11 +206,44 @@ client declares `perTaskStopAffordance`, which the bridge does because it has
 its own Stop agents control; with it declared an agent runs on and finishes,
 and a background command survives either way.
 
+**What the bridge says is looked up, never written where it is said.** Every
+sentence, label and button a person reads lives in `src/i18n/locales/`, one
+file per language, and code reaches one only by its key: `say("clear.running")`.
+English is the source. A key that does not exist, or a value a sentence needs
+and was not given, fails the typecheck; every other language is typed against
+English's keys, so one that falls behind fails it too. `say` is passed down
+explicitly from `bridge.language`, and a turn reads it once when it starts.
+
+A key holds one whole sentence. Code chooses which sentence; it never builds
+one out of halves, because a half that reads well in English has nowhere to go
+in a language that orders the sentence differently. A sentence that counts has
+a `_one` and an `_other` form and is called with `count`, and the language's
+own plural rule picks between them. `{{placeholders}}`, commands in backticks
+and `**bold**` carry over to every language unchanged; `tests/i18n.test.ts`
+fails a translation that renames, drops or rewrites one, and one that outgrows
+what Discord allows a button or a title.
+
+Three kinds of text stay out of the catalog on purpose. What is written for
+Claude to read is in `src/claude/prompts.ts`, the system note and the channel
+context, and stays English, since Claude did not pick a language. What the
+host reads, the log and the errors the bridge stops on at startup, stays
+English too. And a slash command's name and description are the same in every
+language, as they are in the terminal. Anything else that reads as a sentence
+in `src/` fails the style test.
+
+Adding a language is a file in `src/i18n/locales/` typed as `Catalog`, a line
+in `LANGUAGES` and one in the resources in `src/i18n/index.ts`, and a line in
+the test's `CATALOGS`. A language whose plural forms differ from English's
+cannot be typed as `Catalog` as it stands; that is the point to loosen the
+type and let the test hold its keys.
+
 **What the bot says has to be what happens.** A message that names an effect is
 checked against the code or a captured run before it ships, and corrected in
 the same change that alters the behaviour. The full-queue refusal went on
 saying `/stop` dropped the queue for weeks after `/stop` stopped doing that,
-and its test went on passing because it checked the old words.
+and its test went on passing because it checked the old words. A translation
+is held to the same: it says what the English says, no more and no less, and
+changes in the same commit the English does.
 
 The same held input is what makes an orphaned task survivable. A stop or a
 crash can still leave a command running when the process exits, and the next

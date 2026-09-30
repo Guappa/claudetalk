@@ -203,6 +203,128 @@ describe("docs follow code", () => {
   });
 });
 
+describe("what the bridge says lives in the catalog", () => {
+  interface Literal {
+    text: string;
+    index: number;
+  }
+
+  // Every string in a source file with where it starts; comments and regular expressions are skipped, and a template gives only its fixed text.
+  function stringLiterals(source: string): Literal[] {
+    const found: Literal[] = [];
+    const startsRegex = (index: number): boolean => /(^|[(,=:[!&|?{};\n])\s*$/.test(source.slice(Math.max(index - 40, 0), index));
+
+    const readQuoted = (start: number): number => {
+      const quote = source[start]!;
+      let index = start + 1;
+      while (index < source.length && source[index] !== quote) index += source[index] === "\\" ? 2 : 1;
+      found.push({ text: source.slice(start + 1, index), index: start });
+      return index + 1;
+    };
+
+    const readRegex = (start: number): number => {
+      let index = start + 1;
+      let inClass = false;
+      while (index < source.length && (inClass || source[index] !== "/")) {
+        if (source[index] === "\\") index += 1;
+        else if (source[index] === "[") inClass = true;
+        else if (source[index] === "]") inClass = false;
+        index += 1;
+      }
+      return index + 1;
+    };
+
+    const readTemplate = (start: number): number => {
+      let index = start + 1;
+      let text = "";
+      while (index < source.length && source[index] !== "`") {
+        if (source[index] === "\\") {
+          text += source.slice(index, index + 2);
+          index += 2;
+        } else if (source.startsWith("${", index)) {
+          index = readCode(index + 2, true);
+          text += "{}";
+        } else {
+          text += source[index];
+          index += 1;
+        }
+      }
+      found.push({ text, index: start });
+      return index + 1;
+    };
+
+    const readCode = (start: number, untilBrace: boolean): number => {
+      let index = start;
+      let depth = 0;
+      while (index < source.length) {
+        const char = source[index]!;
+        if (source.startsWith("//", index)) index = source.indexOf("\n", index) === -1 ? source.length : source.indexOf("\n", index);
+        else if (source.startsWith("/*", index)) index = source.indexOf("*/", index) + 2;
+        else if (char === '"' || char === "'") index = readQuoted(index);
+        else if (char === "`") index = readTemplate(index);
+        else if (char === "/" && startsRegex(index)) index = readRegex(index);
+        else if (char === "{") {
+          depth += 1;
+          index += 1;
+        } else if (char === "}") {
+          if (untilBrace && depth === 0) return index + 1;
+          depth -= 1;
+          index += 1;
+        } else index += 1;
+      }
+      return index;
+    };
+
+    readCode(0, false);
+    return found;
+  }
+
+  // Written for Claude, for whoever runs the host, or as a diagnostic a catalog sentence quotes; the last is Discord's command picker, the same in every language as in the terminal.
+  const NOT_FOR_THE_CATALOG = [
+    "src/claude/prompts.ts",
+    "src/claude/runner.ts",
+    "src/discord/context.ts",
+    "src/claude/auth.ts",
+    "src/instanceLock.ts",
+    "src/conversations.ts",
+    "src/discord/commands/registry.ts",
+  ];
+  const SENTENCE = /[A-Za-z][a-z']+ [a-z']{2,} [a-z']{2,}/;
+  const LABEL = /(?:\.set(?:Label|Placeholder|Title|Description)\(|\b(?:label|placeholder|title|description):\s*)$/;
+
+  // The statement a literal sits in, as far back as the line that opens it.
+  function statementBefore(source: string, index: number): string {
+    const opened = Math.max(source.lastIndexOf(";\n", index), source.lastIndexOf("{\n", index), source.lastIndexOf("}\n", index));
+    return source.slice(opened + 1, index);
+  }
+
+  const isDiagnostic = (statement: string): boolean => /new Error\(|console\.(log|error|warn)\(/.test(statement);
+  const isImport = (statement: string): boolean => /\b(import|from)\s*$/.test(statement);
+
+  it("keeps sentences and labels for people out of the code", () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      const relative = path.relative(repoRoot, file).split(path.sep).join("/");
+      if (relative.startsWith("src/i18n/locales/") || NOT_FOR_THE_CATALOG.includes(relative)) continue;
+      const source = fs.readFileSync(file, "utf8");
+      for (const literal of stringLiterals(source)) {
+        const statement = statementBefore(source, literal.index);
+        if (isDiagnostic(statement) || isImport(statement)) continue;
+        const isLabel = LABEL.test(statement) && /^[A-Z][a-z]/.test(literal.text);
+        if (SENTENCE.test(literal.text) || isLabel) {
+          offenders.push(`${path.basename(file)}: ${literal.text.replace(/\s+/g, " ").slice(0, 70)}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("reads a string, a template, a comment and a regular expression apart", () => {
+    const sample = 'const first = "one two three"; // not "four five six"\nconst second = `seven ${eight("nine")} ten`; /quote"mark/.test(other);';
+    expect(stringLiterals(sample).map((literal) => literal.text)).toEqual(["one two three", "nine", "seven {} ten"]);
+  });
+});
+
 describe("everything posted to Discord passes the outgoing gate", () => {
   // A path or a stray marker that skips forDiscord reaches the channel as written; the sink gates its payloads itself.
   it("sends text to Discord only through forDiscord", () => {

@@ -5,10 +5,12 @@ import { displayPath } from "../../displayPath.ts";
 import { requireConversation } from "../binding.ts";
 import type { Conversation } from "../../conversations.ts";
 import { respond } from "../respond.ts";
-import { count, errorMessage } from "../../text.ts";
+import type { Say } from "../../i18n/index.ts";
+import { errorMessage } from "../../text.ts";
 import { NO_MENTIONS } from "../sink.ts";
 
 async function applyChannelAccess(
+  say: Say,
   interaction: ChatInputCommandInteraction,
   conversation: Conversation,
 ): Promise<string> {
@@ -26,18 +28,15 @@ async function applyChannelAccess(
     );
     return "";
   } catch (error) {
-    return (
-      `\n\nAccess was recorded, but the channel's visibility could not be changed: ` +
-      `${errorMessage(error)}. The bot needs Manage Roles for that.`
-    );
+    return `\n\n${say("members.visibilityFailed", { error: errorMessage(error) })}`;
   }
 }
 
 // Membership is who can see the channel; driving the conversation takes operator access.
-function describeConversation(conversation: Conversation): string {
+function describeConversation(say: Say, conversation: Conversation): string {
   const others = conversation.memberIds.length;
-  const seen = others === 0 ? "Nobody else can see it." : `${count(others, "other")} can see it.`;
-  return `Runs in \`${displayPath(conversation.cwd)}\` as the host user, with full machine access. ${seen}`;
+  const seen = others === 0 ? say("members.seenByNobody") : say("members.seenBy", { count: others });
+  return `${say("members.runs", { cwd: displayPath(conversation.cwd) })} ${seen}`;
 }
 
 export async function handleInvite(
@@ -47,28 +46,22 @@ export async function handleInvite(
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 
+  const say = bridge.language.say;
   const user = interaction.options.getUser("user", true);
   if (user.bot) {
-    await respond(interaction, "Bots cannot be invited to a conversation; pick a person.");
+    await respond(interaction, say("members.inviteBot"));
     return;
   }
   if (user.id === conversation.ownerId || conversation.memberIds.includes(user.id)) {
-    await respond(interaction, `${user.username} already has access to this conversation.`);
+    await respond(interaction, say("members.alreadyIn", { user: user.username }));
     return;
   }
 
   const updated = await bridge.store.setMembers(conversation.sessionId, [...conversation.memberIds, user.id]);
-  const accessWarning = await applyChannelAccess(interaction, updated);
+  const accessWarning = await applyChannelAccess(say, interaction, updated);
+  const invited = `${say("members.invited", { user: user.username })} ${describeConversation(say, updated)}`;
 
-  const warning =
-    "\n\nThis lets them **read** the channel, including everything already said here. It does not " +
-    "let them use the bot: messages and commands from anyone who is not an operator are ignored. " +
-    "`/operator add` is what hands over the machine.";
-
-  await respond(
-    interaction,
-    `${user.username} can now see this conversation. ${describeConversation(updated)}${warning}${accessWarning}`,
-  );
+  await respond(interaction, `${invited}\n\n${say("members.inviteWarning")}${accessWarning}`);
 }
 
 export async function handleUninvite(
@@ -78,9 +71,10 @@ export async function handleUninvite(
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 
+  const say = bridge.language.say;
   const user = interaction.options.getUser("user", true);
   if (!conversation.memberIds.includes(user.id)) {
-    await respond(interaction, `${user.username} is not a member of this conversation.`);
+    await respond(interaction, say("members.notMember", { user: user.username }));
     return;
   }
 
@@ -88,8 +82,9 @@ export async function handleUninvite(
     conversation.sessionId,
     conversation.memberIds.filter((id) => id !== user.id),
   );
-  const accessWarning = await applyChannelAccess(interaction, updated);
-  await respond(interaction, `${user.username} removed. ${describeConversation(updated)}${accessWarning}`);
+  const accessWarning = await applyChannelAccess(say, interaction, updated);
+  const removed = say("members.removed", { user: user.username });
+  await respond(interaction, `${removed} ${describeConversation(say, updated)}${accessWarning}`);
 }
 
 export async function handleMembers(
@@ -99,9 +94,11 @@ export async function handleMembers(
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 
-  const watchers = conversation.memberIds.map((id) => `<@${id}>`).join(", ") || "nobody";
+  const say = bridge.language.say;
+  const watchers = conversation.memberIds.map((id) => `<@${id}>`).join(", ") || say("common.nobody");
+  const summary = say("members.summary", { owner: `<@${conversation.ownerId}>`, watchers });
   await respond(interaction, {
-    content: `Owner: <@${conversation.ownerId}>\nCan see it: ${watchers}\n\n${describeConversation(conversation)}`,
+    content: `${summary}\n\n${describeConversation(say, conversation)}`,
     allowedMentions: NO_MENTIONS,
   });
 }

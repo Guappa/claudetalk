@@ -15,6 +15,7 @@ import {
 } from "../claude/events.ts";
 import { AgentBoard, agentsTitle } from "./agentBoard.ts";
 import type { ClaudeError } from "../claude/errors.ts";
+import type { Say } from "../i18n/index.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
 import type { ContextTracker } from "../claude/contextTracker.ts";
 import type { UsageLedger } from "../claude/usageLedger.ts";
@@ -27,49 +28,34 @@ import type { AskHandle, MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
 import { chunkForDiscord } from "./renderer.ts";
 import { displayPath } from "../displayPath.ts";
-import { count } from "../text.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
-import { TurnQueue, describeQueued } from "./turnQueue.ts";
+import { TurnQueue, describeFull, describeQueued } from "./turnQueue.ts";
 import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";
 import type { OutboxDelivery } from "./outboxDelivery.ts";
 import type { StateMarker } from "./reactions.ts";
 import type { Mood } from "./statusMessage.ts";
 import type { ActiveTurns } from "./activeTurns.ts";
 
-const DRAINING =
-  "The bridge is shutting down and takes nothing new. It lets running turns finish first, which can take a while; send this again once it is back.";
 const DRAIN_POLL_MS = 250;
-const HANDED_OVER =
-  "Handed to the running turn. Claude takes it up at its next step, or right after this turn's answer if no step is left.";
-const TAKEN_UP = "Taken up by the running turn.";
-const NEVER_TAKEN = "The turn ended before this was taken up. Send it again.";
 
 export type PreflightResult =
   | { kind: "ok" }
   | { kind: "takeover-available"; shortId: string; message: string }
   | { kind: "refused"; message: string };
 
-function describeBackgroundHold(shortId: string): string {
-  return (
-    `That conversation is running as a background agent (\`${shortId}\`). ` +
-    `Run \`/takeover\` here to stop it and continue, or \`claude attach ${shortId}\` on the host.`
-  );
-}
-
-export function preflight(record: SessionRecord | null): PreflightResult {
+export function preflight(say: Say, record: SessionRecord | null): PreflightResult {
   const live = record?.live;
   if (!live) return { kind: "ok" };
 
   if (live.kind === "background" && live.id) {
-    return { kind: "takeover-available", shortId: live.id, message: describeBackgroundHold(live.id) };
+    return {
+      kind: "takeover-available",
+      shortId: live.id,
+      message: say("turn.heldByBackgroundAgent", { shortId: live.id }),
+    };
   }
 
-  return {
-    kind: "refused",
-    message:
-      `That conversation is open in a terminal on the host (pid ${live.pid}, ${displayPath(live.cwd)}). ` +
-      `Close that terminal or switch it to another conversation, then try again.`,
-  };
+  return { kind: "refused", message: say("turn.openInTerminal", { pid: live.pid, cwd: displayPath(live.cwd) }) };
 }
 
 export interface TurnOptions {
@@ -97,15 +83,14 @@ interface Folded {
 
 export type SendNowOutcome = "sent" | "nothing-waiting" | "not-running";
 
-export function describeSendNow(outcome: SendNowOutcome): string {
-  if (outcome === "sent") {
-    return (
-      "Sent now. The step Claude was on was cut short so it could read your message, and it carries on from there. " +
-      "Agents and background commands it had running were left running."
-    );
-  }
-  if (outcome === "nothing-waiting") return "Nothing is waiting: the running turn has already taken your message up.";
-  return "No turn is running here any more, so there is nothing to interrupt.";
+const SEND_NOW_OUTCOMES = {
+  sent: "fold.sent",
+  "nothing-waiting": "fold.nothingWaiting",
+  "not-running": "fold.notRunning",
+} as const;
+
+export function describeSendNow(say: Say, outcome: SendNowOutcome): string {
+  return say(SEND_NOW_OUTCOMES[outcome]);
 }
 
 export interface StopOutcome {
@@ -118,47 +103,22 @@ export interface StopTurnOutcome {
   queued: number;
 }
 
-// The same for every stop, since each one kills the turn the same way.
-const OUTLIVES =
-  "The turn's whole process tree is killed; on Windows a command that had detached itself from that tree can outlive it, " +
-  "so check the host if it was something long.";
-
-export function describeStopAgents(stopped: number): string {
-  if (stopped === 0) return "No agent or cloud task is running here, so there was nothing to stop.";
-  return (
-    `Asked ${count(stopped, "task")} to stop. The turn itself carries on, and Claude is told they were stopped; ` +
-    "press **Stop** to end the turn as well."
-  );
+export function describeStopAgents(say: Say, stopped: number): string {
+  return stopped === 0 ? say("stop.noAgents") : say("stop.agentsAsked", { count: stopped });
 }
 
-export function describeStopTurn(outcome: StopTurnOutcome): string {
+export function describeStopTurn(say: Say, outcome: StopTurnOutcome): string {
   if (!outcome.stopped) {
-    return outcome.queued === 0
-      ? "Nothing is running here."
-      : `Nothing is running yet; ${count(outcome.queued, "message")} queued here will run in turn.`;
+    return outcome.queued === 0 ? say("common.nothingRunning") : say("stop.nothingYet", { count: outcome.queued });
   }
-  const next =
-    outcome.queued === 0
-      ? "Nothing was queued, so Claude takes no further action here until your next message."
-      : `The ${count(outcome.queued, "message")} queued behind it ${outcome.queued === 1 ? "runs" : "run"} next.`;
-  return `Stopped this turn. ${next} ${OUTLIVES}`;
+  return outcome.queued === 0 ? say("stop.turn") : say("stop.turnThenQueue", { count: outcome.queued });
 }
 
-function droppedWithIt(dropped: number): string {
-  if (dropped === 0) return "";
-  if (dropped === 1) return " The message queued behind it was dropped too.";
-  return ` The ${count(dropped, "message")} queued behind it were dropped too.`;
-}
-
-export function describeStop(outcome: StopOutcome): string {
+export function describeStop(say: Say, outcome: StopOutcome): string {
   if (!outcome.stopped) {
-    if (outcome.dropped === 0) return "Nothing is running here.";
-    const queued = outcome.dropped === 1 ? "message" : count(outcome.dropped, "message");
-    return `Nothing was running, but the ${queued} queued here ${outcome.dropped === 1 ? "was" : "were"} dropped.`;
+    return outcome.dropped === 0 ? say("common.nothingRunning") : say("stop.queueOnly", { count: outcome.dropped });
   }
-  return (
-    `Stopped.${droppedWithIt(outcome.dropped)} Claude takes no further action here until your next message. ${OUTLIVES}`
-  );
+  return outcome.dropped === 0 ? say("stop.all") : say("stop.allWithQueue", { count: outcome.dropped });
 }
 
 // The reaction shows a question mark while the turn waits on a person, and eyes again once it has its answer.
@@ -171,23 +131,39 @@ async function whileWaiting<T>(onState: StateMarker | undefined, ask: () => Prom
   }
 }
 
-function describeFailure(error: ClaudeError): string {
-  if (error.kind === "session-busy") return describeBackgroundHold(error.shortId);
-  return `The turn failed.\n\`\`\`\n${error.message}\n\`\`\``;
+function describeFailure(say: Say, error: ClaudeError): string {
+  if (error.kind === "session-busy") return say("turn.heldByBackgroundAgent", { shortId: error.shortId });
+  return say("turn.failed", { error: failureDetail(say, error) });
+}
+
+function failureDetail(say: Say, error: Exclude<ClaudeError, { kind: "session-busy" }>): string {
+  switch (error.kind) {
+    case "stopped":
+      return say("turn.errors.stopped");
+    case "orphan-twice":
+      return say("turn.errors.orphanTwice");
+    case "ended":
+      return error.text
+        ? say("turn.errors.endedSaying", { subtype: error.subtype, text: error.text })
+        : say("turn.errors.ended", { subtype: error.subtype });
+    case "could-not-run":
+      return say("turn.errors.couldNotRun", { error: error.message });
+  }
 }
 
 // The last thing said is the answer, so it is posted beneath the trail rather than repeated inside it.
 async function postAnswer(
+  say: Say,
   status: StatusMessage,
   sink: MessageSink,
   cwd: string,
   text: string,
   compacted: boolean,
 ): Promise<void> {
-  const raw = text.trim() ? text : compacted ? "Compacted." : "Done, with no text to show.";
+  const raw = text.trim() ? text : say(compacted ? "trail.answerCompacted" : "trail.answerDoneNoText");
   // The echo is matched against what the model said, before any rewriting of it.
   status.dropEcho(raw);
-  await conclude(status, sink, chunkForDiscord(await linkEverything(cwd, convertTables(raw))), "done");
+  await conclude(say, status, sink, chunkForDiscord(await linkEverything(cwd, convertTables(raw))), "done");
 }
 
 async function linkEverything(cwd: string, text: string): Promise<string> {
@@ -196,8 +172,8 @@ async function linkEverything(cwd: string, text: string): Promise<string> {
 }
 
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
-async function conclude(status: StatusMessage, sink: MessageSink, chunks: string[], mood: Mood): Promise<void> {
-  const first = chunks[0] ?? "Done.";
+async function conclude(say: Say, status: StatusMessage, sink: MessageSink, chunks: string[], mood: Mood): Promise<void> {
+  const first = chunks[0] ?? say("trail.answerDone");
   if (await concludeInPlace(status, sink, first, mood)) {
     for (const chunk of chunks.slice(1)) await sink.send(chunk);
     return;
@@ -235,6 +211,7 @@ export class TurnFlow {
   private readonly outbox: OutboxDelivery;
   private readonly activeTurns: ActiveTurns;
   private readonly config: Config;
+  private readonly say: () => Say;
   private readonly cloudGraceMs: number;
   private draining = false;
 
@@ -248,6 +225,7 @@ export class TurnFlow {
     outbox: OutboxDelivery,
     activeTurns: ActiveTurns,
     config: Config,
+    say: () => Say,
     cloudGraceMs: number = CLOUD_STOP_GRACE_MS,
   ) {
     this.capabilities = capabilities;
@@ -259,6 +237,7 @@ export class TurnFlow {
     this.outbox = outbox;
     this.activeTurns = activeTurns;
     this.config = config;
+    this.say = say;
     this.cloudGraceMs = cloudGraceMs;
   }
 
@@ -300,7 +279,7 @@ export class TurnFlow {
 
   available(sessionId: string, record: SessionRecord | null): PreflightResult {
     if (this.running.has(sessionId)) return { kind: "ok" };
-    return preflight(record);
+    return preflight(this.say(), record);
   }
 
   stop(sessionId: string): StopOutcome {
@@ -357,19 +336,20 @@ export class TurnFlow {
     sink: MessageSink,
     options: TurnOptions,
   ): Promise<boolean> {
+    const say = this.say();
     if (this.draining) {
-      await sink.notice(DRAINING);
+      await sink.notice(say("turn.draining"));
       return false;
     }
     if (options.foldable && (await this.fold(sessionId, prompt, sink, options))) return true;
 
     const admission = this.queue.admit(sessionId);
     if (admission.kind === "full") {
-      await sink.notice(admission.message);
+      await sink.notice(describeFull(say));
       return false;
     }
     if (admission.kind === "queued") {
-      await sink.notice(describeQueued(admission.ahead));
+      await sink.notice(describeQueued(say, admission.ahead));
       await options.onState?.("queued");
     }
 
@@ -397,9 +377,11 @@ export class TurnFlow {
     waiting.set(uuid, entry);
     this.folded.set(sessionId, waiting);
     await options.onState?.("queued");
-    entry.notice = (await sink.ask?.(HANDED_OVER, [{ id: sendNowActionId(sessionId), label: "Send now" }])) ?? null;
+    const say = this.say();
+    const hurry = [{ id: sendNowActionId(sessionId), label: say("fold.sendNow") }];
+    entry.notice = (await sink.ask?.(say("fold.handedOver"), hurry)) ?? null;
     // It can be taken up while the notice is still on its way.
-    if (entry.taken) await entry.notice?.close(TAKEN_UP);
+    if (entry.taken) await entry.notice?.close(say("fold.takenUp"));
     return true;
   }
 
@@ -408,7 +390,7 @@ export class TurnFlow {
     if (!entry || entry.taken) return;
     entry.taken = true;
     await entry.onState?.("running");
-    await entry.notice?.close(TAKEN_UP);
+    await entry.notice?.close(this.say()("fold.takenUp"));
   }
 
   // A message that joined a turn ends the way the turn did; one never taken up says so, since nothing answered it.
@@ -416,7 +398,7 @@ export class TurnFlow {
     const entries = [...(this.folded.get(sessionId)?.values() ?? [])];
     this.folded.delete(sessionId);
     for (const entry of entries) {
-      if (!entry.taken) await entry.notice?.close(NEVER_TAKEN);
+      if (!entry.taken) await entry.notice?.close(this.say()("fold.neverTaken"));
       await entry.onState?.(entry.taken ? state : "stopped");
     }
   }
@@ -439,6 +421,8 @@ export class TurnFlow {
     sink: MessageSink,
     options: TurnOptions,
   ): Promise<void> {
+    // Read once, so a turn finishes in the language it started in even if another is picked while it runs.
+    const say = this.say();
     // The record follows the trail into each new message, so an interruption is marked where the reader looks.
     let ended = false;
     const remember = async (): Promise<void> => {
@@ -447,17 +431,20 @@ export class TurnFlow {
     };
     // Each extra button appears only while it would do something: a queue to drop, or agents and cloud tasks to stop.
     const actions = (): SinkAction[] => {
-      const offered: SinkAction[] = [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }];
-      if (this.queue.depth(sessionId) > 1) offered.push({ id: stopAllActionId(sessionId), label: "Stop all", tone: "danger" });
+      const offered: SinkAction[] = [{ id: stopActionId(sessionId), label: say("stop.button"), tone: "danger" }];
+      if (this.queue.depth(sessionId) > 1) {
+        offered.push({ id: stopAllActionId(sessionId), label: say("stop.allButton"), tone: "danger" });
+      }
       const stopAgents = board.stopLabel();
       if (stopAgents) offered.push({ id: stopAgentsActionId(sessionId), label: stopAgents });
       return offered;
     };
-    const board = new AgentBoard(sink, agentsTitle(options.asked ?? prompt), Date.now, undefined, (taskId) => {
+    const board = new AgentBoard(say, sink, agentsTitle(say, options.asked ?? prompt), Date.now, undefined, (taskId) => {
       void this.running.get(sessionId)?.stopTasks([taskId]);
     });
     this.boards.set(sessionId, board);
     const status = new StatusMessage(
+      say,
       sink,
       Date.now,
       actions,
@@ -482,13 +469,13 @@ export class TurnFlow {
         resume: options.resume,
         name: options.name,
         fork: options.fork,
-        approve: this.approvalGate(sessionId, sink, options.onState),
+        approve: this.approvalGate(say, sessionId, sink, options.onState),
         askQuestions: (questions) =>
-          whileWaiting(options.onState, () => this.questions.ask(sessionId, sink, questions)),
+          whileWaiting(options.onState, () => this.questions.ask(say, sessionId, sink, questions)),
       },
       (event) => {
         pending.push(
-          this.handleEvent(event, sessionId, cwd, status, board, sink, tracker, () => void (compaction.happened = true)),
+          this.handleEvent(say, event, sessionId, cwd, status, board, sink, tracker, () => void (compaction.happened = true)),
         );
       },
     );
@@ -503,20 +490,21 @@ export class TurnFlow {
       if (!result.ok) {
         // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
         const stopped = this.stopping.has(sessionId);
-        await conclude(status, sink, [stopped ? "Stopped." : describeFailure(result.error)], stopped ? "stopped" : "failed");
+        const outcome = stopped ? say("trail.answerStopped") : describeFailure(say, result.error);
+        await conclude(say, status, sink, [outcome], stopped ? "stopped" : "failed");
         await options.onState?.(stopped ? "stopped" : "failed");
         await this.settleFolded(sessionId, stopped ? "stopped" : "failed");
         return;
       }
 
-      await postAnswer(status, sink, cwd, result.text, compaction.happened);
+      await postAnswer(say, status, sink, cwd, result.text, compaction.happened);
       await options.onState?.("done");
       await this.settleFolded(sessionId, "done");
-      await this.outbox.deliver(cwd, sessionId, sink);
+      await this.outbox.deliver(say, cwd, sessionId, sink);
 
       if (result.contextUsage) {
         const warning = tracker.observe(result.contextUsage);
-        if (warning) await sink.notice(warning.message);
+        if (warning) await sink.notice(say(`context.${warning.level}`, { percent: warning.percent }));
       }
     } finally {
       status.stop();
@@ -535,10 +523,10 @@ export class TurnFlow {
     }
   }
 
-  private approvalGate(sessionId: string, sink: MessageSink, onState?: StateMarker): ApproveTool | undefined {
+  private approvalGate(say: Say, sessionId: string, sink: MessageSink, onState?: StateMarker): ApproveTool | undefined {
     if (!this.config.toolApprovals) return undefined;
     return (toolName, input) =>
-      whileWaiting(onState, () => this.approvals.ask(sessionId, sink, this.config.ownerIds, toolName, input));
+      whileWaiting(onState, () => this.approvals.ask(say, sessionId, sink, this.config.ownerIds, toolName, input));
   }
 
   private recordSpend(sessionId: string, result: TurnResult, options: TurnOptions): void {
@@ -550,6 +538,7 @@ export class TurnFlow {
   }
 
   private async handleEvent(
+    say: Say,
     event: ClaudeEvent,
     sessionId: string,
     cwd: string,
@@ -583,7 +572,7 @@ export class TurnFlow {
 
     if (isCompactionStart(event)) {
       onCompactionStart();
-      status.noteOnce("Compacting the conversation, which can take a while.");
+      status.noteOnce(say("trail.compacting"));
       return;
     }
 
@@ -592,11 +581,13 @@ export class TurnFlow {
       tracker.reset();
       // A manual compaction happens wherever it was asked for and says nothing about where the session fills up.
       if (summary.trigger === "auto") tracker.learnCeiling(summary.pre_tokens);
-      const seconds = Math.round(summary.duration_ms / 1000);
       await sink.notice(
-        `Compacted (${summary.trigger}): ${summary.pre_tokens.toLocaleString()} to ` +
-          `${summary.post_tokens.toLocaleString()} tokens, ` +
-          `${summary.cumulative_dropped_tokens.toLocaleString()} dropped in total, ${seconds}s.`,
+        say(summary.trigger === "auto" ? "trail.compactedAuto" : "trail.compactedManual", {
+          before: summary.pre_tokens,
+          after: summary.post_tokens,
+          dropped: summary.cumulative_dropped_tokens,
+          seconds: Math.round(summary.duration_ms / 1000),
+        }),
       );
       return;
     }
@@ -617,7 +608,7 @@ export class TurnFlow {
     }
 
     for (const use of uses) {
-      const shown = describeToolUse(use.name, use.input);
+      const shown = describeToolUse(say, use.name, use.input);
       if (shown) status.note(shown);
     }
     status.note(assistantText(event));

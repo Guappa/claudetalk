@@ -1,4 +1,5 @@
 import { SlashCommandBuilder } from "discord.js";
+import { LANGUAGES } from "../../i18n/index.ts";
 import { EFFORT_CHOICES, MODEL_CHOICES } from "./settings.ts";
 
 export function bridgeCommandDefinitions() {
@@ -61,6 +62,16 @@ export function bridgeCommandDefinitions() {
           .setName("value")
           .setDescription("Effort")
           .addChoices(...EFFORT_CHOICES.map((effort) => ({ name: effort, value: effort }))),
+      ),
+
+    new SlashCommandBuilder()
+      .setName("language")
+      .setDescription("Show or set the language the bridge itself speaks; Claude's answers are not affected")
+      .addStringOption((option) =>
+        option
+          .setName("value")
+          .setDescription("Language")
+          .addChoices(...Object.entries(LANGUAGES).map(([code, name]) => ({ name, value: code }))),
       ),
 
     new SlashCommandBuilder()

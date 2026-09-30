@@ -5,7 +5,6 @@ import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { buildContext, composePrompt, toContextMessage, type ContextMessage } from "../context.ts";
 import { respond } from "../respond.ts";
-import { count } from "../../text.ts";
 
 export async function handleAsk(
   bridge: Bridge,
@@ -25,12 +24,8 @@ export async function handleAsk(
   }
 
   const context = buildContext(messages);
-  await respond(
-    interaction,
-    wanted > 0
-      ? `Asking with the last ${count(messages.length, "message")} as context.`
-      : "Asking with no extra context.",
-  );
+  const say = bridge.language.say;
+  await respond(interaction, wanted > 0 ? say("ask.withContext", { count: messages.length }) : say("ask.noContext"));
 
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,

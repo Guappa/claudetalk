@@ -2,12 +2,12 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { UsageTotals } from "../../claude/usageLedger.ts";
 import { describePlanUsage } from "../../claude/planUsage.ts";
-import { count } from "../../text.ts";
+import type { Say } from "../../i18n/index.ts";
 import { requireConversation } from "../binding.ts";
 import { respond } from "../respond.ts";
 
-function money(amount: number): string {
-  return amount < 0.01 && amount > 0 ? "under $0.01" : `$${amount.toFixed(2)}`;
+function money(say: Say, amount: number): string {
+  return amount < 0.01 && amount > 0 ? say("spend.underCent") : `$${amount.toFixed(2)}`;
 }
 
 function tokens(count: number): string {
@@ -16,19 +16,23 @@ function tokens(count: number): string {
   return String(count);
 }
 
-function describeTotals(label: string, totals: UsageTotals): string {
-  if (totals.turns === 0) return `${label}: nothing yet.`;
-  return `${label}: ${count(totals.turns, "turn")} here · ${tokens(totals.inputTokens)} in, ${tokens(totals.outputTokens)} out, ${tokens(totals.cachedTokens)} cached`;
+function describeTotals(say: Say, whose: "mine" | "all", totals: UsageTotals): string {
+  if (totals.turns === 0) return say(`spend.${whose}None`);
+  return say(`spend.${whose}`, {
+    count: totals.turns,
+    input: tokens(totals.inputTokens),
+    output: tokens(totals.outputTokens),
+    cached: tokens(totals.cachedTokens),
+  });
 }
 
 // A subscription is not billed in dollars; the figure only ranks conversations against each other.
-function describeCost(mine: UsageTotals, all: UsageTotals): string {
+function describeCost(say: Say, mine: UsageTotals, all: UsageTotals): string {
   if (all.turns === 0) return "";
-  const last = mine.lastCostUsd === null ? "" : ` (last turn ${money(mine.lastCostUsd)})`;
-  return (
-    `API-equivalent cost, which a subscription is not billed by: ${money(mine.costUsd)} this conversation ` +
-    `over its life${last}, ${money(all.costUsd)} across every conversation touched.`
-  );
+  const costs = { mine: money(say, mine.costUsd), all: money(say, all.costUsd) };
+  return mine.lastCostUsd === null
+    ? say("spend.cost", costs)
+    : say("spend.costWithLast", { ...costs, last: money(say, mine.lastCostUsd) });
 }
 
 export async function handleSpend(
@@ -41,17 +45,16 @@ export async function handleSpend(
   const mine = bridge.usage.forSession(conversation.sessionId);
   const all = bridge.usage.total();
   const since = bridge.usage.since();
-  const stamp = `<t:${Math.floor(since.getTime() / 1000)}:R>`;
+  const say = bridge.language.say;
 
   await respond(
     interaction,
     [
-      describePlanUsage(bridge.planUsage.latest()),
-      describeTotals("This conversation", mine),
-      describeTotals("Every conversation touched", all),
-      describeCost(mine, all),
-      `Plan usage is for the whole account. Turns and tokens are counted since the bridge started ${stamp}; ` +
-        "a restart resets them, and turns run in a terminal are never counted.",
+      describePlanUsage(say, bridge.planUsage.latest()),
+      describeTotals(say, "mine", mine),
+      describeTotals(say, "all", all),
+      describeCost(say, mine, all),
+      say("spend.footnote", { since: `<t:${Math.floor(since.getTime() / 1000)}:R>` }),
     ]
       .filter(Boolean)
       .join("\n"),

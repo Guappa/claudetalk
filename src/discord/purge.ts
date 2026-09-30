@@ -1,5 +1,5 @@
 import type { GuildTextBasedChannel } from "discord.js";
-import { count } from "../text.ts";
+import type { Say } from "../i18n/index.ts";
 
 const FETCH_PAGE = 100;
 // Discord refuses to bulk delete anything older than this, so those go one at a time.
@@ -18,20 +18,17 @@ export function isBulkDeletable(createdAt: Date, now = Date.now()): boolean {
 }
 
 // /sync only means something where the channel is a view of a conversation.
-export function describePurge(result: PurgeResult, isConversationChannel: boolean): string {
+export function describePurge(say: Say, result: PurgeResult, isConversationChannel: boolean): string {
   const total = result.bulkDeleted + result.slowDeleted;
-  if (total === 0 && result.failed === 0) return "Nothing to delete; the channel is already empty.";
+  if (total === 0 && result.failed === 0) return say("purge.empty");
 
-  const parts = [`Deleted ${count(total, "message")}`];
+  const sentences: string[] = [say("purge.deleted", { count: total })];
   if (result.slowDeleted > 0) {
-    parts.push(`${result.slowDeleted} of them older than ${BULK_DELETE_MAX_AGE_DAYS} days, one at a time`);
+    sentences.push(say("purge.slow", { count: result.slowDeleted, days: BULK_DELETE_MAX_AGE_DAYS }));
   }
-  if (result.failed > 0) parts.push(`${result.failed} could not be deleted`);
-
-  const tail = isConversationChannel
-    ? " The conversation itself is untouched, and your next message carries on from it."
-    : "";
-  return `${parts.join(", ")}.${tail}`;
+  if (result.failed > 0) sentences.push(say("purge.failed", { count: result.failed }));
+  if (isConversationChannel) sentences.push(say("purge.conversationKept"));
+  return sentences.join(" ");
 }
 
 function wait(ms: number): Promise<void> {

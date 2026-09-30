@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Say } from "./i18n/index.ts";
 import { attachmentsRoot } from "./platform.ts";
 
 export interface RemoteAttachment {
@@ -11,7 +12,7 @@ export interface RemoteAttachment {
 
 export interface RefusedAttachment {
   name: string;
-  reason: string;
+  reason: "executable" | "too-large";
 }
 
 export interface ScreenedAttachments {
@@ -74,9 +75,9 @@ export function screenAttachments(attachments: RemoteAttachment[]): ScreenedAtta
   for (const attachment of attachments) {
     const extension = path.extname(attachment.name).toLowerCase();
     if (EXECUTABLE_EXTENSIONS.has(extension)) {
-      refused.push({ name: attachment.name, reason: `${extension} is an executable format` });
+      refused.push({ name: attachment.name, reason: "executable" });
     } else if (attachment.size > MAX_ATTACHMENT_BYTES) {
-      refused.push({ name: attachment.name, reason: `it is over ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB` });
+      refused.push({ name: attachment.name, reason: "too-large" });
     } else {
       allowed.push(attachment);
     }
@@ -85,14 +86,14 @@ export function screenAttachments(attachments: RemoteAttachment[]): ScreenedAtta
   return { allowed, refused };
 }
 
-export function describeRefused(refused: RefusedAttachment[]): string | null {
+export function describeRefused(say: Say, refused: RefusedAttachment[]): string | null {
   if (refused.length === 0) return null;
-  const lines = refused.map((file) => `\`${file.name}\`, because ${file.reason}`);
-  return (
-    `Not saved for this turn: ${lines.join("; ")}. ` +
-    `The session runs with the host's rights, so a file it could execute is not worth the convenience. ` +
-    `Put it in the working directory yourself if it is meant to be there.`
+  const files = refused.map((file) =>
+    file.reason === "executable"
+      ? say("attachments.executable", { name: file.name, extension: path.extname(file.name).toLowerCase() })
+      : say("attachments.tooLarge", { name: file.name, megabytes: MAX_ATTACHMENT_BYTES / 1024 / 1024 }),
   );
+  return say("attachments.refused", { files: files.join("; ") });
 }
 
 // A root another account owns or can read is a root they still control the contents of.
@@ -120,13 +121,10 @@ export interface DownloadedAttachments {
 // A CDN that stalls must not hold the channel's handler open indefinitely.
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 
-export function describeUnfetched(failed: string[]): string | null {
+export function describeUnfetched(say: Say, failed: string[]): string | null {
   if (failed.length === 0) return null;
   const names = failed.map((name) => `\`${name}\``).join(", ");
-  return (
-    `Could not download ${names} from Discord, so the session will not see ${failed.length === 1 ? "it" : "them"}. ` +
-    "Discord's file links expire and its CDN sometimes refuses; send the file again if it matters."
-  );
+  return say("attachments.unfetched", { count: failed.length, names });
 }
 
 export async function downloadAttachments(

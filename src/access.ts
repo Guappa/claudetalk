@@ -44,13 +44,6 @@ export function canRunCommand(tier: Tier, command: string): boolean {
   return false;
 }
 
-export function describeOwnersOnly(command: string): string {
-  return (
-    `\`/${command}\` is an owner's. Operators drive the bot; who else may use it, and what runs ` +
-    "inside it, is the owner's to decide."
-  );
-}
-
 export function workspaceFor(workspacesRoot: string, userId: string): string {
   return path.join(workspacesRoot, userId);
 }

@@ -21,6 +21,7 @@ this covers behaviour.
 | `/uninvite <user>` | H | Takes that visibility away again. |
 | `/model [value]` | O | Shows or sets the model for this conversation. Persists across turns. Unset, it names the host default turns actually run with. |
 | `/effort [value]` | O | Shows or sets the effort level. Persists across turns. Unset, it names the host default turns actually run with. |
+| `/language [value]` | H | Shows or sets the language the bridge itself speaks, for the whole bridge. Claude's answers are not affected. See [Language](#language). |
 | `/ask <prompt> [context:N]` | O | Asks with the last N channel messages as context. `N` is 1 to 50. |
 | `/sync` | O | Posts where you left off outside Discord: the latest few prompts and replies since you last saw it, with all of them attached as a file when there are more than fit in one message. Turns the bridge itself ran are marked seen when they end, so they never come back as drift. |
 | `/skills` | O | Lists the bound session's skills, A to Z across up to five menus of twenty-five, and runs the one you pick. Past 125 the rest are counted and reachable by sending `/name` as a message. |
@@ -615,6 +616,36 @@ channel's messages are left as they are, so the history reads on; `/purge`
 removes them if a clean channel is wanted too. It refuses while a turn is
 running here.
 
+## Language
+
+The bridge speaks one language at a time, for every channel and everyone in
+them. English and Swedish ship today.
+
+What follows the language is what the bridge itself says: its replies to
+commands, its notices, the labels on its buttons and menus, the heading of a
+turn's trail, the agents roster, a channel's topic, and its errors.
+
+What does not:
+
+- **Claude's answers.** Claude replies in whatever language you write to it,
+  the way it does in the terminal, and the bridge does not steer that. Its
+  first hello in a new conversation is asked for in English.
+- **Command names and their descriptions** in Discord's command picker. They
+  are the same in every language, as they are in the terminal.
+- **What tools and Claude Code print**, and a system's own error text quoted
+  inside one of the bridge's sentences.
+- **The host's side**: the bridge log and the errors it stops on at startup.
+
+`BRIDGE_LANGUAGE` in `.env` is the language a bridge starts in, English when
+unset. `/language` picks one from Discord and answers in it. That pick is
+stored in `data/language.json`, outlives a restart, and from then on wins over
+`BRIDGE_LANGUAGE`; the bridge log says at startup which of the two it is
+using. Delete the file and restart the bridge to go back to the `.env`
+value.
+
+A pick applies to everything said from then on. A turn already running keeps
+the language it started in, so its trail does not change tongue halfway.
+
 ## State on disk
 
 | Path | What |
@@ -622,6 +653,7 @@ running here.
 | `~/.claude/projects/<dir>/<uuid>.jsonl` | The conversation. Owned by Claude Code, only ever read by the bridge |
 | `data/conversations.json` | Channel bindings, members, per-conversation settings |
 | `data/operators.json` | Who an owner made an operator |
+| `data/language.json` | The language picked with `/language`. Absent until someone picks one |
 | `data/bridge.lock` | Prevents a second instance. Delete only if you are sure nothing is running |
 | `data/bridge.log` | Autostart output, rotated at 5 MB to `bridge.log.1` |
 | `<tmp>/claudetalk-attachments-<uid>/` | Attachment downloads, owner-only, swept an hour after the turn |

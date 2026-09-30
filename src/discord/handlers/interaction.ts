@@ -1,6 +1,6 @@
 import { MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
-import { canRunCommand, describeOwnersOnly } from "../../access.ts";
+import { canRunCommand } from "../../access.ts";
 import { errorMessage } from "../../text.ts";
 import { forDiscord } from "../outgoing.ts";
 import { isFromGuild } from "../gate.ts";
@@ -10,6 +10,7 @@ import { handleCategory } from "../commands/category.ts";
 import { handleQueue, handleStop, handleTakeover, handleUnbind } from "../commands/control.ts";
 import { handleClear } from "../commands/clear.ts";
 import { handleCreate, handleFork, handleResume } from "../commands/conversations.ts";
+import { handleLanguage } from "../commands/language.ts";
 import { handleInvite, handleMembers, handleUninvite } from "../commands/membership.ts";
 import { handleOperator } from "../commands/operators.ts";
 import { handleAutocomplete, handleSessions } from "../commands/sessions.ts";
@@ -61,6 +62,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   uninvite: handleUninvite,
   members: handleMembers,
   takeover: handleTakeover,
+  language: handleLanguage,
 };
 
 type Suggester = (bridge: Bridge, interaction: AutocompleteInteraction) => Promise<void>;
@@ -75,14 +77,12 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
   if (!isFromGuild(bridge.config, interaction.guildId, interaction.user.bot)) return;
   if (!interaction.channelId) return;
 
+  const say = bridge.language.say;
   const tier = tierOf(bridge, interaction.user.id);
   if (tier === "none") {
     // A deliberate click deserves an answer; a message does not, or a stranger could make it post.
     if (interaction.isRepliable()) {
-      await interaction.reply({
-        content: forDiscord("You do not have access to this bridge. An owner has to give it to you."),
-        ...EPHEMERAL,
-      });
+      await interaction.reply({ content: forDiscord(say("access.none")), ...EPHEMERAL });
     }
     return;
   }
@@ -97,18 +97,13 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
   if (!interaction.isChatInputCommand()) return;
 
   if (!canRunCommand(tier, interaction.commandName)) {
-    await interaction.reply(forDiscord(describeOwnersOnly(interaction.commandName)));
+    await interaction.reply(forDiscord(say("access.ownersOnly", { command: interaction.commandName })));
     return;
   }
 
   const handler = COMMANDS[interaction.commandName];
   if (!handler) {
-    await interaction.reply(
-      forDiscord(
-        `\`/${interaction.commandName}\` is registered with Discord but this bridge has no handler ` +
-          `for it. Restart the bridge to re-register its commands.`,
-      ),
-    );
+    await interaction.reply(forDiscord(say("command.noHandler", { command: interaction.commandName })));
     return;
   }
   // Discord voids an interaction unanswered for three seconds; reading the index can take longer.
@@ -119,12 +114,7 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
     // Once deferred, an unanswered command sits on "thinking" until Discord gives up on it.
     console.error(`/${interaction.commandName} failed`, error);
     await interaction
-      .editReply(
-        forDiscord(
-          `\`/${interaction.commandName}\` failed: ${errorMessage(error)}. ` +
-            "Try it again; if it keeps failing, the bridge log on the host has the details.",
-        ),
-      )
+      .editReply(forDiscord(say("command.failed", { command: interaction.commandName, error: errorMessage(error) })))
       .catch(() => undefined);
   }
 }

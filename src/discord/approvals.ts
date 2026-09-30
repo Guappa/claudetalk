@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { APPROVAL_REFUSED } from "../claude/prompts.ts";
 import type { ToolDecision } from "../claude/runner.ts";
 import { displayPath, redactHome } from "../displayPath.ts";
+import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 
@@ -9,9 +11,6 @@ export type ApprovalChoice = "approve" | "deny" | "approve-all";
 // Long enough to answer from a phone, short enough that a forgotten prompt does not hold a turn open.
 const APPROVAL_TIMEOUT_MS = 5 * 60_000;
 const DETAIL_LIMIT = 900;
-
-const DENIED = "Denied from Discord.";
-const EXPIRED = `No answer in ${APPROVAL_TIMEOUT_MS / 60_000} minutes, so it was denied.`;
 
 interface Pending {
   turnId: string;
@@ -29,22 +28,22 @@ function detail(input: Record<string, unknown>): string {
   return truncate(shown, DETAIL_LIMIT);
 }
 
-export function describeRequest(toolName: string, input: Record<string, unknown>): string {
-  return `**${toolName}** wants to run. Approve it?\n\`\`\`\n${detail(input)}\n\`\`\``;
+export function describeRequest(say: Say, toolName: string, input: Record<string, unknown>): string {
+  return say("approvals.request", { tool: toolName, detail: detail(input) });
 }
 
-function approvalActions(id: string): SinkAction[] {
+function approvalActions(say: Say, id: string): SinkAction[] {
   return [
-    { id: `approve:${id}`, label: "Approve once" },
-    { id: `deny:${id}`, label: "Deny", tone: "danger" },
-    { id: `approve-all:${id}`, label: "Approve the rest of this turn" },
+    { id: `approve:${id}`, label: say("approvals.approveOnce") },
+    { id: `deny:${id}`, label: say("approvals.deny"), tone: "danger" },
+    { id: `approve-all:${id}`, label: say("approvals.approveRest") },
   ];
 }
 
-function describeChoice(choice: ApprovalChoice, expired = false): string {
-  if (choice === "approve") return "Approved once.";
-  if (choice === "approve-all") return "Approved for the rest of this turn.";
-  return expired ? EXPIRED : DENIED;
+function describeChoice(say: Say, choice: ApprovalChoice, expired = false): string {
+  if (choice === "approve") return say("approvals.approvedOnce");
+  if (choice === "approve-all") return say("approvals.approvedRest");
+  return expired ? say("approvals.expired", { minutes: APPROVAL_TIMEOUT_MS / 60_000 }) : say("approvals.denied");
 }
 
 // One per turn: a decision to approve the rest of it must not outlive the turn it was given for.
@@ -52,17 +51,18 @@ export class ApprovalPrompts {
   private readonly pending = new Map<string, Pending>();
   private readonly approveAll = new Set<string>();
 
-  decide(id: string, userId: string, choice: ApprovalChoice): string {
+  decide(say: Say, id: string, userId: string, choice: ApprovalChoice): string {
     const waiting = this.pending.get(id);
-    if (!waiting) return "That request is already answered, expired, or from before a restart.";
-    if (!waiting.ownerIds.includes(userId)) return "Only an owner of this bridge can answer a permission request.";
+    if (!waiting) return say("approvals.stale");
+    if (!waiting.ownerIds.includes(userId)) return say("approvals.ownersOnly");
 
     this.pending.delete(id);
     waiting.settle(choice);
-    return choice === "approve-all" ? "Approved, and the rest of this turn will not ask again." : describeChoice(choice);
+    return choice === "approve-all" ? say("approvals.approvedRestQuiet") : describeChoice(say, choice);
   }
 
   async ask(
+    say: Say,
     turnId: string,
     sink: MessageSink,
     ownerIds: string[],
@@ -71,7 +71,7 @@ export class ApprovalPrompts {
   ): Promise<ToolDecision> {
     if (this.approveAll.has(turnId)) return { allow: true };
     // Without a way to ask, the safe answer is the one that does not act.
-    if (!sink.ask) return { allow: false, reason: "This conversation cannot show approval buttons." };
+    if (!sink.ask) return { allow: false, reason: APPROVAL_REFUSED.unaskable };
 
     const id = randomUUID();
     const { promise: answered, resolve: settle } = Promise.withResolvers<ApprovalChoice>();
@@ -85,15 +85,15 @@ export class ApprovalPrompts {
     }, APPROVAL_TIMEOUT_MS);
     timer.unref();
 
-    const handle = await sink.ask(describeRequest(toolName, input), approvalActions(id));
+    const handle = await sink.ask(describeRequest(say, toolName, input), approvalActions(say, id));
     const choice = await answered;
     clearTimeout(timer);
 
     if (choice === "approve-all") this.approveAll.add(turnId);
-    const outcome = describeChoice(choice, expired);
-    await handle.close(outcome);
+    await handle.close(describeChoice(say, choice, expired));
 
-    return choice === "deny" ? { allow: false, reason: outcome } : { allow: true };
+    if (choice !== "deny") return { allow: true };
+    return { allow: false, reason: expired ? APPROVAL_REFUSED.expired : APPROVAL_REFUSED.denied };
   }
 
   // A turn's standing approval dies with it, and so does anything of its own still waiting on an answer.

@@ -22,7 +22,7 @@ export async function handleAutocomplete(
 
   const choices = newestPerName(matching)
     .slice(0, AUTOCOMPLETE_LIMIT)
-    .map(([record, older]) => sessionChoice(record, older));
+    .map(([record, older]) => sessionChoice(bridge.language.say, record, older));
   await interaction.respond(choices);
 }
 
@@ -35,6 +35,7 @@ export async function handleSessions(
   const { shown, hidden } = filter
     ? { shown: index.filter((record) => displayName(record).toLowerCase().includes(filter)), hidden: 0 }
     : withoutScratch(index);
-  const title = filter ? `Conversations matching "${filter}"` : "Conversations on the host";
-  await respond(interaction, { embeds: [detail(title, formatSessionList(shown) + describeHidden(hidden))] });
+  const say = bridge.language.say;
+  const title = filter ? say("sessions.titleMatching", { filter }) : say("sessions.title");
+  await respond(interaction, { embeds: [detail(title, formatSessionList(say, shown) + describeHidden(say, hidden))] });
 }

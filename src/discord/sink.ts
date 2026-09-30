@@ -47,7 +47,7 @@ function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
   const options = menu.options.map((option) => {
     const built = new StringSelectMenuOptionBuilder()
       .setValue(truncate(option.value, MENU_TEXT_LIMIT))
-      .setLabel(truncate(option.label, MENU_TEXT_LIMIT) || "(blank)");
+      .setLabel(truncate(option.label, MENU_TEXT_LIMIT));
     if (option.description) built.setDescription(truncate(option.description, MENU_TEXT_LIMIT));
     return built;
   });

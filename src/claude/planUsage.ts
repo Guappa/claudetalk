@@ -1,3 +1,5 @@
+import type { Say } from "../i18n/index.ts";
+
 export interface PlanWindow {
   utilization: number;
   resetsAt: number;
@@ -8,12 +10,19 @@ export interface PlanUsageSnapshot {
   seenAt: Date;
 }
 
-const WINDOW_LABELS: Record<string, string> = {
-  five_hour: "5-hour window",
-  seven_day: "week, all models",
-  seven_day_opus: "week, Opus",
-  seven_day_sonnet: "week, Sonnet",
-};
+const WINDOW_LABELS = {
+  five_hour: "usage.fiveHour",
+  seven_day: "usage.weekAll",
+  seven_day_opus: "usage.weekOpus",
+  seven_day_sonnet: "usage.weekSonnet",
+} as const;
+
+// A window Claude Code adds later is still shown, under the name it was reported by.
+function windowLabel(say: Say, name: string): string {
+  return Object.hasOwn(WINDOW_LABELS, name)
+    ? say(WINDOW_LABELS[name as keyof typeof WINDOW_LABELS])
+    : name.replace(/_/g, " ");
+}
 
 function isWindow(value: unknown): value is PlanWindow {
   const record = value as { utilization?: unknown; resetsAt?: unknown } | null;
@@ -52,13 +61,17 @@ export class PlanUsage {
   }
 }
 
-export function describePlanUsage(snapshot: PlanUsageSnapshot | null): string {
-  if (!snapshot) {
-    return "Plan usage: not reported yet. Claude Code sends it with each turn, so it appears after the first one.";
-  }
-  const parts = [...snapshot.windows].map(([name, window]) => {
-    const label = WINDOW_LABELS[name] ?? name.replace(/_/g, " ");
-    return `${label} ${Math.round(window.utilization * 100)}% used, resets <t:${window.resetsAt}:R>`;
+export function describePlanUsage(say: Say, snapshot: PlanUsageSnapshot | null): string {
+  if (!snapshot) return say("usage.notReported");
+  const windows = [...snapshot.windows].map(([name, window]) =>
+    say("usage.window", {
+      label: windowLabel(say, name),
+      percent: Math.round(window.utilization * 100),
+      when: `<t:${window.resetsAt}:R>`,
+    }),
+  );
+  return say("usage.plan", {
+    windows: windows.join(" · "),
+    when: `<t:${Math.floor(snapshot.seenAt.getTime() / 1000)}:R>`,
   });
-  return `Plan usage: ${parts.join(" · ")} (as of <t:${Math.floor(snapshot.seenAt.getTime() / 1000)}:R>)`;
 }

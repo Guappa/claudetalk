@@ -15,12 +15,14 @@ import type { PendingRun } from "./discord/commands/run.ts";
 import { ApprovalPrompts } from "./discord/approvals.ts";
 import { QuestionPrompts } from "./discord/questions.ts";
 import { ActiveTurns } from "./discord/activeTurns.ts";
+import { LanguageChoice } from "./i18n/languageChoice.ts";
 import path from "node:path";
 
 export interface Bridge {
   config: Config;
   store: ConversationStore;
   operators: OperatorStore;
+  language: LanguageChoice;
   capabilities: CapabilityCache;
   usage: UsageLedger;
   planUsage: PlanUsage;
@@ -49,6 +51,9 @@ export async function createBridge(config: Config): Promise<Bridge> {
   const operators = new OperatorStore(config.operatorsPath);
   await operators.load();
 
+  const language = new LanguageChoice(path.join(path.dirname(config.bindingsPath), "language.json"), config.language);
+  await language.load();
+
   const capabilities = new CapabilityCache(path.join(path.dirname(config.bindingsPath), "commands.json"));
   await capabilities.load();
   const usage = new UsageLedger();
@@ -71,6 +76,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
     config,
     store,
     operators,
+    language,
     capabilities,
     usage,
     planUsage,
@@ -79,7 +85,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
     activeTurns,
     latestPosts: new Map<string, string>(),
     outbox,
-    flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, activeTurns, config),
+    flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, activeTurns, config, () => language.say),
     sessions: new SessionIndex(),
     pendingCreates: new PendingCreates(),
     pendingRuns: new Pending<PendingRun>(),
