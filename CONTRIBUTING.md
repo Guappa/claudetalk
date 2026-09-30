@@ -286,9 +286,13 @@ English too. And a slash command's name and description are the same in every
 language, as they are in the terminal. Anything else that reads as a sentence
 in `src/` fails the style test.
 
-Adding a language is a file in `src/i18n/locales/` typed as `Catalog`, a line
-in `LANGUAGES` and one in the resources in `src/i18n/index.ts`, and a line in
-the test's `CATALOGS`. A language whose plural forms differ from English's
+Adding a language is a file in `src/i18n/locales/` typed as `Catalog`, and a
+line each in `LANGUAGES` and `CATALOGS` in `src/i18n/index.ts`; a test fails
+one that is in either and not the other. A language holds English's two forms
+of a counted sentence, and where its own plural rule has a form English lacks,
+that form is filled from its `_other` at start-up, so French counts in the
+millions and Chinese counts of one are still said in their own language. A
+language whose forms differ in wording, Russian's or Arabic's few and many,
 cannot be typed as `Catalog` as it stands; that is the point to loosen the
 type and let the test hold its keys.
 

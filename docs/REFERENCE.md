@@ -675,7 +675,8 @@ not run against it: it is turned back with a note to send it again.
 ## Language
 
 The bridge speaks one language at a time, for every channel and everyone in
-them. English and Swedish ship today.
+them. English, German, Spanish, French, Swedish and Simplified Chinese ship
+today.
 
 What follows the language is what the bridge itself says: its replies to
 commands, its notices, the labels on its buttons and menus, the heading of a
