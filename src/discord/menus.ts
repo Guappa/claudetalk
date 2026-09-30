@@ -8,7 +8,6 @@ export const CREATE_NEW = "create:new";
 export const CREATE_CANCEL = "create:cancel";
 export const UNBIND_DELETE = "unbind:delete";
 export const UNBIND_KEEP = "unbind:keep";
-export const CLEAR_CONFIRM = "clear:confirm";
 export const CLEAR_CANCEL = "clear:cancel";
 export const RUN_CONFIRM = "run:confirm";
 export const RUN_CANCEL = "run:cancel";
@@ -60,7 +59,7 @@ export type MenuAction =
   | { kind: "create-cancel" }
   | { kind: "unbind-delete" }
   | { kind: "unbind-keep" }
-  | { kind: "clear-confirm" }
+  | { kind: "clear-confirm"; sessionId: string }
   | { kind: "clear-cancel" }
   | { kind: "run-confirm" }
   | { kind: "run-cancel" }
@@ -78,6 +77,11 @@ export type MenuAction =
 
 export function pluginToggleId(id: string, enable: boolean): string {
   return `plugin:${enable ? "enable" : "disable"}:${id}`.slice(0, CUSTOM_ID_LIMIT);
+}
+
+// The button names the conversation it was offered for, so a press that comes late clears nothing else.
+export function clearConfirmId(sessionId: string): string {
+  return `clear:confirm:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
 }
 
 export function createResumeId(sessionId: string): string {
@@ -99,10 +103,12 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
   if (customId === CREATE_CANCEL) return { kind: "create-cancel" };
   if (customId === UNBIND_DELETE) return { kind: "unbind-delete" };
   if (customId === UNBIND_KEEP) return { kind: "unbind-keep" };
-  if (customId === CLEAR_CONFIRM) return { kind: "clear-confirm" };
   if (customId === CLEAR_CANCEL) return { kind: "clear-cancel" };
   if (customId === RUN_CONFIRM) return { kind: "run-confirm" };
   if (customId === RUN_CANCEL) return { kind: "run-cancel" };
+  const clear = /^clear:confirm:(.+)$/.exec(customId);
+  if (clear?.[1]) return { kind: "clear-confirm", sessionId: clear[1] };
+
   const resume = /^create:resume:(.+)$/.exec(customId);
   if (resume?.[1]) return { kind: "create-resume", sessionId: resume[1] };
 

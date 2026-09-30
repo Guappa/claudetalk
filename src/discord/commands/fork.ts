@@ -9,16 +9,19 @@ export function forkName(originalName: string, requested?: string | null): strin
   return requested?.trim() || `${originalName}-fork`;
 }
 
+// A branch that never started and one that ran without yielding a session are different failures, with different things to do about them.
+export type ForkOutcome = { kind: "bound" } | { kind: "not-started" } | { kind: "no-session" };
+
 export async function runFork(
   bridge: Bridge,
   interaction: ChatInputCommandInteraction,
   source: Conversation,
   channel: TextChannel,
   name: string,
-): Promise<Conversation | null> {
+): Promise<ForkOutcome> {
   let forkedId: string | undefined;
 
-  await runConversationTurn(bridge, source, {
+  const ran = await runConversationTurn(bridge, source, {
     actorId: interaction.user.id,
     prompt: helloToBranch(name),
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
@@ -29,13 +32,15 @@ export async function runFork(
     },
   });
 
-  if (!forkedId || forkedId === source.sessionId) return null;
+  if (!ran) return { kind: "not-started" };
+  if (!forkedId || forkedId === source.sessionId) return { kind: "no-session" };
 
-  return await bridge.store.bindNew({
+  await bridge.store.bindNew({
     sessionId: forkedId,
     cwd: source.cwd,
     channelId: channel.id,
     ownerId: interaction.user.id,
     settings: { ...source.settings },
   });
+  return { kind: "bound" };
 }

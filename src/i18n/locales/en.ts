@@ -247,7 +247,8 @@ export const en = {
       "This starts this channel over with a fresh conversation in `{{cwd}}`: the same folder, model, effort and members, but with none of what was said in this one. The current conversation stays on the host, listed by `/sessions`, and `/resume` with its session id opens it in a channel of its own. The channel's messages stay; `/purge` removes them.",
     startOver: "Start over",
     unbound: "This channel isn't bound to a conversation, so there is nothing to clear.",
-    noLongerBound: "This channel is no longer bound to a conversation, so there is nothing to clear.",
+    stale:
+      "This was offered for a conversation this channel no longer holds, so nothing was started over. Run `/clear` again if this one should be.",
     done: "Started over. This channel now holds a fresh conversation in `{{cwd}}`; the previous one is still on the host as `{{sessionId}}`.",
     cancelled: "Left it alone. The conversation continues as it was.",
   },
@@ -298,8 +299,10 @@ export const en = {
     unbound: "This channel isn't bound to a conversation, so there is nothing to branch.",
     unnamed: "conversation",
     branching: "Branching into {{channel}}...",
+    notStarted:
+      "Nothing was branched: the branch's first turn did not start, and the channel made for it was removed again. That happens when this conversation is open in a terminal or held by a background agent, when its queue is full or was dropped, or when the bridge is shutting down. Run `/fork` again once it is free.",
     notBound:
-      "Created {{channel}}, but Claude Code did not report a new session id, so it is not bound. Once the branch appears in `/sessions`, `/resume` opens it in a channel of its own, and {{channel}} can be deleted.",
+      "Created {{channel}}, but the branch's first turn ended without Claude Code reporting a new session id, so that channel is not bound; what the turn came to is shown there. If the branch does appear in `/sessions`, `/resume` opens it in a channel of its own, and {{channel}} can be deleted.",
     done: "Branched **{{source}}** into {{channel}} as **{{name}}**. This channel is untouched.",
   },
   resume: {

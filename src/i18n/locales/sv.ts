@@ -249,7 +249,8 @@ export const sv: Catalog = {
       "Det här börjar om i den här kanalen med en ny konversation i `{{cwd}}`: samma mapp, modell, effort och medlemmar, men utan något av det som sagts i den här. Den nuvarande konversationen ligger kvar på värddatorn, listas av `/sessions`, och `/resume` med dess sessions-id öppnar den i en egen kanal. Kanalens meddelanden ligger kvar; `/purge` tar bort dem.",
     startOver: "Börja om",
     unbound: "Den här kanalen är inte kopplad till någon konversation, så det finns inget att rensa.",
-    noLongerBound: "Den här kanalen är inte längre kopplad till någon konversation, så det finns inget att rensa.",
+    stale:
+      "Det här erbjöds för en konversation som den här kanalen inte längre har, så inget börjades om. Kör `/clear` igen om den här ska börjas om.",
     done: "Börjat om. Den här kanalen har nu en ny konversation i `{{cwd}}`; den förra ligger kvar på värddatorn som `{{sessionId}}`.",
     cancelled: "Lät det vara. Konversationen fortsätter som förut.",
   },
@@ -301,8 +302,10 @@ export const sv: Catalog = {
     unbound: "Den här kanalen är inte kopplad till någon konversation, så det finns inget att förgrena.",
     unnamed: "konversation",
     branching: "Förgrenar till {{channel}}...",
+    notStarted:
+      "Inget förgrenades: grenens första omgång startade inte, och kanalen som skapades för den togs bort igen. Det händer när den här konversationen är öppen i en terminal eller hålls av en bakgrundsagent, när dess kö är full eller ströks, eller när bryggan håller på att stängas av. Kör `/fork` igen när den är ledig.",
     notBound:
-      "Skapade {{channel}}, men Claude Code rapporterade inget nytt sessions-id, så den är inte kopplad. När grenen dyker upp i `/sessions` öppnar `/resume` den i en egen kanal, och {{channel}} kan tas bort.",
+      "Skapade {{channel}}, men grenens första omgång slutade utan att Claude Code rapporterade något nytt sessions-id, så den kanalen är inte kopplad; vad omgången kom fram till visas där. Om grenen ändå dyker upp i `/sessions` öppnar `/resume` den i en egen kanal, och {{channel}} kan tas bort.",
     done: "Förgrenade **{{source}}** till {{channel}} som **{{name}}**. Den här kanalen är orörd.",
   },
   resume: {

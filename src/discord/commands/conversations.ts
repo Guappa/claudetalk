@@ -14,6 +14,7 @@ import type { Bridge } from "../../bridge.ts";
 import { displayPath } from "../../displayPath.ts";
 import type { Say } from "../../i18n/index.ts";
 import { helloToNew } from "../../claude/prompts.ts";
+import type { Conversation } from "../../conversations.ts";
 import { errorMessage } from "../../text.ts";
 import { resolveByFolder, resolveByName, type Resolution } from "../../sessions/resolve.ts";
 import { hasWorkingDir, type ResumableRecord, type SessionRecord } from "../../sessions/index.ts";
@@ -230,7 +231,13 @@ export async function handleFork(bridge: Bridge, interaction: ChatInputCommandIn
   await respond(interaction, say("fork.branching", { channel: String(channel) }));
   const forked = await runFork(bridge, interaction, source, channel, name);
 
-  if (!forked) {
+  if (forked.kind === "not-started") {
+    // The channel holds nothing but the notice that refused the turn, so it goes again.
+    await channel.delete().catch(() => undefined);
+    await reportBack(interaction, say("fork.notStarted"));
+    return;
+  }
+  if (forked.kind === "no-session") {
     await reportBack(interaction, say("fork.notBound", { channel: String(channel) }));
     return;
   }
@@ -262,6 +269,19 @@ export async function handleResume(bridge: Bridge, interaction: ChatInputCommand
   await openConversation(bridge, interaction, match, resolution.shadowed.length);
 }
 
+// A second channel on one conversation would overwrite the first one's members and settings.
+async function pointAtOpenChannel(
+  bridge: Bridge,
+  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  match: ResumableRecord,
+  open: Conversation,
+): Promise<void> {
+  await respond(interaction, {
+    content: bridge.language.say("binding.alreadyOpen", { name: displayName(match), channelId: open.channels.text }),
+    components: [],
+  });
+}
+
 export async function openConversation(
   bridge: Bridge,
   interaction: ChatInputCommandInteraction | ButtonInteraction,
@@ -269,18 +289,17 @@ export async function openConversation(
   olderSkipped = 0,
 ): Promise<void> {
   const say = bridge.language.say;
-  // A second channel on one conversation would overwrite the first one's members and settings.
   const open = bridge.store.bySession(match.sessionId);
-  if (open) {
-    await respond(interaction, {
-      content: say("binding.alreadyOpen", { name: displayName(match), channelId: open.channels.text }),
-      components: [],
-    });
-    return;
-  }
+  if (open) return await pointAtOpenChannel(bridge, interaction, match, open);
 
   const channel = await createConversationChannel(bridge, interaction, displayName(match), match.cwd);
   if (!channel) return;
+  // Making a channel takes a moment, in which the same conversation can be opened from somewhere else; nothing is awaited between this look and the binding.
+  const openedMeanwhile = bridge.store.bySession(match.sessionId);
+  if (openedMeanwhile) {
+    await channel.delete().catch(() => undefined);
+    return await pointAtOpenChannel(bridge, interaction, match, openedMeanwhile);
+  }
 
   const conversation = await bridge.store.bindNew({
     sessionId: match.sessionId,

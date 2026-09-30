@@ -294,7 +294,11 @@ async function createNew(bridge: Bridge, interaction: ButtonInteraction) {
 }
 
 async function createResume(bridge: Bridge, interaction: ButtonInteraction, action: Action<"create-resume">) {
-  bridge.pendingCreates.take(interaction.message.id);
+  // The offer expires as a whole: a press on Resume is held to the same ten minutes as one on Start a new one.
+  if (!bridge.pendingCreates.take(interaction.message.id)) {
+    await settleMenu(interaction, bridge.language.say("create.tooOld"));
+    return;
+  }
   await interaction.deferUpdate();
 
   const record = await bridge.sessions.find(action.sessionId);
@@ -309,12 +313,12 @@ async function cancelClear(bridge: Bridge, interaction: ButtonInteraction) {
   await settleMenu(interaction, bridge.language.say("clear.cancelled"));
 }
 
-async function confirmClear(bridge: Bridge, interaction: ButtonInteraction) {
+async function confirmClear(bridge: Bridge, interaction: ButtonInteraction, action: Action<"clear-confirm">) {
   if (!canRunCommand(tierOf(bridge, interaction.user.id), "clear")) {
     await settleMenu(interaction, bridge.language.say("access.ownersOnly", { command: "clear" }));
     return;
   }
-  await clearConversation(bridge, interaction);
+  await clearConversation(bridge, interaction, action.sessionId);
 }
 
 async function approveRun(bridge: Bridge, interaction: ButtonInteraction) {
@@ -403,7 +407,7 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
     case "clear-cancel":
       return await cancelClear(bridge, interaction);
     case "clear-confirm":
-      return await confirmClear(bridge, interaction);
+      return await confirmClear(bridge, interaction, action);
     case "run-cancel":
       return await cancelRun(bridge, interaction);
     case "run-confirm":
