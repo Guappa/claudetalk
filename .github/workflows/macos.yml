@@ -1,0 +1,46 @@
+name: macos
+
+on:
+  # macOS bills ten times the rate, so the launchd agent is proved only where what installs it changes.
+  pull_request:
+    paths:
+      - scripts/install-autostart-macos.sh
+      - .github/workflows/macos.yml
+  workflow_dispatch:
+
+# Nothing here writes to the repository, so the token gets no more than reading it.
+permissions:
+  contents: read
+
+jobs:
+  autostart:
+    runs-on: macos-latest
+    steps:
+      # Pinned by commit, not tag: a tag can be moved to point at other code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      # The only real Mac this project has; the plist is worth proving against the launchctl that reads it.
+      - name: autostart installs, reports and removes itself
+        run: |
+          set -euo pipefail
+          cat > .env <<ENV
+          DISCORD_BOT_TOKEN=x
+          DISCORD_GUILD_ID=1
+          DISCORD_OWNER_IDS=123456789012345678
+          PROJECTS_ROOT=$RUNNER_TEMP
+          ENV
+          scripts/install-autostart-macos.sh install
+          plist="$HOME/Library/LaunchAgents/com.claudetalk.bridge.plist"
+          test -f "$plist"
+          plutil -lint "$plist"
+          scripts/install-autostart-macos.sh status
+          scripts/install-autostart-macos.sh uninstall
+          test ! -f "$plist"
+          rm -f .env
