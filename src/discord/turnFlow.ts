@@ -28,6 +28,8 @@ import type { AskHandle, MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
 import { splitForDiscord } from "./outgoing.ts";
 import { displayPath } from "../displayPath.ts";
+import { errorMessage } from "../text.ts";
+import { outboxRelative } from "./outbox.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeFull, describeQueued } from "./turnQueue.ts";
 import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";
@@ -602,11 +604,21 @@ export class TurnFlow {
     await postAnswer(say, status, sink, cwd, result.text, compaction.happened).catch(reportUnposted(sessionId));
     await options.onState?.("done");
     await this.settleFolded(sessionId, "done");
-    await this.outbox.deliver(say, cwd, sessionId, sink);
+    await this.deliverFiles(say, cwd, sessionId, sink);
 
     if (result.contextUsage) {
       const warning = tracker.observe(result.contextUsage);
       if (warning) await sink.notice(say(`context.${warning.level}`, { percent: warning.percent }));
+    }
+  }
+
+  // The answer is already posted by now, so files that would not attach are said, not thrown: they stay in the folder for the next sweep.
+  private async deliverFiles(say: Say, cwd: string, sessionId: string, sink: MessageSink): Promise<void> {
+    try {
+      await this.outbox.deliver(say, cwd, sessionId, sink);
+    } catch (error) {
+      const unattached = { folder: outboxRelative(sessionId), error: errorMessage(error) };
+      await sink.notice(say("outbox.failed", unattached)).catch(reportUnposted(sessionId));
     }
   }
 

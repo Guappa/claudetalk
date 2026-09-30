@@ -13,6 +13,8 @@ import { TurnFlow } from "../src/discord/turnFlow.ts";
 import { menuAskingSink, quietSink, recordingSink } from "./helpers/sinks.ts";
 import { sayIn, type Language, type Say } from "../src/i18n/index.ts";
 import path from "node:path";
+import fs from "node:fs/promises";
+import { outboxPath } from "../src/discord/outbox.ts";
 
 const started = vi.hoisted(() => [] as string[]);
 // Events a mocked turn replays before it finishes, keyed by its prompt.
@@ -413,6 +415,27 @@ describe("TurnFlow", () => {
     expect(shown.split(reason)).toHaveLength(2);
     expect(shown).not.toContain("ended as");
     expect(shown).not.toContain("Try sending");
+  });
+
+  it("says so when the files a turn left could not be attached, and still ends the turn as done", async () => {
+    const flow = makeFlow();
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "flow-outbox-"));
+    await fs.mkdir(outboxPath(folder, "s28"), { recursive: true });
+    await fs.writeFile(path.join(outboxPath(folder, "s28"), "report.md"), "done");
+    const sink = recordingSink();
+    sink.sendFiles = async () => {
+      throw new Error("Missing Permissions");
+    };
+    const states: string[] = [];
+    const ran = await flow.run("s28", folder, "writes a report", {}, sink, {
+      resume: true,
+      onState: async (state) => void states.push(state),
+    });
+
+    expect(ran).toBe(true);
+    expect(states.at(-1)).toBe("done");
+    expect(sink.written.join("\n")).toContain("Could not attach what is in `.discord-outbox/s28/`: Missing Permissions.");
+    expect(await fs.readdir(outboxPath(folder, "s28"))).toEqual(["report.md"]);
   });
 
   it("points at /clear when the session a channel is bound to does not exist, since sending again cannot help", async () => {
