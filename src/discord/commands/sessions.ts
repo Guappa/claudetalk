@@ -4,6 +4,7 @@ import { describeHidden, formatSessionList, newestPerName, sessionChoice, withou
 import { displayName } from "../../sessions/displayName.ts";
 import { detail } from "../embeds.ts";
 import { respond } from "../respond.ts";
+import { choicesForDiscord } from "../outgoing.ts";
 
 const AUTOCOMPLETE_LIMIT = 25;
 
@@ -19,7 +20,7 @@ export async function handleAutocomplete(bridge: Bridge, interaction: Autocomple
   const choices = newestPerName(matching)
     .slice(0, AUTOCOMPLETE_LIMIT)
     .map(([record, older]) => sessionChoice(bridge.language.say, record, older));
-  await interaction.respond(choices);
+  await interaction.respond(choicesForDiscord(choices));
 }
 
 export async function handleSessions(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {

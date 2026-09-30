@@ -385,6 +385,54 @@ describe("everything posted to Discord passes the outgoing gate", () => {
   });
 });
 
+describe("what is drawn on a control, an embed or a file passes the gate too", () => {
+  const given = (source: string, open: number): string => {
+    let depth = 0;
+    for (let at = open; at < source.length; at += 1) {
+      if (source[at] === "(") depth += 1;
+      if (source[at] === ")") depth -= 1;
+      if (depth === 0) return source.slice(open + 1, at).trim();
+    }
+    return source.slice(open + 1).trim();
+  };
+  // A sentence from the catalog with nothing filled in holds no path; anything else is gated by name.
+  const needsNoGate = (argument: string): boolean => /^say\("[\w.]+"\)$/.test(argument) || argument === "[]";
+  const gated = (argument: string): boolean => /(?:for|For)Discord\b/.test(argument);
+
+  // A label, a placeholder, a title, an option and an autocomplete choice are as public as a message, and none of them is message content.
+  it("gates every text handed to a control or offered as a choice", () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      // Command definitions are fixed text, written there and registered once.
+      if (path.basename(file) === "registry.ts") continue;
+      const source = fs.readFileSync(file, "utf8");
+      for (const call of source.matchAll(/\.(?:setLabel|setDescription|setPlaceholder|setTitle|addOptions|respond)\(/g)) {
+        const argument = given(source, call.index + call[0].length - 1);
+        if (!needsNoGate(argument) && !gated(argument)) {
+          offenders.push(`${path.basename(file)}: ${call[0]}${argument.slice(0, 50)}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("builds embeds in one gated place, and gates the text of a file it writes itself", () => {
+    const offenders: string[] = [];
+    for (const file of files) {
+      const name = path.basename(file);
+      const source = fs.readFileSync(file, "utf8");
+      if (name !== "embeds.ts" && source.includes("new EmbedBuilder(")) offenders.push(`${name}: builds an embed of its own`);
+      // The sink attaches the files a turn left, which are the conversation's own and are sent as they are.
+      if (name === "sink.ts") continue;
+      for (const made of source.matchAll(/new AttachmentBuilder\(/g)) {
+        if (!gated(given(source, made.index + made[0].length - 1))) offenders.push(`${name}: attaches ungated text`);
+      }
+    }
+    expect(offenders).toEqual([]);
+    expect(read("src/discord/embeds.ts")).toContain("forDiscord(description)");
+  });
+});
+
 describe("the boot check", () => {
   // The suite compiles with esbuild, which runs all of these, so only Node's own stripper can say which of them the bridge would start with.
   it("refuses what Node's type stripper cannot run, and nothing that it can", () => {

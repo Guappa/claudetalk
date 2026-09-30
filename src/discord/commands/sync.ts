@@ -5,6 +5,7 @@ import { markCaughtUp, pendingDrift } from "../sync.ts";
 import { describeUnread, formatExchanges, latestThatFit } from "../transcriptView.ts";
 import { DISCORD_MESSAGE_LIMIT } from "../renderer.ts";
 import { respond } from "../respond.ts";
+import { nameForDiscord } from "../outgoing.ts";
 
 // The blank line between the header and the exchanges, and what the gate may add to either.
 const HEADER_SLACK = 20;
@@ -38,7 +39,8 @@ export async function handleSync(bridge: Bridge, interaction: ChatInputCommandIn
   if (recent.length === drift.length) {
     await respond(interaction, `${counted("sync.all")}\n\n${view}`);
   } else {
-    const file = new AttachmentBuilder(Buffer.from(formatExchanges(say, drift, "plain"), "utf8"), {
+    // The file is as public as the message it hangs on, and nothing else passes it through the gate.
+    const file = new AttachmentBuilder(Buffer.from(nameForDiscord(formatExchanges(say, drift, "plain")), "utf8"), {
       name: `catch-up-${drift.length}-messages.md`,
     });
     await respond(interaction, { content: `${counted("sync.latest")}\n\n${view}`, files: [file] });

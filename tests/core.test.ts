@@ -49,7 +49,7 @@ import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild } from "../src/discord/gate.ts";
 import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
-import { forDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
+import { choicesForDiscord, forDiscord, optionForDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
 import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
@@ -691,6 +691,30 @@ describe("an answer with a very long line that starts a fence", () => {
   it("leaves the room it is asked to, for a heading that goes above the first piece", () => {
     const answer = Array.from({ length: 60 }, (_, index) => `Point ${index + 1}: `.padEnd(99, "y")).join("\n");
     expect(splitForDiscord(answer, 1900).every((piece) => forDiscord(piece).length <= 1900)).toBe(true);
+  });
+});
+
+describe("a home path in what is posted", () => {
+  const home = os.homedir();
+  const account = path.basename(home);
+
+  // The gate sees a piece at a time, and half a path is not a path to it.
+  it("is redacted before an answer is cut, so a cut that falls inside one leaks none of it", () => {
+    const line = `${"w".repeat(1990)} ${path.join(home, "Documents", "notes.md")} and on`;
+    const pieces = splitForDiscord(line);
+    expect(pieces.length).toBeGreaterThan(1);
+    expect(pieces.map(forDiscord).join("")).not.toContain(account);
+  });
+
+  it("is redacted in an embed's description and fields, and in what a menu shows", () => {
+    const where = path.join(home, "Documents", "ledger");
+    const embed = detail(`Title in ${where}`, `Runs in ${where}`, [{ name: `Folder ${where}`, value: where }]).toJSON();
+    expect(JSON.stringify(embed)).not.toContain(account);
+
+    expect(JSON.stringify(optionForDiscord({ label: where, value: where, description: `in ${where}` }))).toBe(
+      JSON.stringify({ label: redactHome(where), value: where, description: `in ${redactHome(where)}` }),
+    );
+    expect(choicesForDiscord([{ name: `run in ${where}`, value: "x" }])[0]!.name).not.toContain(account);
   });
 });
 
