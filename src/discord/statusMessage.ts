@@ -206,12 +206,14 @@ export class StatusMessage {
     }
   }
 
-  // Overflow moves at the next edit, not on arrival, so a remark that turns out to be the answer can still be taken back.
-  private rollOverOverflow(): void {
+  // While the turn runs the newest remark is never sealed, however long: it may turn out to be the answer, and a piece of it left in a finished message would show a second time beneath.
+  private rollOverOverflow(newest: "held" | "sealed"): void {
     if (!this.sink.continueIn) return;
     const elapsed = this.now() - this.startedAt;
     while (this.notes.length > 1 && !fitsInOne(this.say, this.notes, elapsed, this.steps, this.extra())) {
-      const sealed = this.oldestThatFit();
+      const fitting = this.oldestThatFit();
+      const sealed = newest === "held" ? fitting.slice(0, this.origins.indexOf(this.origins.at(-1)!)) : fitting;
+      if (sealed.length === 0) return;
       this.rollOver(sealed);
     }
   }
@@ -267,7 +269,7 @@ export class StatusMessage {
   // Leaves the trail in place, marked finished, so the answer can arrive beneath it.
   async settle(mood: Mood = "done"): Promise<void> {
     this.stop();
-    this.rollOverOverflow();
+    this.rollOverOverflow("sealed");
     await this.pendingEdit;
     const trail = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, mood, this.extra());
     await this.sink.edit(await this.finalize(trail), []);
@@ -336,7 +338,7 @@ export class StatusMessage {
   private async tick(): Promise<void> {
     if (this.stopped) return;
 
-    this.rollOverOverflow();
+    this.rollOverOverflow("held");
     const text = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
     if (text !== this.lastSent) {
       this.lastSent = text;

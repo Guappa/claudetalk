@@ -417,6 +417,34 @@ describe("TurnFlow", () => {
     expect(shown).not.toContain("Try sending");
   });
 
+  // The answer is the first remark after a prompt buried the trail, so the trail is still moving below it when the turn ends.
+  it("puts the answer in the message the trail moved to, not a bare heading above it", async () => {
+    scripted.set("answers after a prompt", [
+      {
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: { content: [{ type: "text", text: "echo answers after a prompt" }] },
+      },
+    ]);
+    const flow = makeFlow();
+    const sink = recordingSink();
+    const edit = sink.edit;
+    sink.edit = async (text, actions) => {
+      await edit(text, actions);
+      sink.othersBelow = true;
+    };
+    const moveOn = sink.continueIn!;
+    sink.continueIn = async (text, actions) => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      await moveOn(text, actions);
+    };
+    sink.othersBelow = true;
+    await flow.run("s29", cwd, "answers after a prompt", {}, sink, { resume: true });
+
+    expect(sink.messages.at(-1)).toBe("echo answers after a prompt");
+    expect(sink.messages.join("\n")).not.toContain("**Worked**");
+  });
+
   it("says so when the files a turn left could not be attached, and still ends the turn as done", async () => {
     const flow = makeFlow();
     const folder = await fs.mkdtemp(path.join(os.tmpdir(), "flow-outbox-"));
