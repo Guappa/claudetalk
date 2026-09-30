@@ -188,6 +188,7 @@ async function runTurn(
     quoted: context.quoted,
     name: target.isFirstTurn ? toChannelName(channelNameOf(message)) : undefined,
     onState: reactionMarker(message, message.client.user.id),
+    asked: prompt,
   });
 }
 

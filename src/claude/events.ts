@@ -101,7 +101,7 @@ export function commandsChanged(event: ClaudeEvent): SessionCommand[] | null {
 export type AgentOutcome = "completed" | "failed" | "stopped";
 
 export type AgentEvent =
-  | { kind: "started"; taskId: string; toolUseId: string | null; description: string; agentType: string }
+  | { kind: "started"; taskId: string; toolUseId: string | null; description: string; agentType: string; remote: boolean }
   | { kind: "progress"; taskId: string; activity: string; toolUses: number; tokens: number }
   | { kind: "ended"; taskId: string; outcome: AgentOutcome; toolUses: number | null; tokens: number | null; durationMs: number | null };
 
@@ -109,7 +109,7 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
 const usageOf = (value: unknown): { tool_uses?: number; total_tokens?: number; duration_ms?: number } =>
   typeof value === "object" && value !== null ? value : {};
 
-// The stream reports every task; an agent is one a reader follows by name, a background command is not.
+// The stream reports every task; an agent, here or in the cloud, is one a reader follows by name, a background command is not.
 export function agentEvent(event: ClaudeEvent): AgentEvent | null {
   if (event.type !== "system") return null;
   const fields = event as unknown as Record<string, unknown>;
@@ -118,13 +118,15 @@ export function agentEvent(event: ClaudeEvent): AgentEvent | null {
   const usage = usageOf(fields.usage);
 
   if (event.subtype === "task_started") {
-    if (fields.task_type !== "local_agent") return null;
+    const remote = fields.task_type === "remote_agent";
+    if (fields.task_type !== "local_agent" && !remote) return null;
     return {
       kind: "started",
       taskId,
       toolUseId: text(fields.tool_use_id) || null,
       description: text(fields.description),
-      agentType: text(fields.subagent_type) || "agent",
+      agentType: text(fields.subagent_type) || (remote ? "cloud" : "agent"),
+      remote,
     };
   }
   if (event.subtype === "task_progress") {

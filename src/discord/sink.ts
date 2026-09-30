@@ -11,7 +11,7 @@ import {
 import type { AskHandle, DetailSink, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
-import { forDiscord } from "./outgoing.ts";
+import { forDiscord, nameForDiscord } from "./outgoing.ts";
 
 // Discord's limits for a select menu: 100 characters for a label, value or description, 150 for the placeholder.
 const MENU_TEXT_LIMIT = 100;
@@ -139,7 +139,10 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
     async openDetail(title: string): Promise<DetailSink | null> {
       if (!owned) return null;
       try {
-        const thread = await owned.startThread({ name: title, autoArchiveDuration: ThreadAutoArchiveDuration.OneHour });
+        const thread = await owned.startThread({
+          name: nameForDiscord(title),
+          autoArchiveDuration: ThreadAutoArchiveDuration.OneHour,
+        });
         return {
           async post(text: string) {
             const sent = await thread.send({ content: forDiscord(text), allowedMentions: NO_MENTIONS });

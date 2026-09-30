@@ -267,3 +267,11 @@ is what keeps an agent's work out of the trail. An agent sent back to work gets
 a second start event with the same task id and a new tool call id, while its
 messages go on carrying the first; its usage then counts from zero again. These
 shapes were captured from real turns, not read off the type definitions.
+
+**A cloud task is stopped through the session, never only by killing it.** A
+task of type `remote_agent` runs on Anthropic's side. Claude Code closes the
+cloud session when the task is stopped with the SDK's `stopTask`; killing the
+local process skips that, and the session runs on. So `TurnFlow` stops cloud
+tasks first and waits briefly before it kills a turn. This rests on reading
+Claude Code's own code for the stop path, since launching a billed review to
+watch it was not something a test could do.

@@ -16,6 +16,8 @@ import path from "node:path";
 const started = vi.hoisted(() => [] as string[]);
 // Events a mocked turn replays before it finishes, keyed by its prompt.
 const scripted = vi.hoisted(() => new Map<string, unknown[]>());
+// What a mocked turn was asked to do, in order: tasks stopped inside it, and the turn itself stopped.
+const asked = vi.hoisted(() => [] as string[]);
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
@@ -26,7 +28,8 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
       started.push(request.prompt);
       for (const event of scripted.get(request.prompt) ?? []) onEvent(event);
       return {
-        stop: () => undefined,
+        stop: () => void asked.push(`stop ${request.prompt}`),
+        stopTasks: async (taskIds: string[]) => void asked.push(`stopTasks ${taskIds.join(",")}`),
         done: new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: `echo ${request.prompt}` }), 20)),
       };
     },
@@ -45,6 +48,7 @@ function makeFlow(): TurnFlow {
     new OutboxDelivery(),
     new ActiveTurns(path.join(os.tmpdir(), `claudetalk-turns-${process.pid}-${Math.random()}.json`)),
     config,
+    1,
   );
 }
 
@@ -157,6 +161,39 @@ describe("TurnFlow", () => {
     expect(trail).not.toContain("fixture.txt");
     expect(trail).not.toContain("Wrote the fixture.");
     expect(sink.details).toEqual(["**1 · general-purpose** · Write the fixture\ndone in 2s · 1 tool · 1 tokens"]);
+    expect(sink.detailTitles).toEqual(["Agents: fan out"]);
+  });
+
+  const agentStart = (taskId: string, taskType: string) => ({
+    type: "system", subtype: "task_started", task_id: taskId, tool_use_id: `use-${taskId}`, description: `Task ${taskId}`, task_type: taskType,
+  });
+
+  // Asking Claude to stop its agents costs a turn and an interruption; the button reaches them directly.
+  it("stops a turn's agents and leaves the turn running", async () => {
+    scripted.set("spread out", [agentStart("t1", "local_agent"), agentStart("t2", "local_agent")]);
+    const flow = makeFlow();
+    const running = flow.run("s11", cwd, "spread out", {}, recordingSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(await flow.stopAgents("s11")).toBe(2);
+    expect(asked).toContain("stopTasks t1,t2");
+    expect(asked).not.toContain("stop spread out");
+    expect(await running).toBe(true);
+    expect(await flow.stopAgents("s11")).toBe(0);
+  });
+
+  // Killing the process never reaches a task running in the cloud, which would go on being billed.
+  it("tells a cloud task to stop before it kills the turn, and only a cloud one", async () => {
+    scripted.set("review it", [agentStart("t3", "local_agent"), agentStart("t4", "remote_agent")]);
+    const flow = makeFlow();
+    const running = flow.run("s12", cwd, "review it", {}, recordingSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(flow.stopTurn("s12").stopped).toBe(true);
+    await running;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const order = asked.filter((entry) => entry === "stopTasks t4" || entry === "stop review it");
+    expect(order).toEqual(["stopTasks t4", "stop review it"]);
   });
 
   it("stops everything at once when told to, dropping what was queued", async () => {

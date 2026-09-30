@@ -28,7 +28,7 @@ this covers behaviour.
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |
 | `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, nothing remembered. The previous conversation stays on the host. The channel's messages are kept. |
-| `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. |
+| `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. While agents or a cloud task are running there is also **Stop agents**, which stops them and leaves the turn going. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
 | `/takeover` | O | Stops a background agent holding this conversation, then continues. |
 | `/category [name]` | O | Shows the category this conversation's channel is in, or moves it to one. Creates the category if it does not exist. |
@@ -363,8 +363,9 @@ addition pushed it past the cap.
 
 When Claude hands work to agents, they are shown the way the terminal shows
 them, that each is working, on what, and what it has spent, and in one place
-only: a thread on the progress message, opened by the first agent, so a turn
-without agents never makes one. The thread holds one message kept up to date,
+only: a thread on the progress message, opened by the first agent and named
+after what was asked of the turn, so a turn without agents never makes one and
+one turn's thread can be told from another's. The thread holds one message kept up to date,
 ten agents to a message, costing the model nothing since it is drawn from events
 Claude Code already sends:
 
@@ -380,7 +381,19 @@ Each entry ends as done, failed or stopped with its totals, and an agent that
 reports and is then sent back to work returns to running under the entry it
 already has. The trail stays the session's own: nothing about an agent appears
 in it, not its edits, its commands, its report or a count, and the session
-relays what its agents found in its own words. The thread needs the bot to hold
+relays what its agents found in its own words. A task Claude Code runs in the
+cloud, a cloud review for one, is listed the same way with the type `cloud`.
+
+While any of them is running the progress message carries a **Stop agents**
+button, or **Stop cloud task** when that is all there is. It stops each one
+through the session and leaves the turn running: Claude is told they were
+stopped and carries on, which is what asking it to stop them would come to,
+without the turn that asking costs. **Stop** ends the turn as before, with one
+difference: killing the process would never reach a task running in the cloud,
+which would go on being billed, so a running cloud task is told to stop first
+and given a moment to close down before the turn is killed.
+
+The thread needs the bot to hold
 Create Public Threads and Send Messages in Threads. Without them, or in a place
 Discord allows no thread, the progress message carries a short tally under its
 heading instead, naming up to four running agents and counting the rest. A

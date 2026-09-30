@@ -7,6 +7,11 @@ export function forDiscord(text: string): string {
   return defuseStrayMarkup(redactHome(text));
 }
 
+// A name is not drawn as Markdown, so only the path redaction applies to it.
+export function nameForDiscord(text: string): string {
+  return redactHome(text);
+}
+
 export async function postText(channel: SendableChannels, text: string): Promise<Message> {
   return await channel.send(forDiscord(text));
 }
