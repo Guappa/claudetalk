@@ -3,7 +3,15 @@ import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
 import { describeToolUse } from "./toolTrail.ts";
-import { agentEvent, compactMetadata, isCompactionStart, isInit, parentToolUseId, type ClaudeEvent } from "../claude/events.ts";
+import {
+  agentEvent,
+  commandsChanged,
+  compactMetadata,
+  isCompactionStart,
+  isInit,
+  parentToolUseId,
+  type ClaudeEvent,
+} from "../claude/events.ts";
 import { AgentBoard } from "./agentBoard.ts";
 import type { ClaudeError } from "../claude/errors.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
@@ -356,7 +364,7 @@ export class TurnFlow {
       },
       (event) => {
         pending.push(
-          this.handleEvent(event, sessionId, status, board, sink, tracker, () => void (compaction.happened = true)),
+          this.handleEvent(event, sessionId, cwd, status, board, sink, tracker, () => void (compaction.happened = true)),
         );
       },
     );
@@ -416,6 +424,7 @@ export class TurnFlow {
   private async handleEvent(
     event: ClaudeEvent,
     sessionId: string,
+    cwd: string,
     status: StatusMessage,
     board: AgentBoard,
     sink: MessageSink,
@@ -424,6 +433,12 @@ export class TurnFlow {
   ): Promise<void> {
     if (isInit(event)) {
       this.capabilities.record(sessionId, event);
+      return;
+    }
+
+    const commands = commandsChanged(event);
+    if (commands) {
+      await this.capabilities.recordCommands(cwd, commands);
       return;
     }
 

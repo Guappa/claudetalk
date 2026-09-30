@@ -6,9 +6,9 @@ export interface PendingCreate {
   categoryId?: string;
 }
 
-// A button carries at most 100 characters of id, which a name and a path do not fit inside.
-export class PendingCreates {
-  private readonly byMessage = new Map<string, { request: PendingCreate; at: number }>();
+// A button carries at most 100 characters of id, which a name and a path, or a command's arguments, do not fit inside.
+export class Pending<Held> {
+  private readonly byMessage = new Map<string, { request: Held; at: number }>();
 
   private readonly now: () => number;
 
@@ -16,12 +16,12 @@ export class PendingCreates {
     this.now = now;
   }
 
-  remember(messageId: string, request: PendingCreate): void {
+  remember(messageId: string, request: Held): void {
     this.sweep();
     this.byMessage.set(messageId, { request, at: this.now() });
   }
 
-  take(messageId: string): PendingCreate | null {
+  take(messageId: string): Held | null {
     const entry = this.byMessage.get(messageId);
     this.byMessage.delete(messageId);
     if (!entry) return null;
@@ -34,3 +34,5 @@ export class PendingCreates {
     }
   }
 }
+
+export class PendingCreates extends Pending<PendingCreate> {}

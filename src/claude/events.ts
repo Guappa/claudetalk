@@ -1,3 +1,5 @@
+import { truncate } from "../text.ts";
+
 export interface CompactMetadata {
   trigger: "manual" | "auto";
   pre_tokens: number;
@@ -66,6 +68,34 @@ export function isOrphanReport(event: ClaudeEvent): boolean {
 export function liveBackgroundTasks(event: ClaudeEvent): number | null {
   if (event.type !== "system" || event.subtype !== "background_tasks_changed" || !("tasks" in event)) return null;
   return event.tasks.filter((task) => !task.ambient).length;
+}
+
+// One thing a session can be told to run: a built-in, a skill, or a command a plugin brought.
+export interface SessionCommand {
+  name: string;
+  description: string;
+  argumentHint: string;
+  aliases: string[];
+  builtin: boolean;
+}
+
+// Long enough to say what a command is for; a cut one ends in an ellipsis so it never reads as the whole of it.
+const DESCRIPTION_CHARS = 280;
+
+// Sent whole whenever the set changes, and by the runner once a session has introduced itself.
+export function commandsChanged(event: ClaudeEvent): SessionCommand[] | null {
+  if (event.type !== "system" || event.subtype !== "commands_changed") return null;
+  const listed = (event as unknown as { commands?: unknown }).commands;
+  if (!Array.isArray(listed)) return null;
+  return listed
+    .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null && typeof entry.name === "string")
+    .map((entry) => ({
+      name: entry.name as string,
+      description: truncate((typeof entry.description === "string" ? entry.description : "").replace(/\s+/g, " ").trim(), DESCRIPTION_CHARS),
+      argumentHint: typeof entry.argumentHint === "string" ? entry.argumentHint.trim() : "",
+      aliases: Array.isArray(entry.aliases) ? entry.aliases.filter((alias): alias is string => typeof alias === "string") : [],
+      builtin: entry.builtin === true,
+    }));
 }
 
 export type AgentOutcome = "completed" | "failed" | "stopped";

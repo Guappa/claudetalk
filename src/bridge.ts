@@ -10,7 +10,8 @@ import { PlanUsage } from "./claude/planUsage.ts";
 import { TurnFlow } from "./discord/turnFlow.ts";
 import { OutboxDelivery } from "./discord/outboxDelivery.ts";
 import { SessionIndex } from "./sessions/index.ts";
-import { PendingCreates } from "./discord/pendingCreate.ts";
+import { Pending, PendingCreates } from "./discord/pendingCreate.ts";
+import type { PendingRun } from "./discord/commands/run.ts";
 import { ApprovalPrompts } from "./discord/approvals.ts";
 import { QuestionPrompts } from "./discord/questions.ts";
 import { ActiveTurns } from "./discord/activeTurns.ts";
@@ -32,6 +33,7 @@ export interface Bridge {
   flow: TurnFlow;
   sessions: SessionIndex;
   pendingCreates: PendingCreates;
+  pendingRuns: Pending<PendingRun>;
 }
 
 export async function createBridge(config: Config): Promise<Bridge> {
@@ -47,7 +49,8 @@ export async function createBridge(config: Config): Promise<Bridge> {
   const operators = new OperatorStore(config.operatorsPath);
   await operators.load();
 
-  const capabilities = new CapabilityCache();
+  const capabilities = new CapabilityCache(path.join(path.dirname(config.bindingsPath), "commands.json"));
+  await capabilities.load();
   const usage = new UsageLedger();
   const planUsage = new PlanUsage();
   const approvals = new ApprovalPrompts();
@@ -79,5 +82,6 @@ export async function createBridge(config: Config): Promise<Bridge> {
     flow: new TurnFlow(capabilities, trackerFor, usage, planUsage, approvals, questions, outbox, activeTurns, config),
     sessions: new SessionIndex(),
     pendingCreates: new PendingCreates(),
+    pendingRuns: new Pending<PendingRun>(),
   };
 }

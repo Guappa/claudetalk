@@ -169,7 +169,11 @@ async function consumeStream(
     const run = query({ prompt: held.stream(), options: { ...options, abortController: abort } });
     // Either outcome of the handshake lets the prompt go; a doomed process has already been marked by then.
     run.initializationResult().then(
-      () => held.ready(),
+      (introduced) => {
+        held.ready();
+        // The handshake is the one place a session lists its commands with their descriptions.
+        onEvent({ type: "system", subtype: "commands_changed", commands: introduced.commands } as unknown as ClaudeEvent);
+      },
       () => held.ready(),
     );
     for await (const message of run) {

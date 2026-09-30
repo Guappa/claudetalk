@@ -10,6 +10,7 @@ const OPERATOR_COMMANDS = new Set([
   "spend",
   "members",
   "skills",
+  "run",
   "stop",
   "queue",
   "create",
