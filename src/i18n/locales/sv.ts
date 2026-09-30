@@ -250,7 +250,13 @@ export const sv: Catalog = {
     cancelled: "Lät det vara. Konversationen fortsätter som förut.",
   },
   unbind: {
+    unbound: "Den här kanalen är inte kopplad till någon konversation, så det finns inget att koppla från.",
+    running: "En omgång körs här. Låt den bli klar eller kör `/stop`, och sedan `/unbind`.",
     done: "Frånkopplad. Konversationen ligger kvar på värddatorn och kan återupptas med `/resume`. Kanalen är nu bara en kanal; ta bort den, eller behålla den för historikens skull?",
+    doneShared:
+      "Frånkopplad. Konversationen ligger kvar på värddatorn och kan återupptas med `/resume`. Den här kanalen svarade bara när boten taggades, och den är kvar som den är.",
+    boundAgain:
+      "Den här kanalen har kopplats till en konversation igen sedan dess, så den togs inte bort. Kör `/unbind` här igen om den ska bort.",
     deleteChannel: "Ta bort kanalen",
     keep: "Behåll den",
     kept: "Behållen. Kanalen är kvar som den är, med sin historik.",

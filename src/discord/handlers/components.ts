@@ -341,6 +341,11 @@ async function deleteUnboundChannel(bridge: Bridge, interaction: ButtonInteracti
     await settleMenu(interaction, say("unbind.notDeletable"));
     return;
   }
+  // The button outlives the moment it was offered in, and the channel may hold a conversation again by now.
+  if (bridge.store.byChannel(interaction.channelId)) {
+    await settleMenu(interaction, say("unbind.boundAgain"));
+    return;
+  }
   await settleMenu(interaction, say("unbind.deleting"));
   try {
     await channel.delete();

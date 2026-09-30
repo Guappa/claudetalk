@@ -33,7 +33,7 @@ this covers behaviour.
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
 | `/takeover` | O | Stops a background agent holding this conversation, then continues. |
 | `/category [name]` | O | Shows the category this conversation's channel is in, or moves it to one. Creates the category if it does not exist. |
-| `/unbind` | O | Unbinds the channel at once, then offers to delete it or keep it for the history. The conversation stays on the host either way. |
+| `/unbind` | O | Unbinds the channel at once, then offers to delete it or keep it for the history. The conversation stays on the host either way. It refuses while a turn is running or queued here, and says so in a channel that holds no conversation. A channel that only answered when the bot was tagged is unbound without the offer to delete it, and **Delete the channel** does nothing if the channel has been bound again since. |
 
 ### Where the channel goes
 
