@@ -1,7 +1,7 @@
 import type { Bridge } from "../bridge.ts";
 import type { Conversation } from "../conversations.ts";
 import type { SessionRecord } from "../sessions/index.ts";
-import { readExchanges, readExchangesSince, type ExchangesRead } from "../sessions/exchanges.ts";
+import { readExchangesSince, type ExchangesRead } from "../sessions/exchanges.ts";
 
 // What happened outside Discord since the conversation was last marked seen.
 export async function newDrift(conversation: Conversation, record: SessionRecord | null): Promise<ExchangesRead> {
@@ -26,11 +26,9 @@ export async function pendingDrift(conversation: Conversation, record: SessionRe
   };
 }
 
-// The index is rebuilt rather than reused: a turn has just written to the transcript being read.
+// Looked up afresh, since a turn has just written to the transcript. Its last record is at or after its last exchange, and nothing before that moment is drift.
 export async function markCaughtUp(bridge: Bridge, conversation: Conversation): Promise<void> {
   const record = await bridge.sessions.find(conversation.sessionId);
   if (!record) return;
-  const exchanges = await readExchanges(record.transcriptPath);
-  const last = exchanges.at(-1);
-  await bridge.store.markSynced(conversation.sessionId, (last?.at ?? new Date()).toISOString());
+  await bridge.store.markSynced(conversation.sessionId, (record.lastActivity ?? new Date()).toISOString());
 }

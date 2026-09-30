@@ -34,7 +34,6 @@ export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInt
   await respond(interaction, context.carried > 0 ? say("ask.withContext", { count: context.carried }) : say("ask.noContext"));
 
   await runConversationTurn(bridge, conversation, {
-    actorId: interaction.user.id,
     prompt: composePrompt(context, prompt),
     sink: channelSink(interaction.channel, {
       allowedUserIds: [...new Set([interaction.user.id, ...context.mentionableUserIds])],

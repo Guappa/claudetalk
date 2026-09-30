@@ -175,7 +175,6 @@ export async function runPressed(
   }
   await settleMenu(interaction, say("common.sent", { prompt: truncate(prompt, SHOWN_SENT_CHARS) }));
   await runConversationTurn(bridge, conversation, {
-    actorId: interaction.user.id,
     prompt,
     sink: channelSink(interaction.channel, { latestPosts: bridge.latestPosts }),
   });

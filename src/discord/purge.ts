@@ -1,3 +1,4 @@
+import { setTimeout as wait } from "node:timers/promises";
 import type { GuildTextBasedChannel } from "discord.js";
 import type { Say } from "../i18n/index.ts";
 
@@ -29,10 +30,6 @@ export function describePurge(say: Say, result: PurgeResult, isConversationChann
   if (result.failed > 0) sentences.push(say("purge.failed", { count: result.failed }));
   if (isConversationChannel) sentences.push(say("purge.conversationKept"));
   return sentences.join(" ");
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function purgeChannel(channel: GuildTextBasedChannel, keepMessageId?: string): Promise<PurgeResult> {

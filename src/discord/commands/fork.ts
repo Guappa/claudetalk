@@ -23,7 +23,6 @@ export async function runFork(
   let forkedId: string | undefined;
 
   const ran = await runConversationTurn(bridge, source, {
-    actorId: interaction.user.id,
     prompt: helloToBranch(name),
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     fork: true,

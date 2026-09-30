@@ -197,7 +197,6 @@ async function askOf(
   saved: SavedAttachment[],
 ): Promise<boolean> {
   return await runConversationTurn(bridge, target.conversation, {
-    actorId: message.author.id,
     prompt: appendAttachmentPaths(composePrompt(context, prompt), saved),
     sink: channelSink(channel, {
       allowedUserIds: context.mentionableUserIds,

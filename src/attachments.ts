@@ -153,20 +153,23 @@ export async function downloadAttachments(attachments: RemoteAttachment[], turnI
   const dir = path.join(await ownedRoot(), turnId);
   await fs.mkdir(dir, { recursive: true, mode: OWNER_ONLY_DIR });
 
-  const saved: SavedAttachment[] = [];
-  const failed: string[] = [];
-  for (const [index, attachment] of attachments.entries()) {
-    try {
-      // Discord attachment URLs are signed and expire, so they are fetched during the turn.
-      const response = await fetch(attachment.url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const target = path.join(dir, `att_${index}${extensionFor(attachment.name, attachment.contentType)}`);
-      await fs.writeFile(target, Buffer.from(await response.arrayBuffer()), { mode: OWNER_ONLY_FILE });
-      saved.push({ path: target, contentType: attachment.contentType, name: attachment.name });
-    } catch {
-      failed.push(attachment.name);
-    }
-  }
+  // Each lands in its own file, so they are fetched together; one that stalls costs its own thirty seconds, not everyone's.
+  const outcomes = await Promise.all(
+    attachments.map(async (attachment, index): Promise<SavedAttachment | null> => {
+      try {
+        // Discord attachment URLs are signed and expire, so they are fetched during the turn.
+        const response = await fetch(attachment.url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const target = path.join(dir, `att_${index}${extensionFor(attachment.name, attachment.contentType)}`);
+        await fs.writeFile(target, Buffer.from(await response.arrayBuffer()), { mode: OWNER_ONLY_FILE });
+        return { path: target, contentType: attachment.contentType, name: attachment.name };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const saved = outcomes.filter((outcome): outcome is SavedAttachment => outcome !== null);
+  const failed = attachments.filter((_attachment, index) => outcomes[index] === null).map((attachment) => attachment.name);
   return { saved, failed };
 }
 

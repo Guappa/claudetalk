@@ -480,7 +480,8 @@ describe("/sync", () => {
   // The turn that announces what was missed marks the conversation seen when it ends, and the notice says to run /sync.
   it("still shows what a turn announced as missed, after that turn has run", async () => {
     const { folder, transcriptPath } = await terminal([said(5, "typed in the terminal"), said(6, "and one more")]);
-    const bridge = await testBridge([record({ sessionId: SESSION, cwd: folder, transcriptPath, lastActivity: new Date() })]);
+    const lastActivity = new Date("2026-09-13T10:06:00.000Z");
+    const bridge = await testBridge([record({ sessionId: SESSION, cwd: folder, transcriptPath, lastActivity })]);
     await bridge.store.bindNew({ sessionId: SESSION, cwd: folder, channelId: "y2", ownerId: OWNER });
     await bridge.store.markSynced(SESSION, "2026-09-13T10:00:00.000Z");
     const place = fakeChannel("y2");

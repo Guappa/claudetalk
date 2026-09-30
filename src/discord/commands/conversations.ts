@@ -168,7 +168,6 @@ export async function startConversation(
   });
 
   await runConversationTurn(bridge, conversation, {
-    actorId: interaction.user.id,
     prompt: helloToNew(request.name),
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
     name: request.name,

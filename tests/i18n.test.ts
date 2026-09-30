@@ -3,12 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { loadConfig } from "../src/config.ts";
-import { LANGUAGES, isLanguage, sayIn, type Language } from "../src/i18n/index.ts";
+import { CATALOGS, LANGUAGES, isLanguage, sayIn, type Language } from "../src/i18n/index.ts";
 import { LanguageChoice } from "../src/i18n/languageChoice.ts";
 import { en } from "../src/i18n/locales/en.ts";
-import { sv } from "../src/i18n/locales/sv.ts";
 
-const CATALOGS: Record<Language, object> = { en, sv };
 const languages = Object.keys(LANGUAGES) as Language[];
 const PLURAL = /_(zero|one|two|few|many|other)$/;
 
