@@ -96,11 +96,20 @@ feature on a private repository. The convention stands regardless.
 | `feat:` | minor | Something new that does not disturb what was there |
 | `!` or `BREAKING CHANGE:` | major | An existing command, config key or file layout changed shape |
 
-A release is a tag on a merged commit, and it batches work: small fixes and
-additions merge without a bump and wait on `main` for the next one. The level
-is decided by everything merged since the last tag, and the bump rides in the
-last pull request of the batch, so it costs no extra commit or CI run on
-`main`:
+A release is a tag on a merged commit. It notifies everyone watching the
+repository, so not every pull request is one:
+
+| What merged | When it is released |
+| --- | --- |
+| A fix for something broken: a feature that does not work, a regression, a crash, lost data, a leak of private data | Right away, with whatever else is waiting |
+| A finished feature | Once it is complete and tried live |
+| Small bugs and cosmetic fixes | Together, once three or more have gathered or the oldest has waited two weeks |
+| `docs`, `test`, `ci`, `build`, `chore`, `refactor` | Never on their own; they ride along |
+
+`main` is always deployable, so anyone who wants a waiting fix sooner can run
+from it. The level is decided by everything merged since the last tag, and the
+bump rides in the last pull request of the batch where there is one, so it
+costs no extra commit or CI run on `main`:
 
 ```bash
 npm version minor --no-git-tag-version   # in the batch's last PR: bumps package.json and the lockfile
