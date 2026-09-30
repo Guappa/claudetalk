@@ -14,14 +14,12 @@ import { truncate } from "../../text.ts";
 import { requireConversation } from "../binding.ts";
 import { RUN_CANCEL, RUN_CONFIRM } from "../menus.ts";
 import { respond, settleMenu } from "../respond.ts";
+import { CHOICES, CHOICE_CHARS } from "../limits.ts";
 import { choicesForDiscord } from "../outgoing.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
-import { COMMAND_NAME, classifyPrompt, describeNotRun } from "./settings.ts";
+import { COMMAND_NAME, classifyPrompt, describeNotRun } from "./typed.ts";
 
-// Discord's limits: twenty-five choices to an autocomplete, a hundred characters to a choice's label and value.
-const CHOICE_LIMIT = 25;
-const CHOICE_CHARS = 100;
 const SHOWN_PROMPT_CHARS = 300;
 const SHOWN_DESCRIPTION_CHARS = 300;
 const SHOWN_SENT_CHARS = 200;
@@ -59,7 +57,7 @@ export function commandChoices(commands: SessionCommand[], typed: string, runnab
         Number(first.command.builtin) - Number(second.command.builtin) ||
         first.command.name.localeCompare(second.command.name),
     )
-    .slice(0, CHOICE_LIMIT)
+    .slice(0, CHOICES)
     .map(({ command }) => ({ name: label(command), value: command.name }));
 }
 

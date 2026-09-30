@@ -12,11 +12,8 @@ import type { AskHandle, DetailSink, MessageSink, SinkAction, SinkAnchor, SinkFi
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
 import { forDiscord, nameForDiscord } from "./outgoing.ts";
-import { DISCORD_MESSAGE_LIMIT } from "./renderer.ts";
+import { DISCORD_MESSAGE_LIMIT, MENU_OPTION_CHARS, MENU_PLACEHOLDER_CHARS } from "./limits.ts";
 
-// Discord's limits for a select menu: 100 characters for a label, value or description, 150 for the placeholder.
-const MENU_TEXT_LIMIT = 100;
-const PLACEHOLDER_LIMIT = 150;
 // The blank line, the bold markers and the ellipsis a cut adds, around an outcome appended to a prompt.
 const OUTCOME_FRAME = "\n\n****...";
 
@@ -50,9 +47,9 @@ function buttonRow(actions: SinkAction[]): ActionRowBuilder<ButtonBuilder>[] {
 function optionsForDiscord(options: SinkMenu["options"]): StringSelectMenuOptionBuilder[] {
   return options.map((option) => {
     const built = new StringSelectMenuOptionBuilder()
-      .setValue(truncate(option.value, MENU_TEXT_LIMIT))
-      .setLabel(truncate(nameForDiscord(option.label), MENU_TEXT_LIMIT));
-    if (option.description) built.setDescription(truncate(nameForDiscord(option.description), MENU_TEXT_LIMIT));
+      .setValue(truncate(option.value, MENU_OPTION_CHARS))
+      .setLabel(truncate(nameForDiscord(option.label), MENU_OPTION_CHARS));
+    if (option.description) built.setDescription(truncate(nameForDiscord(option.description), MENU_OPTION_CHARS));
     return built;
   });
 }
@@ -60,7 +57,7 @@ function optionsForDiscord(options: SinkMenu["options"]): StringSelectMenuOption
 function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
   const select = new StringSelectMenuBuilder()
     .setCustomId(menu.id)
-    .setPlaceholder(truncate(nameForDiscord(menu.placeholder), PLACEHOLDER_LIMIT))
+    .setPlaceholder(truncate(nameForDiscord(menu.placeholder), MENU_PLACEHOLDER_CHARS))
     .setMinValues(1)
     .setMaxValues(menu.multiple ? menu.options.length : 1)
     .addOptions(optionsForDiscord(menu.options));

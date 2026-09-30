@@ -27,14 +27,10 @@ import { handleRun, suggestCommands } from "../commands/run.ts";
 import { handleSetting, handleWhoami } from "../commands/settings.ts";
 import { handleSync } from "../commands/sync.ts";
 import { handleSpend } from "../commands/spend.ts";
-import {
-  handleButton,
-  handleModal,
-  handlePluginsCommand,
-  handlePurgeCommand,
-  handleSelect,
-  handleSkillsCommand,
-} from "./components.ts";
+import { handlePluginsCommand } from "../commands/plugins.ts";
+import { handlePurgeCommand } from "../commands/purge.ts";
+import { handleSkillsCommand } from "../commands/skills.ts";
+import { handleButton, handleModal, handleSelect } from "./components.ts";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
 // An error's own text can be as long as what caused it, and a reply that does not fit is refused, leaving no reply at all.

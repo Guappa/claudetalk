@@ -35,6 +35,7 @@ import { markCaughtUp } from "../sync.ts";
 import { formatExchanges } from "../transcriptView.ts";
 import { respond } from "../respond.ts";
 import { nameForDiscord, postText, splitForDiscord } from "../outgoing.ts";
+import { BUTTON_LABEL_CHARS } from "../limits.ts";
 
 const RECAP_EXCHANGES = 2;
 // Enough to pick from, and few enough that the question fits in the reply however many conversations share the start of a name.
@@ -191,7 +192,7 @@ async function askWhichConversation(
       .setLabel(
         nameForDiscord(say("create.resumeButton", { name: displayName(record), age: humanAge(say, record.lastActivity) })).slice(
           0,
-          80,
+          BUTTON_LABEL_CHARS,
         ),
       )
       .setStyle(ButtonStyle.Primary),

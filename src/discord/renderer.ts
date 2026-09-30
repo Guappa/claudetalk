@@ -1,4 +1,4 @@
-export const DISCORD_MESSAGE_LIMIT = 2000;
+import { DISCORD_MESSAGE_LIMIT } from "./limits.ts";
 // A fence is a run of three or more backticks at the start of a line, and what follows on the line that opens one is its language tag.
 const FENCE = /^\s*(`{3,})(.*)$/;
 // A language tag is one short word; anything longer after the backticks is content that happens to sit on the opening line.

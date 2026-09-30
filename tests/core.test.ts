@@ -48,12 +48,12 @@ import { CapabilityCache } from "../src/claude/capabilities.ts";
 import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild } from "../src/discord/gate.ts";
-import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
+import { chunkForDiscord } from "../src/discord/renderer.ts";
 import { choicesForDiscord, forDiscord, optionForDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
 import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
-import { classifyPrompt, describeNotRun } from "../src/discord/commands/settings.ts";
+import { classifyPrompt, describeNotRun } from "../src/discord/commands/typed.ts";
 import { describeClear } from "../src/discord/commands/clear.ts";
 import {
   describeHidden,
@@ -84,14 +84,19 @@ import { defuseStrayMarkup } from "../src/discord/strayMarkup.ts";
 import { STATE_EMOJI } from "../src/discord/reactions.ts";
 import { describeSendNow, describeStopAgents, describeStopTurn } from "../src/discord/turnFlow.ts";
 import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "../src/discord/menus.ts";
+import { parsePluginList } from "../src/claude/pluginCatalog.ts";
+import { pluginSelectOptions } from "../src/discord/commands/plugins.ts";
+import { describeSkillMenus, menuPlaceholder, skillSelectMenus } from "../src/discord/commands/skills.ts";
 import {
-  DISCORD_MENUS_PER_MESSAGE,
-  describeSkillMenus,
-  menuPlaceholder,
-  parsePluginList,
-  pluginSelectOptions,
-  skillSelectMenus,
-} from "../src/claude/pluginCatalog.ts";
+  DISCORD_MESSAGE_LIMIT,
+  EMBED_DESCRIPTION_LIMIT,
+  EMBED_FIELD_LIMIT,
+  MAX_CATEGORY_NAME,
+  MAX_FILE_BYTES,
+  MAX_FILES_PER_MESSAGE,
+  MAX_MESSAGE_BYTES,
+  MENUS_PER_MESSAGE,
+} from "../src/discord/limits.ts";
 import {
   CLEAR_CANCEL,
   clearConfirmId,
@@ -118,14 +123,8 @@ import { sweepOutboxes } from "../src/discord/outboxWatcher.ts";
 import { truncate } from "../src/text.ts";
 import { displayPath, homePatterns, redactHome, redactPaths } from "../src/displayPath.ts";
 import { shortPrefix } from "../src/platform.ts";
-import { EMBED_DESCRIPTION_LIMIT, EMBED_FIELD_LIMIT, detail } from "../src/discord/embeds.ts";
-import {
-  CHANNELS_PER_CATEGORY,
-  MAX_CATEGORY_NAME,
-  describeCategoryFull,
-  findCategory,
-  normaliseCategoryName,
-} from "../src/discord/category.ts";
+import { detail } from "../src/discord/embeds.ts";
+import { CHANNELS_PER_CATEGORY, describeCategoryFull, findCategory, normaliseCategoryName } from "../src/discord/category.ts";
 import { requestStop, stopRequestPath, takeStopRequest, watchForStop } from "../src/stopSignal.ts";
 import { forkName } from "../src/discord/commands/fork.ts";
 import { addressesBot, addressesSomeoneElse, shouldQuoteReplied, type Addressing } from "../src/discord/addressing.ts";
@@ -144,14 +143,7 @@ import {
 import { nothingToSend } from "../src/discord/handlers/message.ts";
 import { sayIn } from "../src/i18n/index.ts";
 import { TurnQueue, describeDepth, describeFull, describeQueued, MAX_QUEUE_DEPTH } from "../src/discord/turnQueue.ts";
-import {
-  collectOutbox,
-  describeSkipped,
-  MAX_FILE_BYTES,
-  MAX_FILES_PER_MESSAGE,
-  MAX_MESSAGE_BYTES,
-  SETTLE_MS,
-} from "../src/discord/outbox.ts";
+import { collectOutbox, describeSkipped, SETTLE_MS } from "../src/discord/outbox.ts";
 import { OUTBOX_DIR, outboxPath } from "../src/outboxFolder.ts";
 import { readExchanges, readExchangesSince, lastExchanges, lastCompactionCeiling } from "../src/sessions/exchanges.ts";
 import { SessionIndex } from "../src/sessions/index.ts";
@@ -5272,7 +5264,7 @@ describe("skills across several menus", () => {
 
   it("stops at the five menus a message can hold and counts the rest", () => {
     const menus = skillSelectMenus(say, names(130));
-    expect(menus.pages).toHaveLength(DISCORD_MENUS_PER_MESSAGE);
+    expect(menus.pages).toHaveLength(MENUS_PER_MESSAGE);
     expect(menus.omitted).toBe(5);
   });
 

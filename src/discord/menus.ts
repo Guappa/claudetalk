@@ -1,4 +1,4 @@
-const CUSTOM_ID_LIMIT = 100;
+import { CUSTOM_ID_CHARS } from "./limits.ts";
 
 export const PLUGIN_SELECT = "plugin:select";
 export const SKILL_SELECT = "skill:select";
@@ -13,19 +13,19 @@ export const RUN_CONFIRM = "run:confirm";
 export const RUN_CANCEL = "run:cancel";
 
 export function stopActionId(sessionId: string): string {
-  return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+  return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function stopAgentsActionId(sessionId: string): string {
-  return `turn:stopagents:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+  return `turn:stopagents:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function sendNowActionId(sessionId: string): string {
-  return `turn:sendnow:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+  return `turn:sendnow:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function stopAllActionId(sessionId: string): string {
-  return `turn:stopall:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+  return `turn:stopall:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function questionPickId(askId: string, index: number): string {
@@ -75,6 +75,8 @@ export type MenuAction =
   | { kind: "approval"; id: string; choice: ApprovalChoice }
   | { kind: "unknown" };
 
+export type Action<K extends MenuAction["kind"]> = Extract<MenuAction, { kind: K }>;
+
 export type ApprovalChoice = "approve" | "deny" | "approve-all";
 
 export function approvalActionId(choice: ApprovalChoice, id: string): string {
@@ -82,16 +84,16 @@ export function approvalActionId(choice: ApprovalChoice, id: string): string {
 }
 
 export function pluginToggleId(id: string, enable: boolean): string {
-  return `plugin:${enable ? "enable" : "disable"}:${id}`.slice(0, CUSTOM_ID_LIMIT);
+  return `plugin:${enable ? "enable" : "disable"}:${id}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 // The button names the conversation it was offered for, so a press that comes late clears nothing else.
 export function clearConfirmId(sessionId: string): string {
-  return `clear:confirm:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+  return `clear:confirm:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function createResumeId(sessionId: string): string {
-  return `create:resume:${sessionId}`.slice(0, CUSTOM_ID_LIMIT);
+  return `create:resume:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 function isSkillSelect(customId: string): boolean {

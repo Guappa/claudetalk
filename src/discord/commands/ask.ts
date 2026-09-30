@@ -5,7 +5,7 @@ import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { buildContext, composePrompt, toContextMessage, type ContextMessage } from "../context.ts";
 import { respond } from "../respond.ts";
-import { classifyTyped, describeNotRun, isNotRun } from "./settings.ts";
+import { classifyTyped, describeNotRun, isNotRun } from "./typed.ts";
 
 export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);

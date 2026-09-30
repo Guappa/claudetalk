@@ -1,7 +1,7 @@
 import { ChannelType, type CategoryChannel, type Guild } from "discord.js";
 import type { Say } from "../i18n/index.ts";
+import { MAX_CATEGORY_NAME } from "./limits.ts";
 
-export const MAX_CATEGORY_NAME = 100;
 // Discord refuses a 51st channel in a category, and the error it gives says nothing useful.
 export const CHANNELS_PER_CATEGORY = 50;
 

@@ -3,7 +3,7 @@ import type { Bridge } from "../../bridge.ts";
 import { requireConversation } from "../binding.ts";
 import { pendingDrift } from "../sync.ts";
 import { describeUnread, formatExchanges, latestThatFit } from "../transcriptView.ts";
-import { DISCORD_MESSAGE_LIMIT } from "../renderer.ts";
+import { DISCORD_MESSAGE_LIMIT } from "../limits.ts";
 import { respond } from "../respond.ts";
 import { nameForDiscord } from "../outgoing.ts";
 
