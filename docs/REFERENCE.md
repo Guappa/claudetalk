@@ -16,7 +16,7 @@ this covers behaviour.
 | `/whoami` | O | What this channel is bound to, its model and effort, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. |
 | `/spend` | O | Plan usage first, the 5-hour and weekly windows as Claude Code reports them with each turn, for the whole account; a window whose reset has passed with nothing reported since is shown as reset, not as the share last seen for it. Then turns and tokens for this conversation and for every conversation the bridge has touched since it last started; a restart resets those, and turns run in a terminal are never counted. The tokens are the session's own and leave out what its agents used, which the cost does include. An API-equivalent cost comes last, only for ranking conversations against each other: a subscription is not billed by it. Named `/spend` so Claude Code's own `/usage` and `/cost` still reach the session. |
 | `/members` | O | The conversation's owner, who else can see its channel, and where it runs. |
-| `/operator <add\|remove\|list> [user]` | H | Who may create and drive their own conversations, and where each one comes from. |
+| `/operator <add\|remove\|list> [user]` | H | Who may use the bot, and where each one comes from. |
 | `/invite <user>` | H | Lets someone see this conversation's channel. Grants no use of the bot. |
 | `/uninvite <user>` | H | Takes that visibility away again. |
 | `/model [value]` | O | Shows or sets the model for this conversation. Persists across turns. Unset, it names the host default turns actually run with. |
@@ -162,9 +162,15 @@ refuses them.
 Discord permissions would. They can read it and talk in it. The bridge ignores
 everything they send.
 
-**3. The bot.** Operator access: their own conversations, their own workspace,
-most of the command set. An owner grants it with `/operator add`, stored in
-`data/operators.json`. Nothing else grants it.
+**3. The bot.** Operator access: most of the command set, in every conversation
+whose channel they can see. An operator is not held to conversations of their
+own. They start new ones in a workspace of their own by default, and that is a
+starting folder, not a wall: they can `/resume` any conversation on the host,
+and they can drive, stop, clear or unbind any conversation whose channel
+Discord shows them, an owner's included. What keeps one person's conversation
+from another is the privacy of its channel and nothing in the bridge. An owner
+grants operator access with `/operator add`, stored in `data/operators.json`.
+Nothing else grants it.
 
 **Owners sit above all three and are set on the host.** `DISCORD_OWNER_IDS` is
 read from `.env` at startup, and no command adds or removes an owner, so nobody
