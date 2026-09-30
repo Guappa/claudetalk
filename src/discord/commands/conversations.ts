@@ -16,7 +16,7 @@ import type { Say } from "../../i18n/index.ts";
 import { helloToNew } from "../../claude/prompts.ts";
 import type { Conversation } from "../../conversations.ts";
 import { errorMessage } from "../../text.ts";
-import { resolveByFolder, resolveByName, type Resolution } from "../../sessions/resolve.ts";
+import { newestCopy, resolveByFolder, resolveByName, type Resolution } from "../../sessions/resolve.ts";
 import { hasWorkingDir, type ResumableRecord, type SessionRecord } from "../../sessions/index.ts";
 import { lastExchanges } from "../../sessions/exchanges.ts";
 import { forkName, runFork } from "./fork.ts";
@@ -251,7 +251,7 @@ export async function handleResume(bridge: Bridge, interaction: ChatInputCommand
   const index = await bridge.sessions.build();
 
   // Autocomplete sends a session id, which is unambiguous; typed text falls back to the name.
-  const picked = index.find((record) => record.sessionId === name) ?? null;
+  const picked = newestCopy(index, name);
   const resolution: Resolution = picked ? { match: picked, shadowed: [] } : resolveByName(index, name);
 
   if (!resolution.match) {
