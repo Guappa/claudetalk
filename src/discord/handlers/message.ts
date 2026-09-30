@@ -13,7 +13,7 @@ import {
   screenAttachments,
   sweepAttachments,
 } from "../../attachments.ts";
-import { classifyPrompt, describeNotRun } from "../commands/settings.ts";
+import { classifyTyped, describeNotRun, isNotRun } from "../commands/settings.ts";
 import { channelSink } from "../sink.ts";
 import { sendNotice } from "../notice.ts";
 import { runConversationTurn } from "../turn.ts";
@@ -206,12 +206,8 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
   // Decided before anything is said: a command typed to somebody else, or in a channel the bot is not part of, gets no answer from it.
   if (!isForBot(existing, addressing)) return;
 
-  const classification = classifyPrompt(
-    prompt,
-    bridge.capabilities.terminalOnly(existing?.sessionId ?? ""),
-    existing ? bridge.capabilities.commands(existing.cwd) : [],
-  );
-  if (classification.kind !== "turn" && classification.kind !== "passthrough") {
+  const classification = classifyTyped(bridge, prompt, existing);
+  if (isNotRun(classification)) {
     await sendNotice(channel, describeNotRun(bridge.language.say, classification));
     return;
   }

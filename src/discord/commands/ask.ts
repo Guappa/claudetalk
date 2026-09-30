@@ -5,7 +5,7 @@ import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 import { buildContext, composePrompt, toContextMessage, type ContextMessage } from "../context.ts";
 import { respond } from "../respond.ts";
-import { classifyPrompt, describeNotRun } from "./settings.ts";
+import { classifyTyped, describeNotRun, isNotRun } from "./settings.ts";
 
 export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
@@ -25,12 +25,8 @@ export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInt
   const say = bridge.language.say;
   // With no context in front of it the prompt is the first thing Claude Code reads, so a command in it is held to what a typed one is.
   if (!context.text) {
-    const typed = classifyPrompt(
-      prompt,
-      bridge.capabilities.terminalOnly(conversation.sessionId),
-      bridge.capabilities.commands(conversation.cwd),
-    );
-    if (typed.kind !== "turn" && typed.kind !== "passthrough") {
+    const typed = classifyTyped(bridge, prompt, conversation);
+    if (isNotRun(typed)) {
       await respond(interaction, describeNotRun(say, typed));
       return;
     }

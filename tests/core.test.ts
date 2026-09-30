@@ -878,17 +878,20 @@ describe("StatusMessage", () => {
 
   // The answer arrives as the last remark a moment before the turn ends, and an edit can fall in that moment.
   it("does not seal part of a long last remark into the trail, since it may be the answer posted beneath", async () => {
-    vi.useFakeTimers();
     const sink = recordingSink();
-    const status = new StatusMessage(say, sink);
-    await status.start();
-    status.note("Reading the three reports first.");
-    const answer = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: ${"y".repeat(90)}`).join("\n");
-    status.note(answer);
-    await vi.advanceTimersByTimeAsync(2500);
-    status.dropEcho(answer);
-    await status.settle();
-    vi.useRealTimers();
+    vi.useFakeTimers();
+    try {
+      const status = new StatusMessage(say, sink);
+      await status.start();
+      status.note("Reading the three reports first.");
+      const answer = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: ${"y".repeat(90)}`).join("\n");
+      status.note(answer);
+      await vi.advanceTimersByTimeAsync(2500);
+      status.dropEcho(answer);
+      await status.settle();
+    } finally {
+      vi.useRealTimers();
+    }
 
     const trail = sink.messages.join("\n");
     expect(trail).toContain("Reading the three reports first.");
@@ -1545,6 +1548,21 @@ describe("ApprovalPrompts", () => {
     prompts.finish("turn-1");
     await prompts.ask(say, "turn-2", sink, [OWNER], "Bash", { command: "ls" });
     expect(asks).toBe(2);
+  });
+
+  // Nobody at the phone is the usual end of a prompt, and the model is told it was time that refused it, not a person.
+  it("denies once the time to answer is up, and says that is why", async () => {
+    const closed: string[] = [];
+    const sink = { ...quietSink(), ask: async () => ({ close: async (text: string) => void closed.push(text) }) };
+    vi.useFakeTimers();
+    try {
+      const decision = new ApprovalPrompts().ask(say, "turn-1", sink, [OWNER], "Bash", { command: "ls" });
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      expect(await decision).toEqual({ allow: false, reason: expect.stringContaining("Nobody answered") });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(closed).toEqual(["No answer in 5 minutes, so it was denied."]);
   });
 
   // Claude Code runs the tool when the hook throws, so a prompt that cannot be posted has to come back as a refusal.

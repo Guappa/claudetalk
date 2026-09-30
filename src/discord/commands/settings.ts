@@ -66,6 +66,19 @@ export function classifyPrompt(content: string, terminalOnly: string[], known: S
   return { kind: "passthrough", command };
 }
 
+// A prompt typed into a channel is held to what the conversation there offers; a channel that holds none has no commands of its own yet.
+export function classifyTyped(bridge: Bridge, prompt: string, conversation: Conversation | undefined): PromptKind {
+  return classifyPrompt(
+    prompt,
+    bridge.capabilities.terminalOnly(conversation?.sessionId ?? ""),
+    conversation ? bridge.capabilities.commands(conversation.cwd) : [],
+  );
+}
+
+export function isNotRun(typed: PromptKind): typed is NotRunAsTyped {
+  return typed.kind !== "turn" && typed.kind !== "passthrough";
+}
+
 // Why a command typed as a message was not passed on, and what to use in its place.
 export function describeNotRun(say: Say, typed: NotRunAsTyped): string {
   switch (typed.kind) {

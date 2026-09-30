@@ -337,9 +337,13 @@ export async function resolveReferences(cwd: string, text: string): Promise<Refe
   const hasNumber = /(?<![\w#!/])[#!]\d+\b/.test(text);
   if (wanted.hashes.size + wanted.names.size + wanted.files.size === 0 && !hasNumber) return null;
 
-  const remote = await git(cwd, ["remote", "get-url", "origin"]);
+  // One process answers for both: the folder's place in the repository on the first line, which is empty at its root, and the commit on the last.
+  const [remote, placed] = await Promise.all([
+    git(cwd, ["remote", "get-url", "origin"]),
+    git(cwd, ["rev-parse", "--show-prefix", "HEAD"]),
+  ]);
   const webUrl = remote ? remoteWebUrl(remote) : null;
-  const head = await git(cwd, ["rev-parse", "HEAD"]);
+  const [head, prefix = ""] = (placed ?? "").split("\n").reverse();
   if (!webUrl || !head) return null;
 
   const refs = (await git(cwd, ["for-each-ref", "--format=%(refname)"])) ?? "";
@@ -353,7 +357,7 @@ export async function resolveReferences(cwd: string, text: string): Promise<Refe
 
   return referenceLinks(webUrl, {
     head,
-    prefix: wanted.files.size > 0 ? ((await git(cwd, ["rev-parse", "--show-prefix"])) ?? "") : "",
+    prefix,
     commits: wanted.hashes.size > 0 ? await existingCommits(cwd, [...wanted.hashes]) : new Set(),
     branches,
     tags,
