@@ -21,10 +21,14 @@ export const QUESTIONS_UNANSWERED = {
   expired: `Nobody answered the questions in time. ${ON_YOUR_OWN}`,
   ended: `The turn ended before the questions were answered. ${ON_YOUR_OWN}`,
   unaskable: "This conversation cannot show questions, so continue without an answer.",
+  unshown: "The questions could not be shown in Discord, so continue without an answer.",
 } as const;
 
 export const APPROVAL_REFUSED = {
   denied: "Denied from Discord.",
   expired: "Nobody answered the permission request in time, so it was denied.",
   unaskable: "This conversation cannot show approval buttons.",
+  unshown: "The permission request could not be shown in Discord, so it was denied.",
+  ended: "The turn ended before the permission request was answered.",
+  failed: "The permission check failed before it could be answered, so it was denied.",
 } as const;

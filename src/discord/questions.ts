@@ -109,7 +109,14 @@ export class QuestionPrompts {
     const timer = setTimeout(() => this.settle(id, { kind: "expired" }), QUESTION_TIMEOUT_MS);
     timer.unref();
 
-    const handle = await sink.askWithMenus(describeQuestions(say, questions), menusFor(say, id, questions), actionsFor(say, id));
+    const handle = await sink
+      .askWithMenus(describeQuestions(say, questions), menusFor(say, id, questions), actionsFor(say, id))
+      .catch(() => null);
+    if (!handle) {
+      this.pending.delete(id);
+      clearTimeout(timer);
+      return { answered: false, reason: QUESTIONS_UNANSWERED.unshown };
+    }
     const result = await settled;
     clearTimeout(timer);
     await handle.close(describeSettled(say, result, questions));
