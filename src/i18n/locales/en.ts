@@ -343,6 +343,8 @@ export const en = {
       "This lets them **read** the channel, including everything already said here. It does not let them use the bot: messages and commands from anyone who is not an operator are ignored. `/operator add` is what hands over the machine.",
     notMember: "{{user}} is not a member of this conversation.",
     removed: "{{user}} removed.",
+    sharedChannel:
+      "Nothing was changed. This channel was here before the conversation, so who can see it is set in Discord's own channel settings, not by the bridge. `/invite` and `/uninvite` work in a channel made by `/create`, `/resume` or `/fork`.",
     summary: "Owner: {{owner}}\nCan see it: {{watchers}}",
   },
   operators: {

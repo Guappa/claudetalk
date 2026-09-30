@@ -7,6 +7,7 @@ import { handleClear } from "../src/discord/commands/clear.ts";
 import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
 import { handleSetting } from "../src/discord/commands/settings.ts";
+import { handleInvite, handleUninvite } from "../src/discord/commands/membership.ts";
 import { handleSync } from "../src/discord/commands/sync.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
@@ -256,6 +257,55 @@ describe("/ask", () => {
     const none = fakeCommand(place, OWNER, { prompt: "and now?", context: 1 });
     await handleAsk(bridge, none.interaction);
     expect(none.replies).toEqual(["Asking with no extra context."]);
+  });
+});
+
+describe("/invite and /uninvite", () => {
+  const friend = { id: STRANGER, username: "second", bot: false };
+
+  it("make the conversation's own channel visible to the person, and take that away again", async () => {
+    const bridge = await testBridge([]);
+    const place = fakeChannel("i1");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId: "i1", ownerId: OWNER });
+    const server = fakeGuild().guild;
+
+    const invite = fakeCommand(place, OWNER, { user: friend }, server);
+    await handleInvite(bridge, invite.interaction);
+    expect(invite.replies.at(-1)).toContain("second can now see this conversation");
+    expect(place.permissions.at(-1)).toContain(STRANGER);
+    expect(bridge.store.bySession(SESSION)?.memberIds).toEqual([STRANGER]);
+
+    const uninvite = fakeCommand(place, OWNER, { user: friend }, server);
+    await handleUninvite(bridge, uninvite.interaction);
+    expect(uninvite.replies.at(-1)).toContain("second removed");
+    expect(place.permissions.at(-1)).not.toContain(STRANGER);
+    expect(bridge.store.bySession(SESSION)?.memberIds).toEqual([]);
+  });
+
+  // The new permissions deny everyone else the channel, which in a channel the server shared hides it from all of them.
+  it("change nothing in a channel that was there before the conversation", async () => {
+    const bridge = await testBridge([]);
+    const tagged = fakeChannel("i2");
+    const named = fakeChannel("i3");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId: "i2", ownerId: OWNER, mentionOnly: true });
+    await bridge.store.bindNew({
+      sessionId: "adopted-by-name",
+      cwd: os.tmpdir(),
+      channelId: "i3",
+      ownerId: OWNER,
+      adopted: true,
+    });
+    const server = fakeGuild().guild;
+
+    for (const place of [tagged, named]) {
+      for (const handle of [handleInvite, handleUninvite]) {
+        const command = fakeCommand(place, OWNER, { user: friend }, server);
+        await handle(bridge, command.interaction);
+        expect(command.replies.at(-1)).toContain("Nothing was changed");
+      }
+      expect(place.permissions).toEqual([]);
+    }
+    expect(bridge.store.bySession(SESSION)?.memberIds).toEqual([]);
   });
 });
 

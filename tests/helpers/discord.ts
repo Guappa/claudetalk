@@ -27,16 +27,22 @@ export interface FakeChannel {
   // What people said here before, newest first, for a command that reads the channel back.
   earlier: Message[];
   wasDeleted: () => boolean;
+  // Each time the channel's permissions were replaced, the ids the new set names, in order.
+  permissions: string[][];
 }
 
 export function fakeChannel(id: string, name = "general"): FakeChannel {
   const posted: string[] = [];
   const earlier: Message[] = [];
+  const permissions: string[][] = [];
   let deleted = false;
   const channel = {
     id,
     name,
     parentId: null,
+    permissionOverwrites: {
+      set: async (overwrites: Array<{ id: string }>) => void permissions.push(overwrites.map((overwrite) => overwrite.id)),
+    },
     messages: { fetch: async ({ limit }: { limit: number }) => new Map(earlier.slice(0, limit).map((said) => [said.id, said])) },
     isSendable: () => true,
     isThread: () => false,
@@ -60,7 +66,7 @@ export function fakeChannel(id: string, name = "general"): FakeChannel {
       deleted = true;
     },
   };
-  return { channel: channel as unknown as TextChannel, posted, earlier, wasDeleted: () => deleted };
+  return { channel: channel as unknown as TextChannel, posted, earlier, wasDeleted: () => deleted, permissions };
 }
 
 export interface FakeGuild {
@@ -94,7 +100,13 @@ export interface FakeCommand {
   controls: () => string[];
 }
 
-type OptionValue = string | number | boolean;
+interface FakeUser {
+  id: string;
+  username: string;
+  bot: boolean;
+}
+
+type OptionValue = string | number | boolean | FakeUser;
 
 export function fakeCommand(
   place: FakeChannel,
@@ -118,6 +130,7 @@ export function fakeCommand(
       getString: option<string>("string"),
       getInteger: option<number>("number"),
       getBoolean: option<boolean>("boolean"),
+      getUser: option<FakeUser>("object"),
     },
     editReply: async (payload: string | Payload) => {
       replies.push(textOf(payload));

@@ -3,7 +3,7 @@ import type { Bridge } from "../../bridge.ts";
 import { conversationOverwrites } from "../channelAccess.ts";
 import { displayPath } from "../../displayPath.ts";
 import { requireConversation } from "../binding.ts";
-import type { Conversation } from "../../conversations.ts";
+import { channelWasThereFirst, type Conversation } from "../../conversations.ts";
 import { respond } from "../respond.ts";
 import type { Say } from "../../i18n/index.ts";
 import { errorMessage } from "../../text.ts";
@@ -44,6 +44,11 @@ export async function handleInvite(bridge: Bridge, interaction: ChatInputCommand
   if (!conversation) return;
 
   const say = bridge.language.say;
+  // Replacing the permissions of a channel the server already shared would hide it from everyone it was shared with.
+  if (channelWasThereFirst(conversation)) {
+    await respond(interaction, say("members.sharedChannel"));
+    return;
+  }
   const user = interaction.options.getUser("user", true);
   if (user.bot) {
     await respond(interaction, say("members.inviteBot"));
@@ -66,6 +71,10 @@ export async function handleUninvite(bridge: Bridge, interaction: ChatInputComma
   if (!conversation) return;
 
   const say = bridge.language.say;
+  if (channelWasThereFirst(conversation)) {
+    await respond(interaction, say("members.sharedChannel"));
+    return;
+  }
   const user = interaction.options.getUser("user", true);
   if (!conversation.memberIds.includes(user.id)) {
     await respond(interaction, say("members.notMember", { user: user.username }));
