@@ -3384,10 +3384,11 @@ describe("buildContext", () => {
     expect(buildContext(messages).text).not.toContain(token!);
   });
 
-  it("marks quoted text so the turn knows it is data", () => {
-    expect(buildContext(messages).quoted).toBe(true);
-    expect(attributionOnly(messages[0]!).quoted).toBe(false);
-    expect(noContext().quoted).toBe(false);
+  it("counts the messages it carries, leaving out one with nothing written in it", () => {
+    const withAnEmbedOnly = [...messages, { ...messages[0]!, content: "  " }];
+    expect(buildContext(withAnEmbedOnly).carried).toBe(messages.length);
+    expect(attributionOnly(messages[0]!).carried).toBe(0);
+    expect(noContext().carried).toBe(0);
   });
 
   it("skips empty messages such as bare attachments", () => {

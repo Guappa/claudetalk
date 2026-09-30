@@ -114,9 +114,10 @@ export class ConversationStore {
     await this.flush();
   }
 
+  // Changed in place: a turn already queued holds this same object and reads it when it starts.
   async updateSettings(sessionId: string, settings: ChannelSettings): Promise<void> {
     const conversation = this.require(sessionId, "update");
-    conversation.settings = { ...conversation.settings, ...settings };
+    Object.assign(conversation.settings, settings);
     await this.flush();
   }
 

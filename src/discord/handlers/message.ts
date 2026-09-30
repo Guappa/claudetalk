@@ -166,7 +166,6 @@ async function runTurn(
       latestPosts: bridge.latestPosts,
     }),
     resume: !target.isFirstTurn,
-    quoted: context.quoted,
     name: target.isFirstTurn ? toChannelName(channelNameOf(message)) : undefined,
     onState: reactionMarker(message, message.client.user.id),
     asked: prompt,

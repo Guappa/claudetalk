@@ -10,7 +10,6 @@ export interface ConversationTurn {
   prompt: string;
   sink: MessageSink;
   resume: boolean;
-  quoted?: boolean;
   name?: string;
   fork?: boolean;
   onSessionId?: (sessionId: string) => void;

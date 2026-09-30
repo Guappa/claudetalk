@@ -2,6 +2,7 @@ import os from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
+import { handleSetting } from "../src/discord/commands/settings.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
 import { UNBIND_DELETE, UNBIND_KEEP } from "../src/discord/menus.ts";
@@ -161,6 +162,44 @@ describe("/ask", () => {
     await handleAsk(bridge, fakeCommand(fakeChannel("a2"), OWNER, { prompt: "/compact" }).interaction);
 
     expect(asked.map((turn) => turn.prompt)).toEqual(["/compact"]);
+  });
+
+  it("says how many messages it took as context, not how many it looked at", async () => {
+    const bridge = await bound("a3");
+    const place = fakeChannel("a3");
+    const written = fakeMessage(place, { authorId: STRANGER, content: "the build is red again" }).message;
+    const uploadOnly = fakeMessage(place, { authorId: STRANGER, content: "" }).message;
+    place.earlier.push(uploadOnly, written, uploadOnly);
+
+    const some = fakeCommand(place, OWNER, { prompt: "what is wrong?", context: 3 });
+    await handleAsk(bridge, some.interaction);
+    expect(some.replies).toEqual(["Asking with the last 1 message as context."]);
+
+    place.earlier.length = 0;
+    place.earlier.push(uploadOnly);
+    const none = fakeCommand(place, OWNER, { prompt: "and now?", context: 1 });
+    await handleAsk(bridge, none.interaction);
+    expect(none.replies).toEqual(["Asking with no extra context."]);
+  });
+});
+
+describe("/model", () => {
+  it("applies to a turn that was already queued when it was set, as its reply says", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("s1");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "s1", ownerId: OWNER });
+    const first = handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "hold the first" }).message);
+    await vi.waitFor(() => expect(held.has("hold the first")).toBe(true));
+    const second = handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "the one behind it" }).message);
+    await vi.waitFor(() => expect(bridge.flow.queueDepth(SESSION)).toBe(2));
+
+    const command = fakeCommand(place, OWNER, { value: "haiku" });
+    await handleSetting(bridge, command.interaction, "model");
+    expect(command.replies.at(-1)).toContain("applies from the next turn onward");
+
+    held.get("hold the first")?.();
+    await Promise.all([first, second]);
+    expect(asked.map((turn) => turn.settings.model)).toEqual([undefined, "haiku"]);
   });
 });
 
