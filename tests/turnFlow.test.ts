@@ -10,7 +10,7 @@ import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import type { Config } from "../src/config.ts";
 import { TurnFlow } from "../src/discord/turnFlow.ts";
-import { quietSink, recordingSink } from "./helpers/sinks.ts";
+import { menuAskingSink, quietSink, recordingSink } from "./helpers/sinks.ts";
 import { sayIn, type Language, type Say } from "../src/i18n/index.ts";
 import path from "node:path";
 
@@ -23,15 +23,24 @@ const asked = vi.hoisted(() => [] as string[]);
 const taken = vi.hoisted(() => new Map<string, (uuid: string) => void>());
 // How a mocked turn ends when it does not simply answer, keyed by its prompt.
 const endings = vi.hoisted(() => new Map<string, unknown>());
+// Questions a mocked turn puts to the person the moment it starts, keyed by its prompt.
+const asks = vi.hoisted(() => new Map<string, unknown[]>());
+// Prompts whose mocked turn refuses to be interrupted.
+const uninterruptible = vi.hoisted(() => new Set<string>());
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/claude/runner.ts")>();
   return {
     ...actual,
-    runTurn: (request: { prompt: string }, onEvent: (event: unknown) => void) => {
+    runTurn: (
+      request: { prompt: string; askQuestions?: (questions: unknown[]) => Promise<unknown> },
+      onEvent: (event: unknown) => void,
+    ) => {
       started.push(request.prompt);
       for (const event of scripted.get(request.prompt) ?? []) onEvent(event);
+      const questions = asks.get(request.prompt);
+      if (questions) void request.askQuestions?.(questions);
       return {
         stop: () => void asked.push(`stop ${request.prompt}`),
         stopTasks: async (taskIds: string[]) => void asked.push(`stopTasks ${taskIds.join(",")}`),
@@ -42,7 +51,7 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
         },
         interrupt: async () => {
           asked.push(`interrupt ${request.prompt}`);
-          return [];
+          return !uninterruptible.has(request.prompt);
         },
         done: new Promise((resolve) =>
           setTimeout(() => resolve(endings.get(request.prompt) ?? { ok: true, text: `echo ${request.prompt}` }), 20),
@@ -402,6 +411,122 @@ describe("TurnFlow", () => {
     expect(shown.split(reason)).toHaveLength(2);
     expect(shown).not.toContain("ended as");
     expect(shown).not.toContain("Try sending");
+  });
+
+  describe("a stop that lands at an awkward moment", () => {
+    const held = (): { wait: Promise<void>; release: () => void } => {
+      const gate = Promise.withResolvers<void>();
+      return { wait: gate.promise, release: gate.resolve };
+    };
+
+    // The Stop button is on screen before the turn is registered as running, so a press there has to count.
+    it("stops a turn that is still being set up, before Claude Code is started", async () => {
+      const flow = makeFlow();
+      const sink = recordingSink();
+      const states: string[] = [];
+      const setUp = held();
+      const running = flow.run("s21", cwd, "never starts", {}, sink, {
+        resume: true,
+        onState: async (state) => {
+          states.push(state);
+          if (state === "running") await setUp.wait;
+        },
+      });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      expect(flow.stopTurn("s21")).toEqual({ stopped: true, queued: 0 });
+      setUp.release();
+      expect(await running).toBe(true);
+      expect(started).not.toContain("never starts");
+      expect(sink.messages.at(-1)).toBe("Stopped.");
+      expect(states).toEqual(["running", "stopped"]);
+      expect(flow.stopTurn("s21")).toEqual({ stopped: false, queued: 0 });
+    });
+
+    it("tells a stop that the turn is over once its process has ended, while the answer is still being posted", async () => {
+      const flow = makeFlow();
+      const sink = recordingSink();
+      const posting = held();
+      const edit = sink.edit;
+      sink.edit = async (text, actions) => {
+        if (text.includes("echo already done")) await posting.wait;
+        await edit(text, actions);
+      };
+      const running = flow.run("s22", cwd, "already done", {}, sink, { resume: true });
+      await new Promise((resolve) => setTimeout(resolve, 40));
+
+      expect(flow.stopTurn("s22")).toEqual({ stopped: false, queued: 0 });
+      expect(flow.stop("s22")).toEqual({ stopped: false, dropped: 0 });
+      expect(await flow.sendNow("s22")).toBe("not-running");
+      expect(asked).not.toContain("stop already done");
+      posting.release();
+      expect(await running).toBe(true);
+    });
+
+    // A queued message's place is taken before its notice is posted, so a drop in between reaches it.
+    it("drops a message that is still being told it is queued", async () => {
+      const flow = makeFlow();
+      const first = flow.run("s23", cwd, "in flight", {}, quietSink(), { resume: true });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      const telling = held();
+      const sink = { ...quietSink(), notice: async () => telling.wait };
+      const second = flow.run("s23", cwd, "told late", {}, sink, { resume: true });
+      expect(flow.queueDepth("s23")).toBe(2);
+
+      expect(flow.stop("s23")).toEqual({ stopped: true, dropped: 1 });
+      telling.release();
+      expect(await Promise.all([first, second])).toEqual([true, false]);
+      expect(started).not.toContain("told late");
+    });
+
+    it("leaves the turn's last state showing when a question outlives the turn", async () => {
+      asks.set("asks and ends", [
+        { question: "Which?", header: "Pick", multiSelect: false, options: [{ label: "One", description: "" }] },
+      ]);
+      const flow = makeFlow();
+      const states: string[] = [];
+      const sink = menuAskingSink(() => undefined);
+      await flow.run("s24", cwd, "asks and ends", {}, sink, { resume: true, onState: async (state) => void states.push(state) });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      expect(states).toContain("waiting");
+      expect(states.at(-1)).toBe("done");
+    });
+
+    it("says so when the running turn would not be interrupted", async () => {
+      uninterruptible.add("deaf to it");
+      const flow = makeFlow();
+      const running = flow.run("s25", cwd, "deaf to it", {}, quietSink(), { resume: true });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const sink = { ...quietSink(), ask: async () => ({ close: async () => undefined }) };
+      await flow.run("s25", cwd, "hurry this", {}, sink, { resume: true, foldable: true });
+
+      expect(await flow.sendNow("s25")).toBe("not-interrupted");
+      await running;
+    });
+
+    it("closes a Send now notice that arrives after the turn it was for has ended", async () => {
+      const flow = makeFlow();
+      const running = flow.run("s26", cwd, "ends first", {}, quietSink(), { resume: true });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+
+      const closed: string[] = [];
+      const posted = held();
+      const sink = {
+        ...quietSink(),
+        ask: async () => {
+          await posted.wait;
+          return { close: async (outcome: string) => void closed.push(outcome) };
+        },
+      };
+      const folded = flow.run("s26", cwd, "posted late", {}, sink, { resume: true, foldable: true });
+      await running;
+      posted.release();
+      await folded;
+
+      expect(closed).toEqual(["The turn ended before this was taken up. Send it again."]);
+    });
   });
 
   it("stops everything at once when told to, dropping what was queued", async () => {
