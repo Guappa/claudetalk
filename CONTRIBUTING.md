@@ -3,8 +3,12 @@
 ## Running the tests
 
 ```bash
-npm test          # unit tests, fast, no Claude Code required
+npm test            # unit tests, fast, no Claude Code required
 npm run typecheck
+npm run lint        # Biome: lint rules and formatting, changes nothing
+npm run format      # the same, and writes what it can fix
+npm run check:boot  # every source file loads under Node's type stripper
+npm run knip        # files, exports and dependencies nothing reaches
 ```
 
 ```bash
@@ -15,8 +19,8 @@ Integration tests spawn the real `claude` binary and consume your plan's usage,
 so they are excluded from `npm test` and from CI. Run them when you change
 anything in `src/claude/`.
 
-CI runs `typecheck`, `test` and `check:private` on Linux across Node 22, 24 and
-26, and on Windows on Node 24. The Linux jobs catch wrong-case imports, which
+CI runs `lint`, `typecheck`, `test`, `check:boot`, `knip` and `check:private`
+on Linux across Node 22, 24 and 26, and on Windows on Node 24. The Linux jobs catch wrong-case imports, which
 are fatal there and invisible elsewhere; the Windows job is there for path and
 process semantics, which do not vary by Node version.
 
@@ -133,6 +137,12 @@ written outside the catalog, or an
 environment variable missing from `.env.example` or the README. CI runs it on
 Linux and Windows.
 
+`npm run lint` is Biome, for lint rules and formatting together; its
+configuration is `biome.jsonc`, where each rule that is switched off says why.
+`npm run knip` fails on a file, an export or a dependency nothing reaches. Both
+are kept quiet on a clean tree, so any output is something to act on: fix it,
+or where the tool is wrong, record the exception together with its reason.
+
 `npm run check:private` is the other half, and CI runs it too. It fails on a
 credential, a real home directory or an 8.3 short path anywhere in the tree, and
 on a Discord id in the shipped docs. Names that are private to one checkout go
@@ -159,7 +169,10 @@ path under Git Bash and makes message text injectable.
 `--experimental-strip-types`, which removes types but performs no code
 transformation. Write explicit fields and assign them in the constructor body.
 Vitest uses esbuild and will happily accept syntax that Node then rejects at
-runtime, so a green test run does not prove the app boots.
+runtime, so a green test run does not prove the app boots. `npm run check:boot`
+is what does: it loads every source file the way Node will. A file whose first
+statement is neither an import nor an export fails it too, since the stripper
+does not take such a file for a module.
 
 **Compaction data is spelled differently depending on the source.** A
 stream-json event carries `compact_metadata.pre_tokens` in snake_case; the same

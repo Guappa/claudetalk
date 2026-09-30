@@ -32,6 +32,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # Vitest accepts syntax Node's type stripper rejects, so the suite passing does not show the bridge starts.
+      - run: npm run check:boot
+      - run: npm run knip
       - run: npm run check:private
