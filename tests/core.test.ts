@@ -4015,7 +4015,7 @@ describe("samePath", () => {
 });
 
 describe("attachmentsRoot", () => {
-  it("never contains an 8.3 short name, which Claude Code takes for a suspicious path", () => {
+  it("never contains an 8.3 short name, so it is spelled the way indexed folders are", () => {
     expect(attachmentsRoot()).not.toContain("~");
   });
 
