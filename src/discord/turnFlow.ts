@@ -26,7 +26,7 @@ import type { Config } from "../config.ts";
 import type { SessionRecord } from "../sessions/index.ts";
 import type { AskHandle, MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
-import { chunkForDiscord } from "./renderer.ts";
+import { splitForDiscord } from "./outgoing.ts";
 import { displayPath } from "../displayPath.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeFull, describeQueued } from "./turnQueue.ts";
@@ -163,7 +163,7 @@ async function postAnswer(
   const raw = text.trim() ? text : say(compacted ? "trail.answerCompacted" : "trail.answerDoneNoText");
   // The echo is matched against what the model said, before any rewriting of it.
   status.dropEcho(raw);
-  await conclude(say, status, sink, chunkForDiscord(await linkEverything(cwd, convertTables(raw))), "done");
+  await conclude(say, status, sink, splitForDiscord(await linkEverything(cwd, convertTables(raw))), "done");
 }
 
 async function linkEverything(cwd: string, text: string): Promise<string> {

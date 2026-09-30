@@ -32,9 +32,8 @@ import { tierOf, workingDirFor } from "../policy.ts";
 import { runConversationTurn } from "../turn.ts";
 import { markCaughtUp } from "../sync.ts";
 import { formatExchanges } from "../transcriptView.ts";
-import { chunkForDiscord } from "../renderer.ts";
 import { respond } from "../respond.ts";
-import { postText } from "../outgoing.ts";
+import { postText, splitForDiscord } from "../outgoing.ts";
 
 const RECAP_EXCHANGES = 2;
 
@@ -298,7 +297,7 @@ export async function openConversation(
 
   const recent = await lastExchanges(match.transcriptPath, RECAP_EXCHANGES);
   if (recent.length > 0) {
-    for (const chunk of chunkForDiscord(`${say("sync.leftOff")}\n\n${formatExchanges(say, recent)}`)) {
+    for (const chunk of splitForDiscord(`${say("sync.leftOff")}\n\n${formatExchanges(say, recent)}`)) {
       await postText(channel, chunk);
     }
   }

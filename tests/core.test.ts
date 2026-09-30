@@ -48,6 +48,7 @@ import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
 import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
+import { forDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
 import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
@@ -569,6 +570,64 @@ describe("chunkForDiscord", () => {
 
   it("gives nothing for empty text, leaving what stands in for it to the caller", () => {
     expect(chunkForDiscord("")).toEqual([]);
+  });
+
+  // The first piece used to be the opener closed at once: an empty code block, then the code outside any block.
+  it("does not leave an empty code block when a fenced line needs a chunk to itself", () => {
+    const chunks = chunkForDiscord(`\`\`\`\n${"x".repeat(1995)}\n\`\`\``);
+    expect(chunks).not.toContain("```\n```");
+    expect(chunks.every((chunk) => chunk.length <= DISCORD_MESSAGE_LIMIT)).toBe(true);
+    expect(chunks.every((chunk) => chunk.startsWith("```") && chunk.endsWith("```"))).toBe(true);
+  });
+
+  it("moves a fence that opens on a chunk's last line to the next chunk, whole", () => {
+    // 1,980 characters of prose leave room for the opener and its closing fence, and for no line of code after it.
+    const filler = [...Array.from({ length: 39 }, () => "y".repeat(49)), "y".repeat(29)].join("\n");
+    const chunks = chunkForDiscord(`${filler}\n\`\`\`js\n${"const value = 1;\n".repeat(20)}\`\`\``);
+    expect(chunks.every((chunk) => chunk.length <= DISCORD_MESSAGE_LIMIT)).toBe(true);
+    expect(chunks[0]).not.toContain("```");
+    expect(chunks[1]?.startsWith("```js\n")).toBe(true);
+  });
+
+  it("keeps a fence indented under a list item closed and reopened across chunks", () => {
+    const chunks = chunkForDiscord(`- item\n   \`\`\`js\n${"const value = 1;\n".repeat(200)}   \`\`\`\nafter`);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks.slice(1, -1)) {
+      expect(chunk.startsWith("   ```js\n")).toBe(true);
+      expect(chunk.endsWith("\n```")).toBe(true);
+    }
+    expect(chunks.at(-1)).toContain("after");
+  });
+
+  it("does not take a one-line block, or a fence quoted inside a block, for a fence opening or closing", () => {
+    const oneLine = chunkForDiscord(`\`\`\`echo hi\`\`\`\n${"word ".repeat(450)}`);
+    expect(oneLine.at(-1)?.endsWith("```")).toBe(false);
+
+    const quoted = chunkForDiscord(`\`\`\`md\n\`\`\`python\n${"print(1)\n".repeat(300)}\`\`\``);
+    expect(quoted.every((chunk) => chunk.startsWith("```md") && chunk.endsWith("```"))).toBe(true);
+  });
+});
+
+describe("splitForDiscord", () => {
+  // Pieces were cut at the limit and only then escaped; one that grew past it was refused by Discord and the answer never appeared.
+  it("cuts pieces that still fit once stray markers in them are escaped", () => {
+    const answer = Array.from({ length: 200 }, () => "word my_var_name other_var_name and 2 * 3 then").join("\n");
+    expect(chunkForDiscord(answer).some((piece) => forDiscord(piece).length > DISCORD_MESSAGE_LIMIT)).toBe(true);
+
+    const pieces = splitForDiscord(answer);
+    expect(pieces.length).toBeGreaterThan(1);
+    expect(pieces.map((piece) => forDiscord(piece).length).every((length) => length <= DISCORD_MESSAGE_LIMIT)).toBe(true);
+    expect(pieces.join("\n")).toBe(answer);
+  });
+
+  it("fits even a text made of nothing but markers", () => {
+    const pieces = splitForDiscord("_".repeat(5000));
+    expect(pieces.every((piece) => forDiscord(piece).length <= DISCORD_MESSAGE_LIMIT)).toBe(true);
+  });
+
+  it("leaves a text that needs no escaping cut at the full limit", () => {
+    const plain = Array.from({ length: 300 }, () => "plain words only").join("\n");
+    expect(splitForDiscord(plain)).toEqual(chunkForDiscord(plain));
   });
 });
 
