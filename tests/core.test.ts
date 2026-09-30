@@ -692,6 +692,18 @@ describe("StatusMessage", () => {
     expect(status.hasNotes()).toBe(false);
   });
 
+  it("takes the answer back however many times it was said as a remark", () => {
+    const status = new StatusMessage(say, recordingSink(), () => 0);
+    const answer = `Summary of the change.\n\n${"z".repeat(2400)}`;
+    status.note("Checking the diff first.");
+    status.note(answer);
+    status.note(answer);
+    status.dropEcho(answer);
+    expect(status.currentIsEmpty()).toBe(false);
+    status.dropEcho("Checking the diff first.");
+    expect(status.hasNotes()).toBe(false);
+  });
+
   it("keeps a remark the answer does not repeat", () => {
     const sink = recordingSink();
     const status = new StatusMessage(say, sink, () => 0);
@@ -796,6 +808,25 @@ describe("StatusMessage", () => {
     expect(finalize).toHaveBeenCalledTimes(2);
     expect(sink.messages[0]).toBe("Landed [e2ea070](<url>).");
     expect(sink.messages[1]).toContain("**Worked**");
+  });
+
+  // The answer arrives as the last remark a moment before the turn ends, and an edit can fall in that moment.
+  it("does not seal part of a long last remark into the trail, since it may be the answer posted beneath", async () => {
+    vi.useFakeTimers();
+    const sink = recordingSink();
+    const status = new StatusMessage(say, sink);
+    await status.start();
+    status.note("Reading the three reports first.");
+    const answer = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: ${"y".repeat(90)}`).join("\n");
+    status.note(answer);
+    await vi.advanceTimersByTimeAsync(2500);
+    status.dropEcho(answer);
+    await status.settle();
+    vi.useRealTimers();
+
+    const trail = sink.messages.join("\n");
+    expect(trail).toContain("Reading the three reports first.");
+    expect(trail).not.toContain("Point 1:");
   });
 
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {

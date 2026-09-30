@@ -214,6 +214,8 @@ function reportUnposted(sessionId: string): (error: unknown) => void {
 
 // True once the answer went into the progress message itself.
 async function concludeInPlace(status: StatusMessage, sink: MessageSink, first: string, mood: Mood): Promise<boolean> {
+  // A move of the trail below a prompt may still be on its way, and until it lands the sink reads as buried.
+  await status.flush();
   if (sink.isLatest?.() === false) return false;
   if (!status.hasNotes()) {
     await status.finish(first);
