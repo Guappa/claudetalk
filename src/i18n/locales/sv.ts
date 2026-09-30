@@ -108,6 +108,7 @@ export const sv: Catalog = {
       orphanTwice:
         "Claude Code rapporterade ett bakgrundskommando som blivit kvar från en tidigare omgång två gånger i rad, och en session som börjar med att rapportera ett sådant nekar varje verktygsanrop. Skicka meddelandet igen; det brukar gå över vid nästa försök.",
       ended: "Omgången slutade som {{subtype}}. Försök skicka ditt meddelande igen.",
+      unexplained: "Claude Code avslutade omgången med ett fel utan att ange någon orsak. Försök skicka ditt meddelande igen.",
       endedSaying: "Omgången slutade som {{subtype}}.\n{{text}} Försök skicka ditt meddelande igen.",
       couldNotRun:
         "Claude Code kunde inte köra den här omgången: {{error}}. Kontrollera att det är installerat och inloggat på värddatorn och försök sedan igen.",

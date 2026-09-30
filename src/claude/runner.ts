@@ -187,6 +187,8 @@ async function consumeStream(
   onEvent: (event: ClaudeEvent) => void,
 ): Promise<TurnResult | typeof RESTART> {
   const outcome: TurnOutcome = { text: "" };
+  // What the last result failed with while a message was still waiting to run; it is the outcome after all if nothing follows.
+  let unanswered: ClaudeError | null = null;
 
   try {
     const run = query({ prompt: held.stream(), options: { ...options, abortController: abort } });
@@ -211,19 +213,16 @@ async function consumeStream(
       const reported = (message as { session_id?: string }).session_id;
       if (reported) outcome.sessionId = reported;
 
-      if (message.type === "assistant") {
+      // An agent's message carries the agent's own context, which says nothing about how full the session's is.
+      if (message.type === "assistant" && !message.parent_tool_use_id) {
         const modelCall = messageUsage(message.message.usage);
         if (modelCall) outcome.contextUsage = modelCall;
       }
 
       if (message.type === "result") {
-        if ("result" in message && message.result) outcome.text = String(message.result);
-        outcome.usage = message.usage as unknown as TokenUsage;
-        outcome.sessionCostUsd = message.total_cost_usd;
+        unanswered = foldResult(outcome, message as unknown as ResultMessage);
         // An interrupted turn ends as an error, but a message still waiting makes it the start of the next, not a failure.
-        if (message.is_error && !held.awaitsUntaken) {
-          return { ...outcome, ok: false, error: resultError(message.subtype, "errors" in message ? message.errors : []) };
-        }
+        if (unanswered && !held.awaitsUntaken) return { ...outcome, ok: false, error: unanswered };
       }
     }
   } catch (error) {
@@ -234,7 +233,39 @@ async function consumeStream(
     return { ...outcome, ok: false, error: failure(error) };
   }
 
-  return { ...outcome, ok: true };
+  return unanswered ? { ...outcome, ok: false, error: unanswered } : { ...outcome, ok: true };
+}
+
+// A result as the stream delivers it: a success carries its text, a failure its errors, and a success can still be an error when the API refused.
+interface ResultMessage {
+  subtype: string;
+  is_error: boolean;
+  result?: string;
+  errors?: string[];
+  usage?: unknown;
+  total_cost_usd?: number;
+}
+
+// One process answers several turns, so each result is folded into what came before: the latest answer stands, the tokens add up, the cost is already a running total. Returns what it failed with, if it failed.
+export function foldResult(outcome: TurnOutcome, result: ResultMessage): ClaudeError | null {
+  const said = typeof result.result === "string" ? result.result : "";
+  outcome.usage = addUsage(outcome.usage, messageUsage(result.usage));
+  if (result.total_cost_usd !== undefined) outcome.sessionCostUsd = result.total_cost_usd;
+  if (!result.is_error) {
+    outcome.text = said;
+    return null;
+  }
+  return result.subtype === "success" ? { kind: "reported", text: said } : resultError(result.subtype, result.errors ?? []);
+}
+
+function addUsage(earlier: TokenUsage | undefined, later: TokenUsage | undefined): TokenUsage | undefined {
+  if (!earlier || !later) return later ?? earlier;
+  return {
+    input_tokens: earlier.input_tokens + later.input_tokens,
+    output_tokens: earlier.output_tokens + later.output_tokens,
+    cache_read_input_tokens: earlier.cache_read_input_tokens + later.cache_read_input_tokens,
+    cache_creation_input_tokens: earlier.cache_creation_input_tokens + later.cache_creation_input_tokens,
+  };
 }
 
 const ORPHAN_TWICE: TurnResult = { text: "", ok: false, error: { kind: "orphan-twice" } };

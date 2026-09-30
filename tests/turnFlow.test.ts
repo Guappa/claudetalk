@@ -21,6 +21,8 @@ const scripted = vi.hoisted(() => new Map<string, unknown[]>());
 const asked = vi.hoisted(() => [] as string[]);
 // How a test makes a mocked turn report that it took up a message handed to it.
 const taken = vi.hoisted(() => new Map<string, (uuid: string) => void>());
+// How a mocked turn ends when it does not simply answer, keyed by its prompt.
+const endings = vi.hoisted(() => new Map<string, unknown>());
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
@@ -42,7 +44,9 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
           asked.push(`interrupt ${request.prompt}`);
           return [];
         },
-        done: new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: `echo ${request.prompt}` }), 20)),
+        done: new Promise((resolve) =>
+          setTimeout(() => resolve(endings.get(request.prompt) ?? { ok: true, text: `echo ${request.prompt}` }), 20),
+        ),
       };
     },
   };
@@ -380,6 +384,24 @@ describe("TurnFlow", () => {
     };
     expect(await flow.run("s19", cwd, "compacts to a dead channel", {}, sink, { resume: true })).toBe(true);
     expect(sink.messages.at(-1)).toBe("echo compacts to a dead channel");
+  });
+
+  // Claude Code says the reason as its last remark too, so it is shown once, and without advice to retry that cannot help.
+  it("shows a plan limit as the reason a turn failed, once, in Claude Code's own words", async () => {
+    const reason = "You've hit your session limit · resets 3pm";
+    scripted.set("over the limit", [
+      { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: reason }] } },
+    ]);
+    endings.set("over the limit", { ok: false, text: "", error: { kind: "reported", text: reason } });
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s20", cwd, "over the limit", {}, sink, { resume: true });
+
+    const shown = sink.messages.join("\n");
+    expect(shown).toContain(`The turn failed.\n\`\`\`\n${reason}\n\`\`\``);
+    expect(shown.split(reason)).toHaveLength(2);
+    expect(shown).not.toContain("ended as");
+    expect(shown).not.toContain("Try sending");
   });
 
   it("stops everything at once when told to, dropping what was queued", async () => {

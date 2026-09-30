@@ -106,6 +106,7 @@ export const en = {
       orphanTwice:
         "Claude Code reported a background command left over from an earlier turn twice in a row, and a session that starts by reporting one refuses every tool call. Send the message again; it normally clears on the next try.",
       ended: "The turn ended as {{subtype}}. Try sending your message again.",
+      unexplained: "Claude Code ended the turn with an error and gave no reason. Try sending your message again.",
       endedSaying: "The turn ended as {{subtype}}.\n{{text}} Try sending your message again.",
       couldNotRun:
         "Claude Code could not run this turn: {{error}}. Check that it is installed and logged in on the host, then try again.",
