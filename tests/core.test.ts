@@ -4015,7 +4015,7 @@ describe("samePath", () => {
 });
 
 describe("attachmentsRoot", () => {
-  it("never contains an 8.3 short name, which restricted mode rejects", () => {
+  it("never contains an 8.3 short name, which Claude Code takes for a suspicious path", () => {
     expect(attachmentsRoot()).not.toContain("~");
   });
 

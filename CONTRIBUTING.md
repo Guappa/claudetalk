@@ -292,7 +292,10 @@ against the CLI, not inferred.
 
 **Paths handed to a session must be long-form.** `os.tmpdir()` returns a Windows
 8.3 short name such as `RUNNER~1`; `platform.ts` resolves it with
-`realpathSync.native`.
+`realpathSync.native`. Claude Code treats a path spelled that way as a
+suspicious Windows path and holds a write to it for manual approval, and the
+session index expands every recorded folder to its long form, so the short
+spelling would match none of them.
 
 **There is no sandbox.** Every turn runs in `bypassPermissions`, and access is
 controlled at admission: `access.ts` answers who may do what, and tier `none` is
