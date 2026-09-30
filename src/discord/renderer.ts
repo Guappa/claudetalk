@@ -4,6 +4,11 @@ const FENCE_CLOSE = "\n```";
 const OPENS = /^\s*```(?!.*```)/;
 const CLOSES = /^\s*```\s*$/;
 
+// Whether a code block is open once this line has been read, given whether one was open before it.
+export function staysFenced(open: boolean, line: string): boolean {
+  return open ? !CLOSES.test(line) : OPENS.test(line);
+}
+
 // A chunk split inside a fence closes and reopens it, and the opener can carry a language tag.
 function roomForLine(openFence: string | null, limit: number): number {
   if (openFence === null) return limit;
@@ -41,7 +46,7 @@ export function chunkForDiscord(text: string, limit = DISCORD_MESSAGE_LIMIT): st
 
   for (const rawLine of text.split("\n")) {
     for (const line of splitOverlongLine(rawLine, roomForLine(openFence, limit))) {
-      const staysOpen = openFence !== null ? !CLOSES.test(line) : OPENS.test(line);
+      const staysOpen = staysFenced(openFence !== null, line);
       // Room is kept for the closing fence on every line added while one is open, so closing the chunk never pushes it over.
       if (length + line.length + (staysOpen ? FENCE_CLOSE.length : 0) > limit) flush();
       lines.push(line);
