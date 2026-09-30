@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { refusal } from "../scripts/check-boot.mjs";
 import { DOC_ONLY, SHAPES } from "../scripts/scan-private.mjs";
 
 const repoRoot = path.join(import.meta.dirname, "..");
@@ -374,5 +375,16 @@ describe("everything posted to Discord passes the outgoing gate", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the boot check", () => {
+  // The suite compiles with esbuild, which runs all of these, so only Node's own stripper can say which of them the bridge would start with.
+  it("refuses what Node's type stripper cannot run, and nothing that it can", () => {
+    expect(refusal("enum Mood { Done }")).toContain("enum");
+    const heldInItsConstructor = ["private", "readonly value: number"].join(" ");
+    expect(refusal(`export class Held { constructor(${heldInItsConstructor}) {} }`)).toContain("parameter property");
+    expect(refusal("namespace Held { export const value = 1; }")).toContain("namespace");
+    expect(refusal("const limit: number = 3;\nexport const twice = limit * 2;")).toBeNull();
   });
 });
