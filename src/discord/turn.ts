@@ -1,8 +1,9 @@
 import type { Bridge } from "../bridge.ts";
 import type { Conversation } from "../conversations.ts";
 import type { MessageSink } from "./messageSink.ts";
+import type { SessionRecord } from "../sessions/index.ts";
 import type { StateMarker } from "./reactions.ts";
-import { markCaughtUp, pendingDrift } from "./sync.ts";
+import { markCaughtUp, newDrift } from "./sync.ts";
 import { describeDrift } from "./transcriptView.ts";
 
 export interface ConversationTurn {
@@ -47,10 +48,32 @@ export async function runConversationTurn(bridge: Bridge, conversation: Conversa
       const current = await bridge.sessions.find(conversation.sessionId);
       session.exists = current !== null || !conversation.unstarted;
       if (current) await bridge.store.markStarted(conversation.sessionId);
-      const drift = await pendingDrift(conversation, current);
-      if (drift.exchanges.length > 0) await turn.sink.notice(describeDrift(bridge.language.say, drift));
+      // A branch's first turn is asked of this conversation and written to another: what this one missed is its own channel's to hear of.
+      if (!turn.fork) await announceDrift(bridge, conversation, current, turn.sink);
       return undefined;
     },
-    afterTurn: () => markCaughtUp(bridge, conversation),
+    afterTurn: async () => {
+      if (!turn.fork) await markCaughtUp(bridge, conversation);
+    },
+  });
+}
+
+// The turn marks the conversation seen when it ends, which would take this drift with it, so it is kept as owed until /sync has shown it.
+async function announceDrift(
+  bridge: Bridge,
+  conversation: Conversation,
+  record: SessionRecord | null,
+  sink: MessageSink,
+): Promise<void> {
+  const drift = await newDrift(conversation, record);
+  const last = drift.exchanges.at(-1);
+  if (!last) return;
+  await bridge.store.noteUnseen(conversation.sessionId, {
+    after: conversation.syncedThrough ?? null,
+    through: last.at.toISOString(),
+  });
+  // A courtesy that could not be posted is no reason to refuse the turn it came with.
+  await sink.notice(describeDrift(bridge.language.say, drift)).catch((error: unknown) => {
+    console.error(`the drift notice for ${conversation.sessionId} could not be posted`, error);
   });
 }
