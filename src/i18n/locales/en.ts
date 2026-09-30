@@ -209,9 +209,9 @@ export const en = {
     fromYou: "**You** · terminal · {{clock}}",
     fromClaude: "**Claude** · terminal · {{clock}}",
     drift_one:
-      "{{count}} message happened in this conversation outside Discord since you were last here. The last was at {{clock}}. Run `/sync` to see them.",
+      "{{count}} message happened in this conversation outside Discord since you were last here. It was {{ago}}, {{when}}. Run `/sync` to see it.",
     drift_other:
-      "{{count}} messages happened in this conversation outside Discord since you were last here. The last was at {{clock}}. Run `/sync` to see them.",
+      "{{count}} messages happened in this conversation outside Discord since you were last here. The last was {{ago}}, {{when}}. Run `/sync` to see them.",
     running:
       "A turn is running here right now, and what it says is on its way to this channel. Run `/sync` again once it has finished.",
     nothingNew: "Nothing new: nothing has happened in this conversation outside Discord since you were last here.",

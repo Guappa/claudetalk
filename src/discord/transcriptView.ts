@@ -1,7 +1,8 @@
 import type { Say } from "../i18n/index.ts";
 import type { Exchange } from "../sessions/exchanges.ts";
-import { truncate } from "../text.ts";
+import { truncate, utcDateAndTime } from "../text.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
+import { dateAndTime, howLongAgo } from "./timestamps.ts";
 
 const MAX_EXCHANGE_CHARS = 1200;
 // Where you left off is a glance at the last few messages; the whole run belongs in a file.
@@ -9,10 +10,9 @@ const MAX_RECENT = 4;
 
 export type ClockStyle = "discord" | "plain";
 
-// Discord renders <t:...:t> in the reader's own zone; a file gets a clock that says whose it is.
+// Always with its date: a time alone reads as today, and what is being caught up on can be weeks old.
 function clock(at: Date, style: ClockStyle): string {
-  if (style === "plain") return `${at.toISOString().slice(11, 16)} UTC`;
-  return `<t:${Math.floor(at.getTime() / 1000)}:t>`;
+  return style === "plain" ? utcDateAndTime(at) : dateAndTime(at);
 }
 
 function formatExchange(say: Say, exchange: Exchange, style: ClockStyle): string {
@@ -38,5 +38,6 @@ export function latestThatFit(say: Say, exchanges: Exchange[], budget: number): 
 
 // Only ever asked about drift that exists, so there is always a last exchange to give the time of.
 export function describeDrift(say: Say, exchanges: Exchange[]): string {
-  return say("sync.drift", { count: exchanges.length, clock: clock(exchanges.at(-1)!.at, "discord") });
+  const last = exchanges.at(-1)!.at;
+  return say("sync.drift", { count: exchanges.length, ago: howLongAgo(last), when: dateAndTime(last) });
 }

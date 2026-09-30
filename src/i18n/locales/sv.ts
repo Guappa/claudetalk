@@ -213,9 +213,9 @@ export const sv: Catalog = {
     fromYou: "**Du** · terminal · {{clock}}",
     fromClaude: "**Claude** · terminal · {{clock}}",
     drift_one:
-      "{{count}} meddelande har tillkommit i den här konversationen utanför Discord sedan du senast var här. Det senaste kom klockan {{clock}}. Kör `/sync` för att se det.",
+      "{{count}} meddelande har tillkommit i den här konversationen utanför Discord sedan du senast var här. Det kom {{ago}}, {{when}}. Kör `/sync` för att se det.",
     drift_other:
-      "{{count}} meddelanden har tillkommit i den här konversationen utanför Discord sedan du senast var här. Det senaste kom klockan {{clock}}. Kör `/sync` för att se dem.",
+      "{{count}} meddelanden har tillkommit i den här konversationen utanför Discord sedan du senast var här. Det senaste kom {{ago}}, {{when}}. Kör `/sync` för att se dem.",
     running:
       "En omgång körs här just nu, och det den säger är på väg till den här kanalen. Kör `/sync` igen när den är klar.",
     nothingNew: "Inget nytt: inget har hänt i den här konversationen utanför Discord sedan du senast var här.",

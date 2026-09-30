@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Message } from "discord.js";
-import { truncate } from "../text.ts";
+import { truncate, utcDateAndTime } from "../text.ts";
 
 export interface ContextMessage {
   authorId: string;
@@ -27,10 +27,6 @@ const MAX_MESSAGE_CHARS = 600;
 const MENTION_GUIDANCE =
   "Do not tag the person you are answering. Use <@id> only to bring in someone else the answer concerns.";
 
-function clock(at: Date): string {
-  return at.toISOString().slice(11, 16);
-}
-
 export function toContextMessage(message: Message): ContextMessage {
   return {
     authorId: message.author.id,
@@ -51,7 +47,7 @@ export function buildContext(messages: ContextMessage[]): BuiltContext {
 
   const lines = usable.map(
     (message) =>
-      `${message.authorName} (<@${message.authorId}>) at ${clock(message.at)}: ${truncate(message.content, MAX_MESSAGE_CHARS)}`,
+      `${message.authorName} (<@${message.authorId}>) at ${utcDateAndTime(message.at)}: ${truncate(message.content, MAX_MESSAGE_CHARS)}`,
   );
 
   const mentionableUserIds = [

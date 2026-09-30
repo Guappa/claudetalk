@@ -4,6 +4,7 @@ import { displayName } from "../../sessions/displayName.ts";
 import { isWithin, longTmpDir } from "../../platform.ts";
 import { byRecencyDesc } from "../../sessions/resolve.ts";
 import type { Say } from "../../i18n/index.ts";
+import { dateAndTime } from "../timestamps.ts";
 
 const MAX_LISTED = 25;
 const CHOICE_LABEL_LIMIT = 100;
@@ -73,9 +74,7 @@ export function formatSessionList(say: Say, records: SessionRecord[]): string {
     .sort(byRecencyDesc)
     .slice(0, MAX_LISTED)
     .map((record) => {
-      const when = record.lastActivity
-        ? record.lastActivity.toISOString().slice(0, 16).replace("T", " ")
-        : say("common.unknown");
+      const when = record.lastActivity ? dateAndTime(record.lastActivity) : say("common.unknown");
       const live = record.live
         ? ` · ${say("sessions.live", { kind: record.live.kind, status: record.live.status ?? say("sessions.starting") })}`
         : "";
