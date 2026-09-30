@@ -67,13 +67,18 @@ function language(env: NodeJS.ProcessEnv): Language {
   return value;
 }
 
+// Where the bindings live decides where everything beside them lives, the lock included, so the stop script reads it the same way.
+export function bindingsPathFrom(env: NodeJS.ProcessEnv): string {
+  return env.BINDINGS_PATH?.trim() || "data/conversations.json";
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     botToken: required(env, "DISCORD_BOT_TOKEN"),
     guildId: required(env, "DISCORD_GUILD_ID"),
     ownerIds: ownerIds(env),
     projectsRoot: required(env, "PROJECTS_ROOT"),
-    bindingsPath: env.BINDINGS_PATH?.trim() || "data/conversations.json",
+    bindingsPath: bindingsPathFrom(env),
     operatorsPath: env.OPERATORS_PATH?.trim() || "data/operators.json",
     toolApprovals: toolApprovals(env),
     language: language(env),

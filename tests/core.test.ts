@@ -26,7 +26,7 @@ import { randomUUID } from "node:crypto";
 import { PENDING_TTL_MS, Pending, PendingCreates } from "../src/discord/pendingCreate.ts";
 import { ConversationStore } from "../src/conversations.ts";
 import { OperatorStore } from "../src/operators.ts";
-import { loadConfig } from "../src/config.ts";
+import { bindingsPathFrom, loadConfig } from "../src/config.ts";
 import { UsageLedger } from "../src/claude/usageLedger.ts";
 import { PlanUsage, describePlanUsage, parsePlanUsage } from "../src/claude/planUsage.ts";
 import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
@@ -65,7 +65,7 @@ import {
 } from "../src/discord/commands/sessionList.ts";
 import { displayName } from "../src/sessions/displayName.ts";
 import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
-import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
+import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import {
   collectReferences,
@@ -530,6 +530,14 @@ describe("loadConfig", () => {
   it("names which entry is wrong when only one of several is", () => {
     const broken = { ...valid, DISCORD_OWNER_IDS: "100000000000000001,oops" };
     expect(() => loadConfig(broken)).toThrow(/oops/);
+  });
+});
+
+describe("where the lock lives", () => {
+  it("is beside the bindings, wherever the setting puts them", () => {
+    expect(lockPathBeside(bindingsPathFrom({}))).toBe(path.join("data", "bridge.lock"));
+    const elsewhere = path.join("srv", "bridge", "conversations.json");
+    expect(lockPathBeside(bindingsPathFrom({ BINDINGS_PATH: ` ${elsewhere} ` }))).toBe(path.join("srv", "bridge", "bridge.lock"));
   });
 });
 

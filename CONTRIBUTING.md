@@ -43,9 +43,13 @@ npm run stop    # stop the instance named in data/bridge.lock
 
 Use `npm run stop` rather than killing the process. It writes `data/stop.request`,
 the bridge picks it up within half a second and releases its lock on the way out.
-A force-kill leaves the lock behind instead, and the next start refuses until the
-heartbeat in that lock goes stale after 90 seconds. `npm run stop` also clears a
-lock whose process is already gone.
+A force-kill leaves the lock behind instead. The next start sees that the process
+named in it is gone and takes the lock over at once; only if that pid has since
+been given to some other process does it wait for the heartbeat in the lock to
+go stale, which takes 90 seconds. `npm run stop` also clears a lock whose process
+is already gone. It finds the lock the way the bridge does, beside
+`BINDINGS_PATH` as `.env` sets it, so it stops the right bridge when the
+bindings live outside `data/`.
 
 **Stopping is a file, not a signal, because the two cannot always reach each
 other.** Under the Windows scheduled task the bridge runs in session 0, where a
