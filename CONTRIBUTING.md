@@ -352,6 +352,16 @@ window; on Windows 11 that window is Windows Terminal, which ignores
 `-WindowStyle Hidden`, so closing it would kill the bridge. It runs as you rather
 than as SYSTEM because Claude Code's credentials live in your user's store.
 
+**The image is the same bridge, and nothing in `src/` knows it is in one.** The
+`Dockerfile` builds `dist/` and runs it as the services do; what differs is
+outside the code: the `claude` on the image's PATH is a link to the build the
+Agent SDK ships, so listings and turns run one Claude Code, and the folders the
+bridge writes belong to the root group so `--user` with any uid can still write
+them. A change to the `Dockerfile` or `.dockerignore` is proved on the pull
+request by `image.yml`, which builds the image and boots it without a token;
+a tag publishes it to `ghcr.io` for amd64 and arm64. hadolint lints the
+`Dockerfile` in CI, with `.hadolint.yaml` naming what it ignores and why.
+
 **Every text reaches Discord through `forDiscord` in `outgoing.ts`.** The sink,
 the command replies, notices and the few direct posts all call it, and a style
 test fails any Discord send that does not. It redacts every spelling of a home
