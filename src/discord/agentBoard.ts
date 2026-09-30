@@ -12,12 +12,16 @@ const PAGE_SIZE = 10;
 const ROSTER_DESCRIPTION_CHARS = 100;
 // Discord allows about five edits in five seconds per channel, and busy agents report far more often than that.
 const PACE_MS = 3000;
-const DETAIL_TITLE = "Agents";
+// Discord allows a thread name a hundred characters.
+const TITLE_CHARS = 97;
 
 const ENDINGS: Record<AgentOutcome, string> = { completed: "done in", failed: "failed after", stopped: "stopped after" };
 
 interface Agent {
   index: number;
+  taskId: string;
+  // Runs in the cloud, where killing this process would not reach it.
+  remote: boolean;
   type: string;
   description: string;
   state: "running" | AgentOutcome;
@@ -42,11 +46,13 @@ export class AgentBoard {
   private timer: NodeJS.Timeout | null = null;
   private writes: Promise<void> = Promise.resolve();
   private readonly sink: MessageSink;
+  private readonly title: string;
   private readonly now: () => number;
   private readonly paceMs: number;
 
-  constructor(sink: MessageSink, now: () => number = Date.now, paceMs: number = PACE_MS) {
+  constructor(sink: MessageSink, title: string, now: () => number = Date.now, paceMs: number = PACE_MS) {
     this.sink = sink;
+    this.title = title;
     this.now = now;
     this.paceMs = paceMs;
   }
@@ -74,6 +80,28 @@ export class AgentBoard {
     agent.tokens = event.tokens ?? agent.tokens;
     agent.durationMs = agent.earlierMs + (event.durationMs ?? this.now() - agent.startedAt);
     this.touch(agent);
+  }
+
+  // What a stop would reach; asked for when someone wants the agents gone and the turn kept.
+  running(): string[] {
+    return this.active().map((agent) => agent.taskId);
+  }
+
+  runningRemote(): string[] {
+    return this.active()
+      .filter((agent) => agent.remote)
+      .map((agent) => agent.taskId);
+  }
+
+  // Null when there is nothing to stop, so no button is offered for it.
+  stopLabel(): string | null {
+    const active = this.active();
+    if (active.length === 0) return null;
+    return active.every((agent) => agent.remote) ? "Stop cloud task" : "Stop agents";
+  }
+
+  private active(): Agent[] {
+    return [...this.agents.values()].filter((agent) => agent.state === "running");
   }
 
   // True when the message came from inside an agent this board follows, not from the session itself.
@@ -125,6 +153,8 @@ export class AgentBoard {
     }
     const agent: Agent = {
       index: this.agents.size + 1,
+      taskId: event.taskId,
+      remote: event.remote,
       type: event.agentType,
       description: event.description,
       state: "running",
@@ -189,7 +219,7 @@ export class AgentBoard {
   private async open(): Promise<void> {
     if (this.opened) return;
     this.opened = true;
-    this.detail = (await this.sink.openDetail?.(DETAIL_TITLE)) ?? null;
+    this.detail = (await this.sink.openDetail?.(this.title)) ?? null;
   }
 
   private roster(page: number): string {
@@ -211,6 +241,12 @@ export class AgentBoard {
     const elapsed = live ? ` · ${formatElapsed(agent.earlierMs + this.now() - agent.startedAt)}` : "";
     return `${doing}${spent}${elapsed}`;
   }
+}
+
+// A turn's agents can each be on something different, so their thread is named after what was asked of the turn as a whole.
+export function agentsTitle(asked: string): string {
+  const line = asked.replace(/\s+/g, " ").trim();
+  return line ? truncate(`Agents: ${line}`, TITLE_CHARS) : "Agents";
 }
 
 function pageOf(agent: Agent): number {

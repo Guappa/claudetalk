@@ -15,6 +15,7 @@ export interface ConversationTurn {
   fork?: boolean;
   onSessionId?: (sessionId: string) => void;
   onState?: StateMarker;
+  asked?: string;
 }
 
 // The only door into spending a turn, so none can skip the preflight or the catch-up that follows.
@@ -45,6 +46,7 @@ export async function runConversationTurn(
       fork: turn.fork,
       onSessionId: turn.onSessionId,
       onState: turn.onState,
+      asked: turn.asked,
       // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
       beforeTurn: async () => {
         const drift = await pendingDrift(conversation, await bridge.sessions.find(conversation.sessionId));

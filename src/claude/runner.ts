@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { killTree, turnSpawnOptions } from "../platform.ts";
 import { outboxRelative } from "../discord/outbox.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
@@ -161,12 +161,14 @@ async function consumeStream(
   held: HeldPrompt,
   options: Options,
   abort: AbortController,
+  live: Live,
   onEvent: (event: ClaudeEvent) => void,
 ): Promise<TurnResult | typeof RESTART> {
   const outcome: TurnOutcome = { text: "" };
 
   try {
     const run = query({ prompt: held.stream(), options: { ...options, abortController: abort } });
+    live.query = run;
     // Either outcome of the handshake lets the prompt go; a doomed process has already been marked by then.
     run.initializationResult().then(
       (introduced) => {
@@ -223,12 +225,20 @@ const ORPHAN_TWICE: TurnResult = {
 
 export interface RunningTurn {
   stop: () => void;
+  // Stops tasks inside the turn and leaves the turn running; a cloud task is closed down where it runs.
+  stopTasks: (taskIds: string[]) => Promise<void>;
   done: Promise<TurnResult>;
+}
+
+// The session a turn is talking to, once there is one; controls such as stopping a task go through it.
+interface Live {
+  query: Query | null;
 }
 
 interface Attempt {
   held: HeldPrompt;
   abort: AbortController;
+  live: Live;
   done: Promise<TurnResult | typeof RESTART>;
 }
 
@@ -251,7 +261,8 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
   const start = (): Attempt => {
     const held = new HeldPrompt(request.prompt);
     const abort = new AbortController();
-    return { held, abort, done: consumeStream(held, options, abort, onEvent) };
+    const live: Live = { query: null };
+    return { held, abort, live, done: consumeStream(held, options, abort, live, onEvent) };
   };
 
   let attempt = start();
@@ -274,7 +285,12 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     attempt.abort.abort();
   };
 
-  return { stop, done };
+  // A task that ended a moment ago refuses to be stopped, which is the outcome that was wanted anyway.
+  const stopTasks = async (taskIds: string[]): Promise<void> => {
+    for (const taskId of taskIds) await attempt.live.query?.stopTask(taskId).catch(() => undefined);
+  };
+
+  return { stop, stopTasks, done };
 }
 
 function resultError(subtype: string, text: string): ClaudeError {

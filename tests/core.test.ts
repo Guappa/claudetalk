@@ -36,7 +36,7 @@ import { HeldPrompt } from "../src/claude/heldPrompt.ts";
 import { agentEvent, commandsChanged, parentToolUseId, type ClaudeEvent, type SessionCommand } from "../src/claude/events.ts";
 import { commandChoices, describeRun, refusal } from "../src/discord/commands/run.ts";
 import { CapabilityCache } from "../src/claude/capabilities.ts";
-import { AgentBoard } from "../src/discord/agentBoard.ts";
+import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
 import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
@@ -69,8 +69,8 @@ import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
 import { defuseStrayMarkup } from "../src/discord/strayMarkup.ts";
 import { STATE_EMOJI } from "../src/discord/reactions.ts";
-import { describeStopTurn } from "../src/discord/turnFlow.ts";
-import { stopActionId, stopAllActionId } from "../src/discord/menus.ts";
+import { describeStopAgents, describeStopTurn } from "../src/discord/turnFlow.ts";
+import { stopActionId, stopAgentsActionId, stopAllActionId } from "../src/discord/menus.ts";
 import {
   DISCORD_MENUS_PER_MESSAGE,
   describeSkillMenus,
@@ -1684,7 +1684,11 @@ describe("agents in a turn", () => {
 
   it("reads an agent's start, progress and end off the stream, and leaves a background command out", () => {
     expect(agentEvent(started("t1", "use1", "Audit the access checks", "Explore"))).toEqual({
-      kind: "started", taskId: "t1", toolUseId: "use1", description: "Audit the access checks", agentType: "Explore",
+      kind: "started", taskId: "t1", toolUseId: "use1", description: "Audit the access checks", agentType: "Explore", remote: false,
+    });
+    const cloud = { type: "system", subtype: "task_started", task_id: "t8", description: "ultrareview: feat/ledger", task_type: "remote_agent" } as ClaudeEvent;
+    expect(agentEvent(cloud)).toEqual({
+      kind: "started", taskId: "t8", toolUseId: null, description: "ultrareview: feat/ledger", agentType: "cloud", remote: true,
     });
     expect(agentEvent(progressed("t1", "Reading access.ts", 3))).toEqual({
       kind: "progress", taskId: "t1", activity: "Reading access.ts", toolUses: 3, tokens: 33_100,
@@ -1698,7 +1702,7 @@ describe("agents in a turn", () => {
     expect(parentToolUseId({ type: "assistant", message: { content: [] } })).toBeNull();
   });
 
-  const board = (sink: MessageSink, clock = { at: 0 }) => new AgentBoard(sink, () => clock.at, 0);
+  const board = (sink: MessageSink, clock = { at: 0 }) => new AgentBoard(sink, "Agents: tidy the ledger", () => clock.at, 0);
   const feed = (target: AgentBoard, ...events: ClaudeEvent[]) => {
     for (const event of events) target.observe(agentEvent(event)!);
   };
@@ -1741,7 +1745,7 @@ describe("agents in a turn", () => {
     expect(agents.block()).toBe("");
     await agents.flush();
     expect(agents.block()).toBe("");
-    expect(sink.detailTitles).toEqual(["Agents"]);
+    expect(sink.detailTitles).toEqual(["Agents: tidy the ledger"]);
     expect(sink.details).toEqual([
       "**1 · Explore** · Audit the access checks\nrunning · 0 tools\n\n" +
         "**2 · general-purpose** · Write the fixtures\nrunning · 0 tools",
@@ -1756,6 +1760,14 @@ describe("agents in a turn", () => {
     expect(agents.follows("use1")).toBe(true);
     expect(agents.follows("other")).toBe(false);
     expect(agents.follows(null)).toBe(false);
+  });
+
+  // Each agent can be on something different, so one agent's task would misname the rest.
+  it("names the side room after what was asked of the turn, within what a thread name may hold", () => {
+    expect(agentsTitle("Rework the   ledger\nand its tests")).toBe("Agents: Rework the ledger and its tests");
+    expect(agentsTitle("/code-review high")).toBe("Agents: /code-review high");
+    expect(agentsTitle("   ")).toBe("Agents");
+    expect(agentsTitle("y".repeat(300)).length).toBeLessThanOrEqual(100);
   });
 
   it("starts a second roster message past ten agents, so none outgrows a message", async () => {
@@ -1785,6 +1797,25 @@ describe("agents in a turn", () => {
     feed(agents, progressed("t1", "Running rm two.txt", 2), notified("t1", "completed", 2));
     await agents.flush();
     expect(sink.details).toEqual(["**1 · general-purpose** · Create, wait, delete\ndone in 8s · 5 tools · 38.1k tokens"]);
+  });
+
+  // Stopping the turn kills this process, which a task running in the cloud would never notice.
+  it("knows what a stop would reach, and which of it runs in the cloud", () => {
+    const agents = board(quietSink());
+    expect(agents.stopLabel()).toBeNull();
+    const cloud = { type: "system", subtype: "task_started", task_id: "t8", description: "ultrareview: feat/ledger", task_type: "remote_agent" } as ClaudeEvent;
+    feed(agents, cloud);
+    expect(agents.stopLabel()).toBe("Stop cloud task");
+    feed(agents, started("t1", "use1", "Audit"), started("t2", "use2", "Write"));
+    expect(agents.stopLabel()).toBe("Stop agents");
+    expect(agents.running()).toEqual(["t8", "t1", "t2"]);
+    expect(agents.runningRemote()).toEqual(["t8"]);
+    feed(agents, notified("t1", "completed"), notified("t8", "stopped"));
+    expect(agents.running()).toEqual(["t2"]);
+    expect(agents.runningRemote()).toEqual([]);
+    expect(parseCustomId(stopAgentsActionId("s1"))).toEqual({ kind: "turn-stop-agents", sessionId: "s1" });
+    expect(describeStopAgents(0)).toContain("nothing to stop");
+    expect(describeStopAgents(2)).toContain("Asked 2 tasks to stop");
   });
 
   it("opens no side room for a turn without agents, and still tallies where there is none to open", async () => {

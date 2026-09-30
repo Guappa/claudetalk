@@ -12,7 +12,7 @@ import {
   parentToolUseId,
   type ClaudeEvent,
 } from "../claude/events.ts";
-import { AgentBoard } from "./agentBoard.ts";
+import { AgentBoard, agentsTitle } from "./agentBoard.ts";
 import type { ClaudeError } from "../claude/errors.ts";
 import type { CapabilityCache } from "../claude/capabilities.ts";
 import type { ContextTracker } from "../claude/contextTracker.ts";
@@ -29,7 +29,7 @@ import { displayPath } from "../displayPath.ts";
 import { count } from "../text.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeQueued } from "./turnQueue.ts";
-import { stopActionId, stopAllActionId } from "./menus.ts";
+import { stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";
 import type { OutboxDelivery } from "./outboxDelivery.ts";
 import type { StateMarker } from "./reactions.ts";
 import type { Mood } from "./statusMessage.ts";
@@ -77,6 +77,8 @@ export interface TurnOptions {
   afterTurn?: () => Promise<void>;
   // Where the turn stands, for the reaction on the message that started it.
   onState?: StateMarker;
+  // What the person asked in their own words, where the prompt carries context around it.
+  asked?: string;
 }
 
 export interface StopOutcome {
@@ -87,6 +89,14 @@ export interface StopOutcome {
 export interface StopTurnOutcome {
   stopped: boolean;
   queued: number;
+}
+
+export function describeStopAgents(stopped: number): string {
+  if (stopped === 0) return "No agent or cloud task is running here, so there was nothing to stop.";
+  return (
+    `Asked ${count(stopped, "task")} to stop. The turn itself carries on, and Claude is told they were stopped; ` +
+    "press **Stop** to end the turn as well."
+  );
 }
 
 export function describeStopTurn(outcome: StopTurnOutcome): string {
@@ -176,9 +186,13 @@ async function concludeInPlace(status: StatusMessage, sink: MessageSink, first: 
   return status.currentIsEmpty() && (await status.finishWithHeading(first, mood));
 }
 
+// Long enough for a cloud session to be told to close, short enough that Stop still feels like stopping.
+const CLOUD_STOP_GRACE_MS = 2000;
+
 export class TurnFlow {
   private readonly running = new Map<string, RunningTurn>();
   private readonly stopping = new Set<string>();
+  private readonly boards = new Map<string, AgentBoard>();
   private readonly queue = new TurnQueue();
   private readonly capabilities: CapabilityCache;
   private readonly trackerFor: (sessionId: string) => ContextTracker;
@@ -189,6 +203,7 @@ export class TurnFlow {
   private readonly outbox: OutboxDelivery;
   private readonly activeTurns: ActiveTurns;
   private readonly config: Config;
+  private readonly cloudGraceMs: number;
   private draining = false;
 
   constructor(
@@ -201,6 +216,7 @@ export class TurnFlow {
     outbox: OutboxDelivery,
     activeTurns: ActiveTurns,
     config: Config,
+    cloudGraceMs: number = CLOUD_STOP_GRACE_MS,
   ) {
     this.capabilities = capabilities;
     this.trackerFor = trackerFor;
@@ -211,6 +227,7 @@ export class TurnFlow {
     this.outbox = outbox;
     this.activeTurns = activeTurns;
     this.config = config;
+    this.cloudGraceMs = cloudGraceMs;
   }
 
   // Running and queued turns together: what a shutdown has to wait for.
@@ -260,7 +277,7 @@ export class TurnFlow {
     if (!turn) return { stopped: false, dropped };
     this.stopping.add(sessionId);
     // Aborting ends the turn; a command it already handed to the shell can outlive it.
-    turn.stop();
+    this.halt(sessionId, turn);
     return { stopped: true, dropped };
   }
 
@@ -270,8 +287,30 @@ export class TurnFlow {
     const queued = Math.max(this.queue.depth(sessionId) - (turn ? 1 : 0), 0);
     if (!turn) return { stopped: false, queued };
     this.stopping.add(sessionId);
-    turn.stop();
+    this.halt(sessionId, turn);
     return { stopped: true, queued };
+  }
+
+  // The agents go and the turn stays, which is what asking Claude to stop them would come to.
+  async stopAgents(sessionId: string): Promise<number> {
+    const turn = this.running.get(sessionId);
+    const taskIds = this.boards.get(sessionId)?.running() ?? [];
+    if (!turn || taskIds.length === 0) return 0;
+    await turn.stopTasks(taskIds);
+    return taskIds.length;
+  }
+
+  // Killing the process would leave a cloud task running where it is billed, so it is told to stop first and given a moment to close down.
+  private halt(sessionId: string, turn: RunningTurn): void {
+    const cloud = this.boards.get(sessionId)?.runningRemote() ?? [];
+    if (cloud.length === 0) {
+      turn.stop();
+      return;
+    }
+    const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, this.cloudGraceMs));
+    void Promise.race([turn.stopTasks(cloud), pause()])
+      .then(pause)
+      .finally(() => turn.stop());
   }
 
   queueDepth(sessionId: string): number {
@@ -326,13 +365,16 @@ export class TurnFlow {
       const anchor = sink.anchor?.();
       if (anchor && !ended) await this.activeTurns.record(sessionId, anchor);
     };
-    // A second button appears only while something is queued, since that is the only time the two differ.
+    // Each extra button appears only while it would do something: a queue to drop, or agents and cloud tasks to stop.
     const actions = (): SinkAction[] => {
-      const stop: SinkAction = { id: stopActionId(sessionId), label: "Stop", tone: "danger" };
-      if (this.queue.depth(sessionId) <= 1) return [stop];
-      return [stop, { id: stopAllActionId(sessionId), label: "Stop all", tone: "danger" }];
+      const offered: SinkAction[] = [{ id: stopActionId(sessionId), label: "Stop", tone: "danger" }];
+      if (this.queue.depth(sessionId) > 1) offered.push({ id: stopAllActionId(sessionId), label: "Stop all", tone: "danger" });
+      const stopAgents = board.stopLabel();
+      if (stopAgents) offered.push({ id: stopAgentsActionId(sessionId), label: stopAgents });
+      return offered;
     };
-    const board = new AgentBoard(sink);
+    const board = new AgentBoard(sink, agentsTitle(options.asked ?? prompt));
+    this.boards.set(sessionId, board);
     const status = new StatusMessage(
       sink,
       Date.now,
@@ -403,6 +445,7 @@ export class TurnFlow {
       await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
+      this.boards.delete(sessionId);
       this.stopping.delete(sessionId);
     }
   }
