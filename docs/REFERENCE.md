@@ -338,6 +338,33 @@ An existing test caught this: the note is re-sent on every turn, and the
 addition pushed it past the cap.
 ```
 
+When Claude hands work to agents, they are shown the way the terminal shows
+them, that each is working, on what, and what it has spent, and in one place
+only: a thread on the progress message, opened by the first agent, so a turn
+without agents never makes one. The thread holds one message kept up to date,
+ten agents to a message, costing the model nothing since it is drawn from events
+Claude Code already sends:
+
+```
+**1 · Explore** · find where sessions are indexed
+Reading index.ts · 9 tools · 33.1k tokens
+
+**2 · general-purpose** · write the fixtures
+done in 1m 12s · 14 tools · 38.1k tokens
+```
+
+Each entry ends as done, failed or stopped with its totals, and an agent that
+reports and is then sent back to work returns to running under the entry it
+already has. The trail stays the session's own: nothing about an agent appears
+in it, not its edits, its commands, its report or a count, and the session
+relays what its agents found in its own words. The thread needs the bot to hold
+Create Public Threads and Send Messages in Threads. Without them, or in a place
+Discord allows no thread, the progress message carries a short tally under its
+heading instead, naming up to four running agents and counting the rest. A
+message sent in the thread is ignored: it is a view, not a conversation. If the
+bridge dies mid-turn, the progress message is marked interrupted but the thread
+is left reading as it last did.
+
 Tool calls are counted, and the ones the terminal draws are drawn here too, from
 the call's own input, so they cost the model nothing: an edit shows as a `diff`
 block under its file's path, written as code so no character in a file name

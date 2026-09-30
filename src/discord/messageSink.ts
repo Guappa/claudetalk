@@ -34,6 +34,15 @@ export interface SinkMenu {
   multiple: boolean;
 }
 
+export interface DetailPost {
+  revise(text: string): Promise<void>;
+}
+
+// A side room off the trail for detail that would swamp it; Discord draws it as a thread on the progress message.
+export interface DetailSink {
+  post(text: string): Promise<DetailPost>;
+}
+
 // The only way a turn talks back to Discord, so a different transport can be dropped in behind it.
 export interface MessageSink {
   send(text: string): Promise<void>;
@@ -48,4 +57,6 @@ export interface MessageSink {
   askWithMenus?(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle>;
   typing?(): void;
   anchor?(): SinkAnchor | null;
+  // Null when the transport has no side room to offer, or would not open one here.
+  openDetail?(title: string): Promise<DetailSink | null>;
 }

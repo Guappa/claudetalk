@@ -16,18 +16,34 @@ export interface RecordingSink extends MessageSink {
   messages: string[];
   // Set by a test to stand for a question or an attachment posted beneath the trail.
   othersBelow: boolean;
+  // What was posted into the side room, in order; a revised post is replaced where it stands.
+  details: string[];
+  detailTitles: string[];
 }
 
 export function recordingSink(): RecordingSink {
   const written: string[] = [];
   const files: string[] = [];
   const messages: string[] = [];
+  const details: string[] = [];
+  const detailTitles: string[] = [];
   let owned = -1;
   const sink: RecordingSink = {
     written,
     files,
     messages,
+    details,
+    detailTitles,
     othersBelow: false,
+    openDetail: async (title) => {
+      detailTitles.push(title);
+      return {
+        post: async (text) => {
+          const at = details.push(text) - 1;
+          return { revise: async (next) => void (details[at] = next) };
+        },
+      };
+    },
     send: async (text) => {
       written.push(text);
       messages.push(text);

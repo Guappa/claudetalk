@@ -14,14 +14,17 @@ import { quietSink, recordingSink } from "./helpers/sinks.ts";
 import path from "node:path";
 
 const started = vi.hoisted(() => [] as string[]);
+// Events a mocked turn replays before it finishes, keyed by its prompt.
+const scripted = vi.hoisted(() => new Map<string, unknown[]>());
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/claude/runner.ts")>();
   return {
     ...actual,
-    runTurn: (request: { prompt: string }) => {
+    runTurn: (request: { prompt: string }, onEvent: (event: unknown) => void) => {
       started.push(request.prompt);
+      for (const event of scripted.get(request.prompt) ?? []) onEvent(event);
       return {
         stop: () => undefined,
         done: new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: `echo ${request.prompt}` }), 20)),
@@ -133,6 +136,27 @@ describe("TurnFlow", () => {
     expect(await Promise.all([first, second])).toEqual([true, true]);
     expect(seen[0]).toBe(2);
     expect(flow.activeCount()).toBe(0);
+  });
+
+  // An agent's edit once showed in the trail as if the session had made it, with its report repeated as a remark.
+  it("keeps an agent out of the trail altogether, and shows it as an entry in the side room's roster", async () => {
+    scripted.set("fan out", [
+      { type: "system", subtype: "task_started", task_id: "t1", tool_use_id: "use1", description: "Write the fixture", subagent_type: "general-purpose", task_type: "local_agent" },
+      { type: "assistant", parent_tool_use_id: "use1", message: { content: [{ type: "tool_use", name: "Write", input: { file_path: "/srv/app/fixture.txt", content: "alpha" } }] } },
+      { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: "Waiting on the agent." }] } },
+      { type: "assistant", parent_tool_use_id: "use1", message: { content: [{ type: "text", text: "Wrote the fixture." }] } },
+      { type: "system", subtype: "task_notification", task_id: "t1", status: "completed", summary: "Wrote the fixture.", usage: { total_tokens: 1, tool_uses: 1, duration_ms: 2000 } },
+    ]);
+    const flow = makeFlow();
+    const sink = recordingSink();
+    expect(await flow.run("s10", cwd, "fan out", {}, sink, { resume: true })).toBe(true);
+
+    const trail = sink.messages.join("\n");
+    expect(trail).not.toContain("Agents");
+    expect(trail).toContain("Waiting on the agent.");
+    expect(trail).not.toContain("fixture.txt");
+    expect(trail).not.toContain("Wrote the fixture.");
+    expect(sink.details).toEqual(["**1 · general-purpose** · Write the fixture\ndone in 2s · 1 tool · 1 tokens"]);
   });
 
   it("stops everything at once when told to, dropping what was queued", async () => {
