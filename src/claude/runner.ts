@@ -276,8 +276,8 @@ export interface RunningTurn {
   stopTasks: (taskIds: string[]) => Promise<void>;
   // Hands the running turn another message, taken up at its next step; null when it is past taking one.
   handOver: (text: string) => string | null;
-  // Cuts short what the turn is doing, so a message still waiting runs at once; resolves to those still waiting.
-  interrupt: () => Promise<string[]>;
+  // Cuts short what the turn is doing, so a message still waiting runs at once; false when there was nothing to tell, or it would not be told.
+  interrupt: () => Promise<boolean>;
   done: Promise<TurnResult>;
 }
 
@@ -350,9 +350,13 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
 
   const handOver = (text: string): string | null => (stopped ? null : attempt.held.handOver(text));
 
-  const interrupt = async (): Promise<string[]> => {
-    const receipt = await attempt.live.query?.interrupt().catch(() => undefined);
-    return receipt?.still_queued ?? [];
+  const interrupt = async (): Promise<boolean> => {
+    const session = attempt.live.query;
+    if (!session || over) return false;
+    return await session.interrupt().then(
+      () => true,
+      () => false,
+    );
   };
 
   return { stop, stopTasks, handOver, interrupt, done };

@@ -12,10 +12,13 @@ import type { AskHandle, DetailSink, MessageSink, SinkAction, SinkAnchor, SinkFi
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
 import { forDiscord, nameForDiscord } from "./outgoing.ts";
+import { DISCORD_MESSAGE_LIMIT } from "./renderer.ts";
 
 // Discord's limits for a select menu: 100 characters for a label, value or description, 150 for the placeholder.
 const MENU_TEXT_LIMIT = 100;
 const PLACEHOLDER_LIMIT = 150;
+// The blank line, the bold markers and the ellipsis a cut adds, around an outcome appended to a prompt.
+const OUTCOME_FRAME = "\n\n****...";
 
 // Only users from the supplied context may be pinged, so channel text cannot cause a mass-notify.
 function mentionPolicy(allowedUserIds: string[]): MessageCreateOptions["allowedMentions"] {
@@ -62,10 +65,13 @@ function menuRow(menu: SinkMenu): ActionRowBuilder<StringSelectMenuBuilder> {
 
 type AnyRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
 
+// The outcome is cut to what the message has room for: an edit over the limit is refused, and the controls would then stay live on a prompt already settled.
 function closable(sent: Message, shown: string): AskHandle {
   return {
     async close(outcome: string): Promise<void> {
-      await sent.edit({ content: `${shown}\n\n**${outcome}**`, components: [] }).catch(() => undefined);
+      const room = DISCORD_MESSAGE_LIMIT - shown.length - OUTCOME_FRAME.length;
+      const said = room > 0 ? `${shown}\n\n**${truncate(forDiscord(outcome), room)}**` : shown;
+      await sent.edit({ content: said, components: [] }).catch(() => undefined);
     },
   };
 }

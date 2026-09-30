@@ -46,6 +46,11 @@ export class TurnQueue {
     return [...this.lanes.keys()];
   }
 
+  // True from the moment a lane's work begins until it is done, which is longer than the turn inside it is running.
+  hasStarted(key: string): boolean {
+    return this.lanes.get(key)?.tickets.some((ticket) => ticket.started) ?? false;
+  }
+
   admit(key: string): QueueOutcome {
     const waiting = this.depth(key);
     if (waiting === 0) return { kind: "run-now" };

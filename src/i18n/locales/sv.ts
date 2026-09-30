@@ -123,6 +123,7 @@ export const sv: Catalog = {
     sent: "Skickat nu. Steget Claude höll på med avbröts så att den kunde läsa ditt meddelande, och den fortsätter därifrån. Agenter och bakgrundskommandon som den hade igång fick fortsätta köra.",
     nothingWaiting: "Inget väntar: den pågående omgången har redan tagit upp ditt meddelande.",
     notRunning: "Ingen omgång körs här längre, så det finns inget att avbryta.",
+    notInterrupted: "Den pågående omgången kunde inte avbrytas, så ditt meddelande väntar fortfarande på nästa steg.",
   },
   queue: {
     behindRunning: "I kö bakom omgången som fortfarande körs.",

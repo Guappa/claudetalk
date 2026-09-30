@@ -121,6 +121,7 @@ export const en = {
     sent: "Sent now. The step Claude was on was cut short so it could read your message, and it carries on from there. Agents and background commands it had running were left running.",
     nothingWaiting: "Nothing is waiting: the running turn has already taken your message up.",
     notRunning: "No turn is running here any more, so there is nothing to interrupt.",
+    notInterrupted: "The running turn could not be interrupted, so your message still waits for its next step.",
   },
   queue: {
     behindRunning: "Queued behind the turn still running.",
