@@ -10,7 +10,7 @@ import {
   isCompactionStart,
   isInit,
   parentToolUseId,
-  replayed,
+  takenUp,
   type ClaudeEvent,
 } from "../claude/events.ts";
 import { AgentBoard, agentsTitle } from "./agentBoard.ts";
@@ -553,7 +553,7 @@ export class TurnFlow {
       return;
     }
 
-    const taken = replayed(event);
+    const taken = takenUp(event);
     if (taken) {
       await this.takeUp(sessionId, taken);
       return;

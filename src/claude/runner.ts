@@ -198,12 +198,12 @@ async function consumeStream(
       }
 
       if (message.type === "result") {
-        outcome.text = ("result" in message ? String(message.result ?? "") : "") || outcome.text;
+        if ("result" in message && message.result) outcome.text = String(message.result);
         outcome.usage = message.usage as unknown as TokenUsage;
         outcome.sessionCostUsd = message.total_cost_usd;
         // An interrupted turn ends as an error, but a message still waiting makes it the start of the next, not a failure.
         if (message.is_error && !held.awaitsUntaken) {
-          return { ...outcome, ok: false, error: resultError(message.subtype, outcome.text) };
+          return { ...outcome, ok: false, error: resultError(message.subtype, "errors" in message ? message.errors : []) };
         }
       }
     }
@@ -301,7 +301,9 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
   return { stop, stopTasks, handOver, interrupt, done };
 }
 
-function resultError(subtype: string, text: string): ClaudeError {
+// What a failed result says went wrong is its own errors, never the answer an earlier turn in the same process left behind.
+export function resultError(subtype: string, errors: string[]): ClaudeError {
+  const text = errors.join("\n");
   return detectClaudeError(text) ?? { kind: "ended", subtype, text };
 }
 

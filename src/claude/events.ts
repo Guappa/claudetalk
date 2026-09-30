@@ -44,6 +44,7 @@ export type ClaudeEvent =
   | { type: "assistant"; message: { content: ContentBlock[] }; parent_tool_use_id?: string | null }
   | { type: "user"; message: { content: ContentBlock[] }; parent_tool_use_id?: string | null; uuid?: string; isReplay?: boolean }
   | { type: "rate_limit_event"; rate_limit_info: unknown }
+  | { type: "command_lifecycle"; command_uuid: string; state: string }
   | { type: "result"; subtype: string; is_error: boolean; total_cost_usd: number; result?: string; usage: TokenUsage };
 
 export function isInit(event: ClaudeEvent): event is InitEvent {
@@ -157,8 +158,9 @@ export function agentEvent(event: ClaudeEvent): AgentEvent | null {
   return null;
 }
 
-// With replay on, the session echoes each message from its input at the moment it takes it up.
-export function replayed(event: ClaudeEvent): string | null {
+// The session says when it starts on a message from its input. Replay's echo says so too, but only once the model has spoken, and an older Claude Code sends nothing else.
+export function takenUp(event: ClaudeEvent): string | null {
+  if (event.type === "command_lifecycle") return event.state === "started" ? event.command_uuid : null;
   return event.type === "user" && event.isReplay === true && typeof event.uuid === "string" ? event.uuid : null;
 }
 

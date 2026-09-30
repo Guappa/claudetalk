@@ -35,7 +35,7 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
         stopTasks: async (taskIds: string[]) => void asked.push(`stopTasks ${taskIds.join(",")}`),
         handOver: (text: string) => {
           asked.push(`handOver ${text}`);
-          taken.set(request.prompt, (uuid) => onEvent({ type: "user", message: { content: [] }, uuid, isReplay: true }));
+          taken.set(request.prompt, (uuid) => onEvent({ type: "command_lifecycle", command_uuid: uuid, state: "started" }));
           return `uuid-${text}`;
         },
         interrupt: async () => {
@@ -240,6 +240,24 @@ describe("TurnFlow", () => {
     expect(states).toEqual(["queued", "running", "done"]);
     expect(closed).toEqual(["Taken up by the running turn."]);
     expect(await flow.sendNow("s13")).toBe("not-running");
+  });
+
+  // A session with nothing in hand starts on a message at once, long before its first words; Send now then cut the answer to that very message.
+  it("does not interrupt a message the session has already started on", async () => {
+    const flow = makeFlow();
+    const running = flow.run("s17", cwd, "idle with a watcher", {}, recordingSink(), { resume: true });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const closed: string[] = [];
+    const sink = { ...quietSink(), ask: async () => ({ close: async (outcome: string) => void closed.push(outcome) }) };
+    await flow.run("s17", cwd, "one more thing", {}, sink, { resume: true, foldable: true });
+    taken.get("idle with a watcher")?.("uuid-one more thing");
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    expect(closed).toEqual(["Taken up by the running turn."]);
+    expect(await flow.sendNow("s17")).toBe("nothing-waiting");
+    expect(asked).not.toContain("interrupt idle with a watcher");
+    await running;
   });
 
   it("queues as before what is not a plain message, or what arrives with no turn to join", async () => {
