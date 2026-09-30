@@ -41,7 +41,7 @@ export async function runConversationTurn(bridge: Bridge, conversation: Conversa
     // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
     beforeTurn: async () => {
       const drift = await pendingDrift(conversation, await bridge.sessions.find(conversation.sessionId));
-      if (drift.length > 0) await turn.sink.notice(describeDrift(bridge.language.say, drift));
+      if (drift.exchanges.length > 0) await turn.sink.notice(describeDrift(bridge.language.say, drift));
     },
     afterTurn: () => markCaughtUp(bridge, conversation),
   });

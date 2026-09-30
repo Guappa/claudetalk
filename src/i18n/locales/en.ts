@@ -226,6 +226,8 @@ export const en = {
     latest_one: "{{count}} message from outside Discord. Where you left off, with all of them in the file:",
     latest_other: "{{count}} messages from outside Discord. Where you left off, with all of them in the file:",
     leftOff: "Where you left off:",
+    countedRecent:
+      "That counts only the most recent: the bridge reads back the last {{megabytes}} MB of a transcript, and more happened before that than it holds.",
   },
   ask: {
     withContext_one: "Asking with the last {{count}} message as context.",

@@ -35,12 +35,25 @@ function textOf(content: unknown): string | null {
   return text || null;
 }
 
+export interface ExchangesRead {
+  exchanges: Exchange[];
+  // False when the part of the transcript that was read begins after the moment asked for, so older exchanges than these exist unread.
+  reachesBack: boolean;
+}
+
 export async function readExchanges(transcriptPath: string, since?: Date): Promise<Exchange[]> {
+  return (await readExchangesSince(transcriptPath, since)).exchanges;
+}
+
+// Only the end of a transcript is ever read, so how far back that end goes is part of the answer.
+export async function readExchangesSince(transcriptPath: string, since?: Date): Promise<ExchangesRead> {
   const tail = await readTail(transcriptPath, TAIL_BYTES);
-  if (tail === null) return [];
+  if (tail === null) return { exchanges: [], reachesBack: true };
 
   const exchanges: Exchange[] = [];
-  for (const record of jsonLines(tail)) {
+  let oldest: Date | null = null;
+  for (const record of jsonLines(tail.text)) {
+    if (typeof record.timestamp === "string") oldest ??= new Date(record.timestamp);
     if (record.type !== "user" && record.type !== "assistant") continue;
     if (INJECTED_FLAGS.some((flag) => record[flag])) continue;
     if (typeof record.timestamp !== "string") continue;
@@ -53,7 +66,8 @@ export async function readExchanges(transcriptPath: string, since?: Date): Promi
     if (since && at <= since) continue;
     exchanges.push({ at, role: record.type, text });
   }
-  return exchanges;
+  const reachesBack = tail.fromStart || (since !== undefined && oldest !== null && oldest <= since);
+  return { exchanges, reachesBack };
 }
 
 export async function lastExchanges(transcriptPath: string, count: number): Promise<Exchange[]> {
@@ -67,7 +81,7 @@ export async function lastCompactionCeiling(transcriptPath: string): Promise<num
   if (tail === null) return null;
 
   let ceiling: number | null = null;
-  for (const record of jsonLines(tail)) {
+  for (const record of jsonLines(tail.text)) {
     const metadata = record.compactMetadata as { trigger?: string; preTokens?: number } | undefined;
     // Only an automatic compaction marks where the session fills up; a manual one marks where someone asked.
     if (metadata?.trigger !== "auto") continue;

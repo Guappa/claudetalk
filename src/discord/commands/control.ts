@@ -70,5 +70,6 @@ export async function handleTakeover(bridge: Bridge, interaction: ChatInputComma
   }
 
   const output = await stopBackgroundSession(check.shortId);
+  bridge.sessions.forgetLive();
   await respond(interaction, `${say("takeover.stopped", { shortId: check.shortId })} ${output}`.trim());
 }

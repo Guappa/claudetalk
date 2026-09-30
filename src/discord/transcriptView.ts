@@ -1,5 +1,6 @@
 import type { Say } from "../i18n/index.ts";
-import type { Exchange } from "../sessions/exchanges.ts";
+import type { Exchange, ExchangesRead } from "../sessions/exchanges.ts";
+import { TAIL_BYTES } from "../sessions/transcriptTail.ts";
 import { truncate, utcDateAndTime } from "../text.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 import { dateAndTime, howLongAgo } from "./timestamps.ts";
@@ -36,8 +37,14 @@ export function latestThatFit(say: Say, exchanges: Exchange[], budget: number): 
   return recent;
 }
 
+// Said beside any count of what happened outside Discord that could not be read all the way back, so the count is never taken for the whole.
+export function describeUnread(say: Say, read: ExchangesRead): string {
+  return read.reachesBack ? "" : say("sync.countedRecent", { megabytes: TAIL_BYTES / 1024 / 1024 });
+}
+
 // Only ever asked about drift that exists, so there is always a last exchange to give the time of.
-export function describeDrift(say: Say, exchanges: Exchange[]): string {
-  const last = exchanges.at(-1)!.at;
-  return say("sync.drift", { count: exchanges.length, ago: howLongAgo(last), when: dateAndTime(last) });
+export function describeDrift(say: Say, drift: ExchangesRead): string {
+  const last = drift.exchanges.at(-1)!.at;
+  const notice = say("sync.drift", { count: drift.exchanges.length, ago: howLongAgo(last), when: dateAndTime(last) });
+  return [notice, describeUnread(say, drift)].filter(Boolean).join(" ");
 }

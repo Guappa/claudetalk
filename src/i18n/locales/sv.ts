@@ -228,6 +228,8 @@ export const sv: Catalog = {
     latest_one: "{{count}} meddelande från utanför Discord. Här slutade du, med alla i filen:",
     latest_other: "{{count}} meddelanden från utanför Discord. Här slutade du, med alla i filen:",
     leftOff: "Här slutade du:",
+    countedRecent:
+      "Det räknar bara de senaste: bryggan läser tillbaka de sista {{megabytes}} MB av ett transkript, och mer hände före det än vad som ryms där.",
   },
   ask: {
     withContext_one: "Frågar med det senaste meddelandet som kontext.",
