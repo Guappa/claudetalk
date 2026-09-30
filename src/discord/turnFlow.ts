@@ -36,7 +36,7 @@ import { StatusMessage } from "./statusMessage.ts";
 import { splitForDiscord } from "./outgoing.ts";
 import { displayPath } from "../displayPath.ts";
 import { setTimeout as wait } from "node:timers/promises";
-import { errorMessage } from "../text.ts";
+import { errorMessage, shownError } from "../text.ts";
 import { outboxRelative } from "../outboxFolder.ts";
 import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeFull, describeQueued } from "./turnQueue.ts";
@@ -92,6 +92,7 @@ interface Folded {
   taken: boolean;
   // Set when the turn ended with the message still waiting, so a notice that arrives after that is closed at once.
   missed: boolean;
+  settled: PromiseWithResolvers<void>;
 }
 
 // What one turn carries from its set-up into its run: where it is, what it was asked, and what it shows through.
@@ -404,7 +405,12 @@ export class TurnFlow {
       await sink.notice(say("turn.draining"));
       return false;
     }
-    if (options.foldable && (await this.fold(sessionId, prompt, sink, options))) return true;
+    // A message that joined a turn is done when that turn is: what it brought along is held until then.
+    const joined = options.foldable ? await this.fold(sessionId, prompt, sink, options) : null;
+    if (joined) {
+      await joined.settled.promise;
+      return joined.taken;
+    }
 
     const admission = this.queue.admit(sessionId);
     if (admission.kind === "full") {
@@ -446,7 +452,7 @@ export class TurnFlow {
       return await options.beforeTurn?.();
     } catch (error) {
       console.error(`the check before a turn in ${sessionId} failed`, error);
-      return say("turn.checkFailed", { error: errorMessage(error) });
+      return say("turn.checkFailed", { error: shownError(error) });
     }
   }
 
@@ -455,36 +461,49 @@ export class TurnFlow {
     await options.onState?.("stopped");
   }
 
-  // False when no turn is running or it is past taking a message, and the message then waits its turn as before.
-  private async fold(sessionId: string, prompt: string, sink: MessageSink, options: TurnOptions): Promise<boolean> {
+  // What a turn says about a message that joined it is said in the turn's language, as the rest of the turn is.
+  private sayFor(sessionId: string): Say {
+    return this.spoken.get(sessionId) ?? this.say();
+  }
+
+  // Null when no turn is running or it is past taking a message, and the message then waits its turn as before.
+  private async fold(sessionId: string, prompt: string, sink: MessageSink, options: TurnOptions): Promise<Folded | null> {
     const turn = this.running.get(sessionId);
-    if (!turn || this.stopping.has(sessionId) || this.finishing.has(sessionId)) return false;
+    if (!turn || this.stopping.has(sessionId) || this.finishing.has(sessionId)) return null;
     // A branch's first turn runs in this conversation's lane and talks to another session; a message handed to it would land in the branch.
-    if (this.branching.has(sessionId)) return false;
+    if (this.branching.has(sessionId)) return null;
     const uuid = turn.handOver(prompt);
-    if (!uuid) return false;
+    if (!uuid) return null;
     this.approvals.revoke(sessionId);
 
-    const entry: Folded = { onState: options.onState, notice: null, taken: false, missed: false };
+    const entry: Folded = {
+      onState: options.onState,
+      notice: null,
+      taken: false,
+      missed: false,
+      settled: Promise.withResolvers<void>(),
+    };
     const waiting = this.folded.get(sessionId) ?? new Map<string, Folded>();
     waiting.set(uuid, entry);
     this.folded.set(sessionId, waiting);
     await options.onState?.("queued");
-    const say = this.spoken.get(sessionId) ?? this.say();
+    const say = this.sayFor(sessionId);
     const hurry = [{ id: sendNowActionId(sessionId), label: say("fold.sendNow") }];
     entry.notice = (await sink.ask?.(say("fold.handedOver"), hurry)) ?? null;
     // It can be taken up, or the turn can end, while the notice is still on its way.
     if (entry.taken) await entry.notice?.close(say("fold.takenUp"));
     else if (entry.missed) await entry.notice?.close(say("fold.neverTaken"));
-    return true;
+    return entry;
   }
 
   private async takeUp(sessionId: string, uuid: string): Promise<void> {
     const entry = this.folded.get(sessionId)?.get(uuid);
     if (!entry || entry.taken) return;
+    // A notice that is still on its way is closed by fold() once it lands; closing it here as well would close it twice.
+    const notice = entry.notice;
     entry.taken = true;
     await entry.onState?.("running");
-    await entry.notice?.close((this.spoken.get(sessionId) ?? this.say())("fold.takenUp"));
+    await notice?.close(this.sayFor(sessionId)("fold.takenUp"));
   }
 
   // A message that joined a turn ends the way the turn did; one never taken up says so, since nothing answered it.
@@ -493,8 +512,9 @@ export class TurnFlow {
     this.folded.delete(sessionId);
     for (const entry of entries) {
       entry.missed = !entry.taken;
-      if (entry.missed) await entry.notice?.close((this.spoken.get(sessionId) ?? this.say())("fold.neverTaken"));
+      if (entry.missed) await entry.notice?.close(this.sayFor(sessionId)("fold.neverTaken"));
       await entry.onState?.(entry.taken ? state : "stopped");
+      entry.settled.resolve();
     }
   }
 
@@ -582,9 +602,9 @@ export class TurnFlow {
       await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
-      this.spoken.delete(sessionId);
       this.branching.delete(sessionId);
       await this.settleFolded(sessionId, "stopped");
+      this.spoken.delete(sessionId);
       this.boards.delete(sessionId);
       this.stopping.delete(sessionId);
       this.finishing.delete(sessionId);

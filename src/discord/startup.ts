@@ -19,17 +19,21 @@ async function registerCommands(bridge: Bridge, client: Client<true>): Promise<b
   }
 }
 
+// Only Discord saying the channel does not exist counts: a fetch that failed for any other reason says nothing about it.
+function isGone(client: Client<true>, channelId: string): Promise<boolean> {
+  return client.channels.fetch(channelId).then(
+    (channel) => channel === null,
+    (error: unknown) => (error as { code?: unknown }).code === RESTJSONErrorCodes.UnknownChannel,
+  );
+}
+
 // A channel deleted while the bridge was not running left its binding behind, and its conversation would read as open in a channel nobody can reach.
 async function forgetDeletedChannels(bridge: Bridge, client: Client<true>): Promise<void> {
-  for (const conversation of bridge.store.all()) {
-    const channelId = conversation.channels.text;
-    // Only Discord saying the channel does not exist counts: a fetch that failed for any other reason says nothing about it.
-    const gone = await client.channels.fetch(channelId).then(
-      (channel) => channel === null,
-      (error: unknown) => (error as { code?: unknown }).code === RESTJSONErrorCodes.UnknownChannel,
-    );
-    if (!gone) continue;
-    await bridge.store.unbind(channelId);
+  const conversations = bridge.store.all();
+  const gone = await Promise.all(conversations.map((conversation) => isGone(client, conversation.channels.text)));
+  for (const [index, conversation] of conversations.entries()) {
+    if (!gone[index]) continue;
+    await bridge.store.unbind(conversation.channels.text);
     console.log(`Unbound ${conversation.sessionId}: its channel was deleted while the bridge was not running.`);
   }
 }

@@ -285,7 +285,7 @@ export const en = {
   create: {
     topic: 'Claude Code conversation "{{name}}" in {{cwd}}',
     channelFailed:
-      "Could not create the channel: {{error}}. The bot needs Manage Channels and Manage Roles in this server; Manage Roles is what lets it make the channel private to you.",
+      "Could not create the channel: {{error}}. The bot needs Manage Channels, Manage Roles and Manage Messages in this server; Manage Roles is what lets it make the channel private to you.",
     ownersOnlyHere:
       "Only an owner can create conversations here. Set WORKSPACES_ROOT to give other operators somewhere of their own to work.",
     folderFailed:

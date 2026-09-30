@@ -139,6 +139,21 @@ describe("TurnFlow", () => {
     expect(states).toEqual(["stopped"]);
   });
 
+  // A notice over Discord's limit is refused whole, and a check that fails with a long error would then fail in silence.
+  it("says why the check failed at a length a notice can carry", async () => {
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s45", cwd, "checked at length", {}, sink, {
+      resume: true,
+      beforeTurn: async () => {
+        throw new Error(`ENOENT: ${"very ".repeat(1000)}long`);
+      },
+    });
+    const notice = sink.written.find((text) => text.includes("the check before the turn failed"));
+    expect(notice).toBeDefined();
+    expect(notice!.length).toBeLessThanOrEqual(2000);
+  });
+
   it("runs the after hook even when the turn throws", async () => {
     const flow = makeFlow();
     const order: string[] = [];
@@ -321,13 +336,12 @@ describe("TurnFlow", () => {
         return { close: async (outcome: string) => void closed.push(outcome) };
       },
     };
-    const folded = await flow.run("s13", cwd, "and this too", {}, sink, {
+    const folded = flow.run("s13", cwd, "and this too", {}, sink, {
       resume: true,
       foldable: true,
       onState: async (state) => void states.push(state),
     });
-    expect(folded).toBe(true);
-    expect(asked).toContain("handOver and this too");
+    await vi.waitFor(() => expect(asked).toContain("handOver and this too"));
     expect(started).not.toContain("and this too");
     expect(asks[0]).toContain("Handed to the running turn");
     expect(asks[0]).toContain("[Send now]");
@@ -339,9 +353,25 @@ describe("TurnFlow", () => {
     taken.get("long job")?.("uuid-and this too");
     letEnd();
     await running;
+    // Done only once the turn it joined is, so what the message brought along is held that long.
+    expect(await folded).toBe(true);
     expect(states).toEqual(["queued", "running", "done"]);
     expect(closed).toEqual(["Taken up by the running turn."]);
     expect(await flow.sendNow("s13")).toBe("not-running");
+  });
+
+  it("says a message the turn ended without taking up did not run", async () => {
+    const flow = makeFlow();
+    const letEnd = keepRunning("busy elsewhere");
+    const running = flow.run("s43", cwd, "busy elsewhere", {}, quietSink(), { resume: true });
+    await vi.waitFor(() => expect(started).toContain("busy elsewhere"));
+
+    const sink = { ...quietSink(), ask: async () => ({ close: async () => undefined }) };
+    const folded = flow.run("s43", cwd, "never read", {}, sink, { resume: true, foldable: true });
+    await vi.waitFor(() => expect(asked).toContain("handOver never read"));
+    letEnd();
+    await running;
+    expect(await folded).toBe(false);
   });
 
   // The approval was given for the turn as it stood, and the message added to it may be from somebody who is not an owner.
@@ -374,12 +404,14 @@ describe("TurnFlow", () => {
     expect(asks).toBe(1);
 
     const handed = { ...quietSink(), ask: async () => ({ close: async () => undefined }) };
-    await flow.run("s40", cwd, "and one from somebody else", {}, handed, { resume: true, foldable: true });
+    const joined = flow.run("s40", cwd, "and one from somebody else", {}, handed, { resume: true, foldable: true });
+    await vi.waitFor(() => expect(asked).toContain("handOver and one from somebody else"));
     const afterwards = approvals.ask(english, "s40", press, [owner], "Bash", { command: "rm -r build" });
     await vi.waitFor(() => expect(asks).toBe(2));
 
     letEnd();
     await running;
+    await joined;
     expect((await afterwards).allow).toBe(false);
   });
 
@@ -408,7 +440,8 @@ describe("TurnFlow", () => {
 
     const closed: string[] = [];
     const sink = { ...quietSink(), ask: async () => ({ close: async (outcome: string) => void closed.push(outcome) }) };
-    await flow.run("s17", cwd, "one more thing", {}, sink, { resume: true, foldable: true });
+    const joined = flow.run("s17", cwd, "one more thing", {}, sink, { resume: true, foldable: true });
+    await vi.waitFor(() => expect(asked).toContain("handOver one more thing"));
     taken.get("idle with a watcher")?.("uuid-one more thing");
     await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -417,6 +450,7 @@ describe("TurnFlow", () => {
     expect(asked).not.toContain("interrupt idle with a watcher");
     letEnd();
     await running;
+    await joined;
   });
 
   it("queues as before what is not a plain message, or what arrives with no turn to join", async () => {
@@ -454,6 +488,27 @@ describe("TurnFlow", () => {
     const second = recordingSink();
     await flow.run("s16", cwd, "after the pick", {}, second, { resume: true });
     expect(second.messages[0]).toContain("**Arbetade**");
+  });
+
+  it("closes what joined a turn in the turn's language, even when the turn itself blows up", async () => {
+    const blown = Promise.reject(new Error("the process went away"));
+    blown.catch(() => undefined);
+    endings.set("doomed in English", blown);
+    const spoken: { language: Language } = { language: "en" };
+    const flow = makeFlow(() => sayIn(spoken.language));
+    const letEnd = keepRunning("doomed in English");
+    const running = flow.run("s44", cwd, "doomed in English", {}, quietSink(), { resume: true }).catch(() => undefined);
+    await vi.waitFor(() => expect(started).toContain("doomed in English"));
+    spoken.language = "sv";
+
+    const closed: string[] = [];
+    const sink = { ...quietSink(), ask: async () => ({ close: async (outcome: string) => void closed.push(outcome) }) };
+    const joined = flow.run("s44", cwd, "joins late", {}, sink, { resume: true, foldable: true });
+    await vi.waitFor(() => expect(asked).toContain("handOver joins late"));
+    letEnd();
+    await running;
+    await joined;
+    expect(closed).toEqual(["The turn ended before this was taken up. Send it again."]);
   });
 
   // A progress message purged mid-turn cannot take the final edit, and the answer, the reaction and the outbox must not go down with it.
@@ -789,11 +844,13 @@ describe("TurnFlow", () => {
       const running = flow.run("s25", cwd, "deaf to it", {}, quietSink(), { resume: true });
       await new Promise((resolve) => setTimeout(resolve, 5));
       const sink = { ...quietSink(), ask: async () => ({ close: async () => undefined }) };
-      await flow.run("s25", cwd, "hurry this", {}, sink, { resume: true, foldable: true });
+      const joined = flow.run("s25", cwd, "hurry this", {}, sink, { resume: true, foldable: true });
+      await vi.waitFor(() => expect(asked).toContain("handOver hurry this"));
 
       expect(await flow.sendNow("s25")).toBe("not-interrupted");
       letEnd();
       await running;
+      await joined;
     });
 
     it("closes a Send now notice that arrives after the turn it was for has ended", async () => {

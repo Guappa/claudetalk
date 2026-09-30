@@ -49,7 +49,7 @@ import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild } from "../src/discord/gate.ts";
 import { chunkForDiscord } from "../src/discord/renderer.ts";
-import { choicesForDiscord, forDiscord, optionForDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
+import { choicesForDiscord, fitForDiscord, forDiscord, optionForDiscord, splitForDiscord } from "../src/discord/outgoing.ts";
 import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
@@ -806,6 +806,21 @@ describe("splitForDiscord", () => {
   it("leaves a text that needs no escaping cut at the full limit", () => {
     const plain = Array.from({ length: 300 }, () => "plain words only").join("\n");
     expect(splitForDiscord(plain)).toEqual(chunkForDiscord(plain));
+  });
+});
+
+describe("fitForDiscord", () => {
+  it("fits the start of a text made of nothing but markers, with the mark that says it was cut", () => {
+    const first = fitForDiscord("_".repeat(5000), 1000);
+    expect(first.endsWith("…")).toBe(true);
+    expect(forDiscord(first).length).toBeLessThanOrEqual(1000);
+  });
+
+  it("leaves a text that fits whole uncut, and keeps one cut within the room with its mark", () => {
+    expect(fitForDiscord("x".repeat(990), 1000)).toBe("x".repeat(990));
+    const cut = fitForDiscord(Array.from({ length: 200 }, () => "plain words").join("\n"), 1000);
+    expect(cut.endsWith("\n…")).toBe(true);
+    expect(cut.length).toBeLessThanOrEqual(1000);
   });
 });
 
@@ -4101,6 +4116,13 @@ describe("the session index", () => {
     ]);
     const found = await new SessionIndex(async () => [], root).find("s1");
     expect(found?.transcriptPath).toBe(path.join(root, "-srv-app", "s1.jsonl"));
+  });
+
+  // The id names a file under each project folder, and one from a button's custom id is not the bridge's to trust.
+  it("looks for an id that is not a plain file name nowhere", async () => {
+    const root = await indexed([{ folder: "-srv-app", minute: 1 }]);
+    await fs.copyFile(path.join(root, "-srv-app", "s1.jsonl"), path.join(root, "s1.jsonl"));
+    expect(await new SessionIndex(async () => [], root).find("../s1")).toBeNull();
   });
 });
 

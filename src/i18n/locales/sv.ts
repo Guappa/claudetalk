@@ -287,7 +287,7 @@ export const sv: Catalog = {
   create: {
     topic: 'Claude Code-konversationen "{{name}}" i {{cwd}}',
     channelFailed:
-      "Kunde inte skapa kanalen: {{error}}. Boten behöver behörigheterna Hantera kanaler (Manage Channels) och Hantera roller (Manage Roles) på den här servern; Hantera roller är det som låter den göra kanalen privat för dig.",
+      "Kunde inte skapa kanalen: {{error}}. Boten behöver behörigheterna Hantera kanaler (Manage Channels), Hantera roller (Manage Roles) och Hantera meddelanden (Manage Messages) på den här servern; Hantera roller är det som låter den göra kanalen privat för dig.",
     ownersOnlyHere:
       "Bara en ägare kan skapa konversationer här. Sätt WORKSPACES_ROOT för att ge andra operatörer en egen plats att arbeta på.",
     folderFailed:
