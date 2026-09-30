@@ -3,6 +3,15 @@ import { orderedWriter, readStore } from "./jsonFile.ts";
 
 export type ChannelRole = "text" | "voice";
 
+// A stretch of what happened outside Discord: everything after one moment, up to and including another.
+export interface UnseenStretch {
+  after: string | null;
+  through: string;
+}
+
+// Ten is more turns than anyone lets pass between two looks at /sync, and keeps a record nobody reads from growing without end.
+const MAX_UNSEEN_STRETCHES = 10;
+
 export interface Conversation {
   sessionId: string;
   cwd: string;
@@ -18,6 +27,8 @@ export interface Conversation {
   // Set while Claude Code holds no session under this id yet, so the first turn that finds none starts it instead of resuming it.
   unstarted?: boolean;
   syncedThrough?: string;
+  // What a turn announced as having happened outside Discord and nobody has been shown. The turn marks itself seen when it ends, and would take these with it.
+  unseen?: UnseenStretch[];
 }
 
 export interface NewConversation {
@@ -143,6 +154,22 @@ export class ConversationStore {
     const conversation = this.data.conversations[sessionId];
     if (!conversation) return;
     conversation.syncedThrough = through;
+    await this.flush();
+  }
+
+  async noteUnseen(sessionId: string, stretch: UnseenStretch): Promise<void> {
+    const conversation = this.data.conversations[sessionId];
+    if (!conversation) return;
+    conversation.unseen = [...(conversation.unseen ?? []), stretch].slice(-MAX_UNSEEN_STRETCHES);
+    await this.flush();
+  }
+
+  // Everything up to that moment has been put in front of somebody, the stretches still owed included.
+  async markShown(sessionId: string, through: string): Promise<void> {
+    const conversation = this.data.conversations[sessionId];
+    if (!conversation) return;
+    conversation.unseen = undefined;
+    if (!conversation.syncedThrough || conversation.syncedThrough < through) conversation.syncedThrough = through;
     await this.flush();
   }
 

@@ -239,6 +239,8 @@ export class TurnFlow {
   private readonly settingUp = new Set<string>();
   // Turns whose process has ended and whose answer is still being posted: there is nothing left in them to stop.
   private readonly finishing = new Set<string>();
+  // Conversations whose running turn is a branch's first: asked of this session, answered in another.
+  private readonly branching = new Set<string>();
   private readonly boards = new Map<string, AgentBoard>();
   private readonly folded = new Map<string, Map<string, Folded>>();
   private readonly queue = new TurnQueue();
@@ -396,7 +398,7 @@ export class TurnFlow {
 
     const admission = this.queue.admit(sessionId);
     if (admission.kind === "full") {
-      await sink.notice(describeFull(say));
+      await sink.notice(describeFull(say)).catch(reportUnposted(sessionId));
       return false;
     }
     // The place in the lane is taken before anything is awaited, so whatever arrives or is dropped meanwhile counts this message too.
@@ -437,6 +439,8 @@ export class TurnFlow {
   private async fold(sessionId: string, prompt: string, sink: MessageSink, options: TurnOptions): Promise<boolean> {
     const turn = this.running.get(sessionId);
     if (!turn || this.stopping.has(sessionId) || this.finishing.has(sessionId)) return false;
+    // A branch's first turn runs in this conversation's lane and talks to another session; a message handed to it would land in the branch.
+    if (this.branching.has(sessionId)) return false;
     const uuid = turn.handOver(prompt);
     if (!uuid) return false;
     this.approvals.revoke(sessionId);
@@ -558,6 +562,7 @@ export class TurnFlow {
       await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
+      this.branching.delete(sessionId);
       await this.settleFolded(sessionId, "stopped");
       this.boards.delete(sessionId);
       this.stopping.delete(sessionId);
@@ -597,6 +602,7 @@ export class TurnFlow {
       },
     );
     this.running.set(sessionId, turn);
+    if (options.fork) this.branching.add(sessionId);
     this.settingUp.delete(sessionId);
 
     const result = await turn.done;
@@ -629,7 +635,9 @@ export class TurnFlow {
 
     if (result.contextUsage) {
       const warning = tracker.observe(result.contextUsage);
-      if (warning) await sink.notice(say(`context.${warning.level}`, { percent: warning.percent }));
+      if (warning) {
+        await sink.notice(say(`context.${warning.level}`, { percent: warning.percent })).catch(reportUnposted(sessionId));
+      }
     }
   }
 

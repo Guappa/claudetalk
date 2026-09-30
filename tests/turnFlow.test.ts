@@ -364,6 +364,22 @@ describe("TurnFlow", () => {
     expect((await afterwards).allow).toBe(false);
   });
 
+  // A branch's first turn runs in the source conversation's lane, as a process that writes to the branch.
+  it("queues a message behind a branch's first turn instead of handing it to the branch", async () => {
+    const flow = makeFlow();
+    const letEnd = keepRunning("hello to the branch");
+    const branching = flow.run("s41", cwd, "hello to the branch", {}, quietSink(), { resume: true, fork: true });
+    await vi.waitFor(() => expect(started).toContain("hello to the branch"));
+
+    const typed = flow.run("s41", cwd, "carry on with the old one", {}, quietSink(), { resume: true, foldable: true });
+    await vi.waitFor(() => expect(flow.queueDepth("s41")).toBe(2));
+    expect(asked).not.toContain("handOver carry on with the old one");
+
+    letEnd();
+    expect(await Promise.all([branching, typed])).toEqual([true, true]);
+    expect(started).toContain("carry on with the old one");
+  });
+
   // A session with nothing in hand starts on a message at once, long before its first words, and Send now would then cut the answer to that very message.
   it("does not interrupt a message the session has already started on", async () => {
     const flow = makeFlow();

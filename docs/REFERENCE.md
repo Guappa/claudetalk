@@ -563,6 +563,10 @@ says so on demand. Five is the ceiling; past that it refuses and points at
 `/stop`, rather than letting a mistyped burst pile up turns you no longer want.
 A turn that fails does not block what is queued behind it, and a queued message
 checks for drift only once the turn ahead has ended and been marked seen.
+
+A turn that finds the conversation moved on outside Discord says so and runs.
+What it announced stays owed: `/sync` still shows it after that turn, and any
+turn since, until it has been shown once.
 **Stop** ends the turn and with it any message that joined it.
 
 ### Branching it
@@ -573,7 +577,11 @@ conversation: it appears in `/sessions`, resumes from the CLI, and carries the
 model and effort of the one it came from. Claude Code mints its session id.
 If the branch's first turn cannot start, because the conversation is open in a
 terminal, held by a background agent, or the bridge is shutting down, nothing
-is branched and the channel made for it is removed again.
+is branched and the channel made for it is removed again. While that first
+turn runs, a message typed in this channel waits for it and then runs here; it
+is not handed to the branch. What this conversation missed outside Discord is
+still announced here, not in the branch, and the branch does not count the
+history it was born with as missed.
 
 ## Compaction and context
 

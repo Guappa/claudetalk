@@ -1,7 +1,7 @@
 import { AttachmentBuilder, type ChatInputCommandInteraction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import { requireConversation } from "../binding.ts";
-import { markCaughtUp, pendingDrift } from "../sync.ts";
+import { pendingDrift } from "../sync.ts";
 import { describeUnread, formatExchanges, latestThatFit } from "../transcriptView.ts";
 import { DISCORD_MESSAGE_LIMIT } from "../renderer.ts";
 import { respond } from "../respond.ts";
@@ -46,5 +46,6 @@ export async function handleSync(bridge: Bridge, interaction: ChatInputCommandIn
     await respond(interaction, { content: `${counted("sync.latest")}\n\n${view}`, files: [file] });
   }
 
-  await markCaughtUp(bridge, conversation);
+  // Marked through what was shown, not through the transcript's end as it is by now: a terminal may have written to it since it was read.
+  await bridge.store.markShown(conversation.sessionId, drift.at(-1)!.at.toISOString());
 }

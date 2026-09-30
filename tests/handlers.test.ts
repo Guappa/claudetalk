@@ -314,6 +314,56 @@ describe("/sync", () => {
   const said = (minute: number, text: string): string =>
     entry({ type: "user", timestamp: `2026-09-13T10:${String(minute).padStart(2, "0")}:00.000Z`, message: { content: text } });
 
+  const terminal = async (lines: string[]): Promise<{ folder: string; transcriptPath: string }> => {
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "sync-owed-"));
+    const transcriptPath = path.join(folder, "session.jsonl");
+    await fs.writeFile(transcriptPath, lines.join(""));
+    return { folder, transcriptPath };
+  };
+
+  // The turn that announces what was missed marks the conversation seen when it ends, and the notice says to run /sync.
+  it("still shows what a turn announced as missed, after that turn has run", async () => {
+    const { folder, transcriptPath } = await terminal([said(5, "typed in the terminal"), said(6, "and one more")]);
+    const bridge = await testBridge([record({ sessionId: SESSION, cwd: folder, transcriptPath, lastActivity: new Date() })]);
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: folder, channelId: "y2", ownerId: OWNER });
+    await bridge.store.markSynced(SESSION, "2026-09-13T10:00:00.000Z");
+    const place = fakeChannel("y2");
+
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "back at the desk" }).message);
+    expect(asked.map((turn) => turn.prompt.includes("back at the desk"))).toEqual([true]);
+    expect(bridge.store.byChannel("y2")?.syncedThrough).toBe("2026-09-13T10:06:00.000Z");
+
+    const command = fakeCommand(place, OWNER);
+    await handleSync(bridge, command.interaction);
+    expect(command.replies.at(-1)).toContain("typed in the terminal");
+    expect(command.replies.at(-1)).toContain("and one more");
+
+    const again = fakeCommand(place, OWNER);
+    await handleSync(bridge, again.interaction);
+    expect(again.replies.at(-1)).not.toContain("typed in the terminal");
+  });
+
+  // A terminal can write to the transcript between the moment it is read and the moment the reply is posted.
+  it("marks as seen what it showed, not whatever the transcript holds by the time it has answered", async () => {
+    const { folder, transcriptPath } = await terminal([said(5, "typed in the terminal")]);
+    const bridge = await testBridge([record({ sessionId: SESSION, cwd: folder, transcriptPath, lastActivity: new Date() })]);
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: folder, channelId: "y3", ownerId: OWNER });
+    await bridge.store.markSynced(SESSION, "2026-09-13T10:00:00.000Z");
+    const find = bridge.sessions.find.bind(bridge.sessions);
+    let looked = 0;
+    bridge.sessions.find = async (sessionId) => {
+      looked += 1;
+      if (looked === 2) await fs.appendFile(transcriptPath, said(11, "written meanwhile"));
+      return await find(sessionId);
+    };
+    const command = fakeCommand(fakeChannel("y3"), OWNER);
+    await handleSync(bridge, command.interaction);
+    await fs.appendFile(transcriptPath, said(12, "and after"));
+
+    expect(command.replies.at(-1)).toContain("typed in the terminal");
+    expect(bridge.store.byChannel("y3")?.syncedThrough).toBe("2026-09-13T10:05:00.000Z");
+  });
+
   // The header grows when the count is only partial, and what is shown beneath it has to give way.
   it("fits in one message when it also has to say the count is only the most recent", async () => {
     const folder = await fs.mkdtemp(path.join(os.tmpdir(), "sync-long-"));
@@ -495,6 +545,25 @@ describe("/fork", () => {
     expect(bridge.store.byChannel(server.made[0]!.channel.id)?.sessionId).toBe(`fork-of-${SESSION}`);
     expect(bridge.store.byChannel("f1")?.sessionId).toBe(SESSION);
     expect(command.replies.at(-1)).toContain("Branched **ledger notes**");
+  });
+
+  // The branch's first turn is asked of the source conversation, and what that one missed is for its own channel to hear of.
+  it("leaves what the source conversation missed for the source's own channel", async () => {
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "fork-drift-"));
+    const transcriptPath = path.join(folder, "session.jsonl");
+    const typed = { type: "user", timestamp: "2026-09-13T10:05:00.000Z", message: { content: "typed in the terminal" } };
+    await fs.writeFile(transcriptPath, `${JSON.stringify(typed)}\n`);
+    const bridge = await testBridge([
+      record({ sessionId: SESSION, name: "ledger notes", cwd: folder, transcriptPath, lastActivity: new Date() }),
+    ]);
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: folder, channelId: "f3", ownerId: OWNER });
+    await bridge.store.markSynced(SESSION, "2026-09-13T10:00:00.000Z");
+    const server = fakeGuild();
+    await handleFork(bridge, fakeCommand(fakeChannel("f3"), OWNER, {}, server.guild).interaction);
+
+    expect(server.made[0]!.posted.join("\n")).not.toContain("outside Discord");
+    expect(bridge.store.bySession(SESSION)?.syncedThrough).toBe("2026-09-13T10:00:00.000Z");
+    expect(bridge.store.bySession(SESSION)?.unseen).toBeUndefined();
   });
 
   it("says nothing was branched, and removes the channel, when the conversation was taken while the channel was made", async () => {
