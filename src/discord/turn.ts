@@ -20,11 +20,7 @@ export interface ConversationTurn {
 }
 
 // The only door into spending a turn, so none can skip the preflight or the catch-up that follows.
-export async function runConversationTurn(
-  bridge: Bridge,
-  conversation: Conversation,
-  turn: ConversationTurn,
-): Promise<boolean> {
+export async function runConversationTurn(bridge: Bridge, conversation: Conversation, turn: ConversationTurn): Promise<boolean> {
   const record = await bridge.sessions.find(conversation.sessionId);
 
   const check = bridge.flow.available(conversation.sessionId, record);
@@ -35,26 +31,19 @@ export async function runConversationTurn(
 
   if (record) await bridge.flow.ensureCeiling(conversation.sessionId, record.transcriptPath);
 
-  return await bridge.flow.run(
-    conversation.sessionId,
-    conversation.cwd,
-    turn.prompt,
-    conversation.settings,
-    turn.sink,
-    {
-      resume: turn.resume,
-      name: turn.name,
-      fork: turn.fork,
-      onSessionId: turn.onSessionId,
-      onState: turn.onState,
-      asked: turn.asked,
-      foldable: turn.foldable,
-      // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
-      beforeTurn: async () => {
-        const drift = await pendingDrift(conversation, await bridge.sessions.find(conversation.sessionId));
-        if (drift.length > 0) await turn.sink.notice(describeDrift(bridge.language.say, drift));
-      },
-      afterTurn: () => markCaughtUp(bridge, conversation),
+  return await bridge.flow.run(conversation.sessionId, conversation.cwd, turn.prompt, conversation.settings, turn.sink, {
+    resume: turn.resume,
+    name: turn.name,
+    fork: turn.fork,
+    onSessionId: turn.onSessionId,
+    onState: turn.onState,
+    asked: turn.asked,
+    foldable: turn.foldable,
+    // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
+    beforeTurn: async () => {
+      const drift = await pendingDrift(conversation, await bridge.sessions.find(conversation.sessionId));
+      if (drift.length > 0) await turn.sink.notice(describeDrift(bridge.language.say, drift));
     },
-  );
+    afterTurn: () => markCaughtUp(bridge, conversation),
+  });
 }

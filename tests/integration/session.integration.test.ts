@@ -12,10 +12,7 @@ const settings = { model: "haiku" };
 let cwd: string;
 
 async function turn(prompt: string, resume: boolean, name?: string) {
-  const { done } = runTurn(
-    { sessionId, cwd, prompt, settings, resume, name },
-    () => {},
-  );
+  const { done } = runTurn({ sessionId, cwd, prompt, settings, resume, name }, () => {});
   return await done;
 }
 

@@ -22,15 +22,13 @@ const lock = await acquireInstanceLock(lockPath);
 console.log(`Owners: ${config.ownerIds.join(", ")}.`);
 
 const bridge = await createBridge(config);
-console.log(`Language: ${bridge.language.current()} (${bridge.language.wasPicked() ? "picked with /language" : "host default"}).`);
+console.log(
+  `Language: ${bridge.language.current()} (${bridge.language.wasPicked() ? "picked with /language" : "host default"}).`,
+);
 await sweepAttachments();
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   // Nothing here reads a cached message: /purge and /ask fetch, and a reply is fetched by id.
   makeCache: Options.cacheWithLimits({
     ...Options.DefaultMakeCacheSettings,
@@ -78,10 +76,7 @@ client.once(Events.ClientReady, async (ready) => {
   await ready.application.commands.set(bridgeCommandDefinitions(), config.guildId);
   await markInterrupted(ready, await bridge.activeTurns.takeLeftovers(), bridge.language.say);
   watchOutboxes(bridge, ready);
-  console.log(
-    `Ready as ${ready.user.tag} on v${bridgeVersion()}. ` +
-      `Commands registered to guild ${config.guildId}.`,
-  );
+  console.log(`Ready as ${ready.user.tag} on v${bridgeVersion()}. ` + `Commands registered to guild ${config.guildId}.`);
 });
 
 client.on(Events.MessageCreate, (message) => {

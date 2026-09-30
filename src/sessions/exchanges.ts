@@ -6,7 +6,8 @@ const CEILING_TAIL_BYTES = 16 * 1024 * 1024;
 const INJECTED_FLAGS = ["isMeta", "isSynthetic", "isCompactSummary", "isSidechain", "isReplay"];
 
 // Slash commands, shell escapes and hook output are stored as user messages wrapped in these.
-const PLUMBING = /^\s*<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat|task-notification|system-reminder|bash-input|bash-stdout|bash-stderr|user-prompt-submit-hook)>/;
+const PLUMBING =
+  /^\s*<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat|task-notification|system-reminder|bash-input|bash-stdout|bash-stderr|user-prompt-submit-hook)>/;
 
 export interface Exchange {
   at: Date;

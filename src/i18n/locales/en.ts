@@ -34,8 +34,7 @@ export const en = {
   command: {
     noHandler:
       "`/{{command}}` is registered with Discord but this bridge has no handler for it. Restart the bridge to re-register its commands.",
-    failed:
-      "`/{{command}}` failed: {{error}}. Try it again; if it keeps failing, the bridge log on the host has the details.",
+    failed: "`/{{command}}` failed: {{error}}. Try it again; if it keeps failing, the bridge log on the host has the details.",
   },
   binding: {
     unbound: "This channel isn't bound to a conversation yet.",
@@ -293,8 +292,7 @@ export const en = {
   resume: {
     ambiguous: '"{{name}}" is ambiguous. Did you mean: {{candidates}}?',
     notFound: 'No conversation named "{{name}}". Use `/sessions` to see what exists.',
-    noFolder:
-      'Found "{{name}}" but could not read its working directory from the transcript, so it cannot be resumed.',
+    noFolder: 'Found "{{name}}" but could not read its working directory from the transcript, so it cannot be resumed.',
     opened: "Opened {{channel}} for **{{name}}** in `{{cwd}}`.",
     openedPastOlder_one:
       "Opened {{channel}} for **{{name}}** in `{{cwd}}` ({{count}} older conversation with the same name was skipped).",
@@ -382,8 +380,7 @@ export const en = {
     effort: "Effort",
   },
   usage: {
-    notReported:
-      "Plan usage: not reported yet. Claude Code sends it with each turn, so it appears after the first one.",
+    notReported: "Plan usage: not reported yet. Claude Code sends it with each turn, so it appears after the first one.",
     plan: "Plan usage: {{windows}} (as of {{when}})",
     window: "{{label}} {{percent}}% used, resets {{when}}",
     fiveHour: "5-hour window",

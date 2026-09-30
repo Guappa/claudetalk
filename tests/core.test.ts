@@ -33,19 +33,21 @@ import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
 import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
-import { agentEvent, commandsChanged, parentToolUseId, takenUp, type ClaudeEvent, type SessionCommand } from "../src/claude/events.ts";
+import {
+  agentEvent,
+  commandsChanged,
+  parentToolUseId,
+  takenUp,
+  type ClaudeEvent,
+  type SessionCommand,
+} from "../src/claude/events.ts";
 import { commandChoices, describeRun, refusal } from "../src/discord/commands/run.ts";
 import { CapabilityCache } from "../src/claude/capabilities.ts";
 import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { isFromGuild, isMessageInScope } from "../src/discord/gate.ts";
 import { chunkForDiscord, DISCORD_MESSAGE_LIMIT } from "../src/discord/renderer.ts";
-import {
-  StatusMessage,
-  formatElapsed,
-  renderActivity,
-  tickIntervalMs,
-} from "../src/discord/statusMessage.ts";
+import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
 import { describeStop, preflight } from "../src/discord/turnFlow.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
 import { classifyPrompt, describeNotRun } from "../src/discord/commands/settings.ts";
@@ -63,7 +65,14 @@ import { displayName } from "../src/sessions/displayName.ts";
 import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
 import { acquireInstanceLock, isLockHeld, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
-import { collectReferences, linkPlain, linkReferences, referenceLinks, remoteWebUrl, resolveReferences } from "../src/discord/repoLinks.ts";
+import {
+  collectReferences,
+  linkPlain,
+  linkReferences,
+  referenceLinks,
+  remoteWebUrl,
+  resolveReferences,
+} from "../src/discord/repoLinks.ts";
 import { execFileSync } from "node:child_process";
 import { convertTables } from "../src/discord/tables.ts";
 import { describeToolUse } from "../src/discord/toolTrail.ts";
@@ -102,11 +111,7 @@ import { describeDefault, parseHostDefaults } from "../src/claude/hostSettings.t
 import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/purge.ts";
 import { displayPath, homePatterns, redactHome, redactPaths } from "../src/displayPath.ts";
 import { shortPrefix } from "../src/platform.ts";
-import {
-  EMBED_DESCRIPTION_LIMIT,
-  EMBED_FIELD_LIMIT,
-  detail,
-} from "../src/discord/embeds.ts";
+import { EMBED_DESCRIPTION_LIMIT, EMBED_FIELD_LIMIT, detail } from "../src/discord/embeds.ts";
 import {
   CHANNELS_PER_CATEGORY,
   MAX_CATEGORY_NAME,
@@ -114,19 +119,9 @@ import {
   findCategory,
   normaliseCategoryName,
 } from "../src/discord/category.ts";
-import {
-  requestStop,
-  stopRequestPath,
-  takeStopRequest,
-  watchForStop,
-} from "../src/stopSignal.ts";
+import { requestStop, stopRequestPath, takeStopRequest, watchForStop } from "../src/stopSignal.ts";
 import { forkName } from "../src/discord/commands/fork.ts";
-import {
-  addressesBot,
-  addressesSomeoneElse,
-  shouldQuoteReplied,
-  type Addressing,
-} from "../src/discord/addressing.ts";
+import { addressesBot, addressesSomeoneElse, shouldQuoteReplied, type Addressing } from "../src/discord/addressing.ts";
 import {
   ATTACHMENT_TTL_MS,
   MAX_ATTACHMENT_BYTES,
@@ -151,13 +146,7 @@ import {
 } from "../src/discord/outbox.ts";
 import { readExchanges, lastExchanges, lastCompactionCeiling } from "../src/sessions/exchanges.ts";
 import { formatExchanges, describeDrift, latestThatFit } from "../src/discord/transcriptView.ts";
-import {
-  attributionOnly,
-  buildContext,
-  composePrompt,
-  noContext,
-  stripBotMention,
-} from "../src/discord/context.ts";
+import { attributionOnly, buildContext, composePrompt, noContext, stripBotMention } from "../src/discord/context.ts";
 import { bridgeCommandDefinitions } from "../src/discord/commands/registry.ts";
 import { workingDirFor } from "../src/discord/policy.ts";
 import { tierFor, canRunCommand, workspaceFor } from "../src/access.ts";
@@ -313,7 +302,6 @@ describe("parseAgentsJson", () => {
     expect(parseAgentsJson("requires an interactive terminal")).toEqual([]);
   });
 });
-
 
 describe("resolveByName", () => {
   const records = [
@@ -503,7 +491,6 @@ describe("chunkForDiscord", () => {
 });
 
 describe("StatusMessage", () => {
-
   it("shows the turn as working before anything has happened", async () => {
     const sink = recordingSink();
     const status = new StatusMessage(say, sink, () => 0);
@@ -566,7 +553,12 @@ describe("StatusMessage", () => {
   // The terminal scrolls; a trail that no longer fits carries on below instead of eliding what came first.
   it("continues in a new message once the trail would not fit, keeping every remark in order", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(say, sink, () => 0, () => [{ id: "stop", label: "Stop" }]);
+    const status = new StatusMessage(
+      say,
+      sink,
+      () => 0,
+      () => [{ id: "stop", label: "Stop" }],
+    );
     await status.start();
     const remarks = Array.from({ length: 12 }, (_, index) => `Remark ${index + 1}: ${"x".repeat(240)}`);
     for (const remark of remarks) status.note(remark);
@@ -629,7 +621,14 @@ describe("StatusMessage", () => {
   it("finalizes a sealed segment and the settled trail, and nothing in between", async () => {
     const sink = recordingSink();
     const finalize = vi.fn(async (text: string) => text.replace("e2ea070", "[e2ea070](<url>)"));
-    const status = new StatusMessage(say, sink, () => 0, () => [], undefined, finalize);
+    const status = new StatusMessage(
+      say,
+      sink,
+      () => 0,
+      () => [],
+      undefined,
+      finalize,
+    );
     await status.start();
     status.note("Landed e2ea070.");
     sink.othersBelow = true;
@@ -644,7 +643,13 @@ describe("StatusMessage", () => {
   it("tells the turn each time the trail moves, so the interruption record can follow", async () => {
     const sink = recordingSink();
     const moved = vi.fn(async () => undefined);
-    const status = new StatusMessage(say, sink, () => 0, () => [], moved);
+    const status = new StatusMessage(
+      say,
+      sink,
+      () => 0,
+      () => [],
+      moved,
+    );
     await status.start();
     status.note("First.");
     sink.othersBelow = true;
@@ -753,8 +758,10 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
   it("turns every spelling of the running account's home into ~", () => {
     const flattened = "C--Users-Pat-Doe-Documents-projects-ledger";
     const cases: Array<[string, string]> = [
-      [`tail -40 "${slashed(shortHome)}/AppData/Local/Temp/claude/${flattened}/abc/tasks/x.output"`,
-        `tail -40 "~/AppData/Local/Temp/claude/~-Documents-projects-ledger/abc/tasks/x.output"`],
+      [
+        `tail -40 "${slashed(shortHome)}/AppData/Local/Temp/claude/${flattened}/abc/tasks/x.output"`,
+        `tail -40 "~/AppData/Local/Temp/claude/~-Documents-projects-ledger/abc/tasks/x.output"`,
+      ],
       [`~/.claude/projects/${flattened}/memory/notes.md`, "~/.claude/projects/~-Documents-projects-ledger/memory/notes.md"],
       [`open file:///${slashed(home).replaceAll(" ", "%20")}/notes.md`, "open file:///~/notes.md"],
       [`cd ${home}\\ledger`, "cd ~\\ledger"],
@@ -951,9 +958,7 @@ describe("embeds", () => {
 
 describe("displayName", () => {
   it("uses the conversation's own title when it has one", () => {
-    expect(displayName(record({ sessionId: "s", name: "Deploy Scripts", cwd: "/p/thing" }))).toBe(
-      "Deploy Scripts",
-    );
+    expect(displayName(record({ sessionId: "s", name: "Deploy Scripts", cwd: "/p/thing" }))).toBe("Deploy Scripts");
   });
 
   it("names an untitled conversation after the folder it works in", () => {
@@ -1128,7 +1133,11 @@ describe("attachment screening", () => {
 
   it("keeps source and scripts, which are the point of a coding bridge", () => {
     const { allowed, refused } = screenAttachments([
-      file("server.ts"), file("deploy.sh"), file("notes.md"), file("shot.png"), file("build.ps1"),
+      file("server.ts"),
+      file("deploy.sh"),
+      file("notes.md"),
+      file("shot.png"),
+      file("build.ps1"),
     ]);
     expect(allowed.map((attachment) => attachment.name)).toEqual(["server.ts", "deploy.sh", "notes.md", "shot.png", "build.ps1"]);
     expect(refused).toEqual([]);
@@ -1160,18 +1169,32 @@ describe("ApprovalPrompts", () => {
 
   it("allows the tool once an owner approves", async () => {
     const prompts = new ApprovalPrompts();
-    const decision = prompts.ask(say, "turn-1", askingSink((actions) => {
-      prompts.decide(say, actionId(actions, "approve"), OWNER, "approve");
-    }), [OWNER], "Bash", { command: "ls" });
+    const decision = prompts.ask(
+      say,
+      "turn-1",
+      askingSink((actions) => {
+        prompts.decide(say, actionId(actions, "approve"), OWNER, "approve");
+      }),
+      [OWNER],
+      "Bash",
+      { command: "ls" },
+    );
 
     expect(await decision).toEqual({ allow: true });
   });
 
   it("denies, and says so where the model can read it", async () => {
     const prompts = new ApprovalPrompts();
-    const decision = await prompts.ask(say, "turn-1", askingSink((actions) => {
-      prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
-    }), [OWNER], "Bash", { command: "rm -rf /" });
+    const decision = await prompts.ask(
+      say,
+      "turn-1",
+      askingSink((actions) => {
+        prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
+      }),
+      [OWNER],
+      "Bash",
+      { command: "rm -rf /" },
+    );
 
     expect(decision.allow).toBe(false);
     expect(decision.allow === false && decision.reason).toContain("Denied");
@@ -1181,10 +1204,17 @@ describe("ApprovalPrompts", () => {
   it("refuses a decision from anyone but an owner", async () => {
     const prompts = new ApprovalPrompts();
     let refusal = "";
-    const decision = prompts.ask(say, "turn-1", askingSink((actions) => {
-      refusal = prompts.decide(say, actionId(actions, "approve"), "someone-else", "approve");
-      prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
-    }), [OWNER], "Bash", { command: "ls" });
+    const decision = prompts.ask(
+      say,
+      "turn-1",
+      askingSink((actions) => {
+        refusal = prompts.decide(say, actionId(actions, "approve"), "someone-else", "approve");
+        prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
+      }),
+      [OWNER],
+      "Bash",
+      { command: "ls" },
+    );
 
     await decision;
     expect(refusal).toContain("Only an owner");
@@ -1231,7 +1261,6 @@ describe("ApprovalPrompts", () => {
   });
 });
 
-
 describe("QuestionPrompts", () => {
   const library: Question = {
     question: "Which library should we use for dates?",
@@ -1257,13 +1286,18 @@ describe("QuestionPrompts", () => {
   it("turns picks into an answer per question, keyed by the question text", async () => {
     const prompts = new QuestionPrompts();
     let shown: MenuAsk | undefined;
-    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
-      shown = ask;
-      const askId = askIdOf(ask);
-      prompts.pick(say, askId, 0, ["1"]);
-      prompts.pick(say, askId, 1, ["0", "1"]);
-      expect(prompts.submit(say, askId)).toBeUndefined();
-    }), [library, features]);
+    const outcome = await prompts.ask(
+      say,
+      "turn-1",
+      menuAskingSink((ask) => {
+        shown = ask;
+        const askId = askIdOf(ask);
+        prompts.pick(say, askId, 0, ["1"]);
+        prompts.pick(say, askId, 1, ["0", "1"]);
+        expect(prompts.submit(say, askId)).toBeUndefined();
+      }),
+      [library, features],
+    );
 
     expect(outcome).toEqual({
       answered: true,
@@ -1274,12 +1308,17 @@ describe("QuestionPrompts", () => {
 
   it("takes an answer in the asker's own words alongside the picks", async () => {
     const prompts = new QuestionPrompts();
-    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
-      const askId = askIdOf(ask);
-      prompts.pick(say, askId, 0, ["0", OTHER_VALUE]);
-      prompts.answerFreeText(say, askId, 0, "  Retries with jitter ");
-      prompts.submit(say, askId);
-    }), [features]);
+    const outcome = await prompts.ask(
+      say,
+      "turn-1",
+      menuAskingSink((ask) => {
+        const askId = askIdOf(ask);
+        prompts.pick(say, askId, 0, ["0", OTHER_VALUE]);
+        prompts.answerFreeText(say, askId, 0, "  Retries with jitter ");
+        prompts.submit(say, askId);
+      }),
+      [features],
+    );
 
     expect(outcome.answered && outcome.answers[features.question]).toBe("Caching, Retries with jitter");
   });
@@ -1287,13 +1326,18 @@ describe("QuestionPrompts", () => {
   it("refuses to send while a question has nothing picked", async () => {
     const prompts = new QuestionPrompts();
     let complaint: string | undefined;
-    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
-      const askId = askIdOf(ask);
-      prompts.pick(say, askId, 0, ["0"]);
-      complaint = prompts.submit(say, askId);
-      prompts.pick(say, askId, 1, ["2"]);
-      prompts.submit(say, askId);
-    }), [library, features]);
+    const outcome = await prompts.ask(
+      say,
+      "turn-1",
+      menuAskingSink((ask) => {
+        const askId = askIdOf(ask);
+        prompts.pick(say, askId, 0, ["0"]);
+        complaint = prompts.submit(say, askId);
+        prompts.pick(say, askId, 1, ["2"]);
+        prompts.submit(say, askId);
+      }),
+      [library, features],
+    );
 
     expect(complaint).toContain("Question 2");
     expect(outcome.answered).toBe(true);
@@ -1302,10 +1346,15 @@ describe("QuestionPrompts", () => {
   it("lets the model continue without answers when skipped, and says so", async () => {
     const prompts = new QuestionPrompts();
     let shown: MenuAsk | undefined;
-    const outcome = await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
-      shown = ask;
-      prompts.skip(say, actionId(ask.actions, "question:skip"));
-    }), [library]);
+    const outcome = await prompts.ask(
+      say,
+      "turn-1",
+      menuAskingSink((ask) => {
+        shown = ask;
+        prompts.skip(say, actionId(ask.actions, "question:skip"));
+      }),
+      [library],
+    );
 
     expect(outcome.answered).toBe(false);
     expect(outcome.answered === false && outcome.reason).toContain("skipped");
@@ -1314,17 +1363,27 @@ describe("QuestionPrompts", () => {
 
   it("settles what a turn asked when that turn ends", async () => {
     const prompts = new QuestionPrompts();
-    const outcome = prompts.ask(say, "turn-1", menuAskingSink(() => prompts.finish("turn-1")), [library]);
+    const outcome = prompts.ask(
+      say,
+      "turn-1",
+      menuAskingSink(() => prompts.finish("turn-1")),
+      [library],
+    );
     expect(await outcome).toEqual({ answered: false, reason: expect.stringContaining("turn ended") });
   });
 
   it("tells a late press that the questions are gone", async () => {
     const prompts = new QuestionPrompts();
     let askId = "";
-    await prompts.ask(say, "turn-1", menuAskingSink((ask) => {
-      askId = askIdOf(ask);
-      prompts.skip(say, askId);
-    }), [library]);
+    await prompts.ask(
+      say,
+      "turn-1",
+      menuAskingSink((ask) => {
+        askId = askIdOf(ask);
+        prompts.skip(say, askId);
+      }),
+      [library],
+    );
 
     expect(prompts.submit(say, askId)).toContain("already answered");
     expect(prompts.pick(say, askId, 0, ["0"])).toContain("already answered");
@@ -1765,27 +1824,79 @@ describe("stray markup never reaches past its own text", () => {
 // The shapes below are the ones real turns produced: two agents beside a background command, and one agent sent back to work.
 describe("agents in a turn", () => {
   const started = (taskId: string, toolUseId: string, description: string, agentType = "general-purpose"): ClaudeEvent =>
-    ({ type: "system", subtype: "task_started", task_id: taskId, tool_use_id: toolUseId, description, subagent_type: agentType, task_type: "local_agent" }) as ClaudeEvent;
+    ({
+      type: "system",
+      subtype: "task_started",
+      task_id: taskId,
+      tool_use_id: toolUseId,
+      description,
+      subagent_type: agentType,
+      task_type: "local_agent",
+    }) as ClaudeEvent;
   const progressed = (taskId: string, description: string, toolUses: number, totalTokens = 33_100): ClaudeEvent =>
-    ({ type: "system", subtype: "task_progress", task_id: taskId, description, usage: { total_tokens: totalTokens, tool_uses: toolUses, duration_ms: 1800 } }) as ClaudeEvent;
+    ({
+      type: "system",
+      subtype: "task_progress",
+      task_id: taskId,
+      description,
+      usage: { total_tokens: totalTokens, tool_uses: toolUses, duration_ms: 1800 },
+    }) as ClaudeEvent;
   const notified = (taskId: string, status: string, toolUses = 2): ClaudeEvent =>
-    ({ type: "system", subtype: "task_notification", task_id: taskId, status, summary: "Nothing wrong.", usage: { total_tokens: 38_100, tool_uses: toolUses, duration_ms: 4200 } }) as ClaudeEvent;
+    ({
+      type: "system",
+      subtype: "task_notification",
+      task_id: taskId,
+      status,
+      summary: "Nothing wrong.",
+      usage: { total_tokens: 38_100, tool_uses: toolUses, duration_ms: 4200 },
+    }) as ClaudeEvent;
 
   it("reads an agent's start, progress and end off the stream, and leaves a background command out", () => {
     expect(agentEvent(started("t1", "use1", "Audit the access checks", "Explore"))).toEqual({
-      kind: "started", taskId: "t1", toolUseId: "use1", description: "Audit the access checks", agentType: "Explore", remote: false,
+      kind: "started",
+      taskId: "t1",
+      toolUseId: "use1",
+      description: "Audit the access checks",
+      agentType: "Explore",
+      remote: false,
     });
-    const cloud = { type: "system", subtype: "task_started", task_id: "t8", description: "ultrareview: feat/ledger", task_type: "remote_agent" } as ClaudeEvent;
+    const cloud = {
+      type: "system",
+      subtype: "task_started",
+      task_id: "t8",
+      description: "ultrareview: feat/ledger",
+      task_type: "remote_agent",
+    } as ClaudeEvent;
     expect(agentEvent(cloud)).toEqual({
-      kind: "started", taskId: "t8", toolUseId: null, description: "ultrareview: feat/ledger", agentType: "cloud", remote: true,
+      kind: "started",
+      taskId: "t8",
+      toolUseId: null,
+      description: "ultrareview: feat/ledger",
+      agentType: "cloud",
+      remote: true,
     });
     expect(agentEvent(progressed("t1", "Reading access.ts", 3))).toEqual({
-      kind: "progress", taskId: "t1", activity: "Reading access.ts", toolUses: 3, tokens: 33_100,
+      kind: "progress",
+      taskId: "t1",
+      activity: "Reading access.ts",
+      toolUses: 3,
+      tokens: 33_100,
     });
     expect(agentEvent(notified("t1", "completed"))).toEqual({
-      kind: "ended", taskId: "t1", outcome: "completed", toolUses: 2, tokens: 38_100, durationMs: 4200,
+      kind: "ended",
+      taskId: "t1",
+      outcome: "completed",
+      toolUses: 2,
+      tokens: 38_100,
+      durationMs: 4200,
     });
-    const shell = { type: "system", subtype: "task_started", task_id: "t9", description: "sleep", task_type: "local_bash" } as ClaudeEvent;
+    const shell = {
+      type: "system",
+      subtype: "task_started",
+      task_id: "t9",
+      description: "sleep",
+      task_type: "local_bash",
+    } as ClaudeEvent;
     expect(agentEvent(shell)).toBeNull();
     expect(parentToolUseId({ type: "assistant", message: { content: [] }, parent_tool_use_id: "use1" })).toBe("use1");
     expect(parentToolUseId({ type: "assistant", message: { content: [] } })).toBeNull();
@@ -1873,7 +1984,12 @@ describe("agents in a turn", () => {
   it("puts an agent that is sent back to work under the entry it already has, adding to what it had done", async () => {
     const sink = recordingSink();
     const agents = board(sink);
-    feed(agents, started("t1", "use1", "Create, wait, delete"), progressed("t1", "Writing two.txt", 3), notified("t1", "completed", 3));
+    feed(
+      agents,
+      started("t1", "use1", "Create, wait, delete"),
+      progressed("t1", "Writing two.txt", 3),
+      notified("t1", "completed", 3),
+    );
     await agents.flush();
     expect(sink.details[0]).toContain("done in 4s · 3 tools");
 
@@ -1892,7 +2008,13 @@ describe("agents in a turn", () => {
   it("knows what a stop would reach, and which of it runs in the cloud", () => {
     const agents = board(quietSink());
     expect(agents.stopLabel()).toBeNull();
-    const cloud = { type: "system", subtype: "task_started", task_id: "t8", description: "ultrareview: feat/ledger", task_type: "remote_agent" } as ClaudeEvent;
+    const cloud = {
+      type: "system",
+      subtype: "task_started",
+      task_id: "t8",
+      description: "ultrareview: feat/ledger",
+      task_type: "remote_agent",
+    } as ClaudeEvent;
     feed(agents, cloud);
     expect(agents.stopLabel()).toBe("Stop cloud task");
     feed(agents, started("t1", "use1", "Audit"), started("t2", "use2", "Write"));
@@ -1914,15 +2036,32 @@ describe("agents in a turn", () => {
   it("treats an agent that left a command running as waiting, and reaches that command when stopping", async () => {
     const sink = recordingSink();
     const stopped: string[] = [];
-    const agents = new AgentBoard(say, sink, "Agents: tidy the ledger", () => 0, 0, (taskId) => void stopped.push(taskId));
-    const shell = { type: "system", subtype: "task_started", task_id: "b1", tool_use_id: "call1", description: "sleep", task_type: "local_bash", owned_by_subagent: true } as ClaudeEvent;
+    const agents = new AgentBoard(
+      say,
+      sink,
+      "Agents: tidy the ledger",
+      () => 0,
+      0,
+      (taskId) => void stopped.push(taskId),
+    );
+    const shell = {
+      type: "system",
+      subtype: "task_started",
+      task_id: "b1",
+      tool_use_id: "call1",
+      description: "sleep",
+      task_type: "local_bash",
+      owned_by_subagent: true,
+    } as ClaudeEvent;
     expect(agentEvent(shell)).toEqual({ kind: "background", taskId: "b1", toolUseId: "call1" });
 
     feed(agents, started("t1", "use1", "Build and wait"));
     agents.noteCall("use1", "call1");
     feed(agents, shell, notified("t1", "completed", 3));
     await agents.flush();
-    expect(sink.details[0]).toBe("**1 · general-purpose** · Build and wait\nwaiting on a background command · 3 tools · 38.1k tokens");
+    expect(sink.details[0]).toBe(
+      "**1 · general-purpose** · Build and wait\nwaiting on a background command · 3 tools · 38.1k tokens",
+    );
     expect(agents.stopLabel()).toBe("Stop agents");
     expect(agents.running()).toEqual(["b1"]);
 
@@ -1960,7 +2099,15 @@ describe("agents in a turn", () => {
 
   it("carries the tally under the trail's heading while it runs and when it is done", async () => {
     const sink = recordingSink();
-    const status = new StatusMessage(say, sink, () => 0, () => [], undefined, undefined, () => "**Agents** · 1 done");
+    const status = new StatusMessage(
+      say,
+      sink,
+      () => 0,
+      () => [],
+      undefined,
+      undefined,
+      () => "**Agents** · 1 done",
+    );
     await status.start();
     expect(sink.messages[0]).toBe("⏳ **Working** 0s\n\n**Agents** · 1 done");
     status.note("Looking at it.");
@@ -1971,7 +2118,12 @@ describe("agents in a turn", () => {
 
 describe("/run finds a conversation's commands", () => {
   const command = (name: string, description = "", extra: Partial<SessionCommand> = {}): SessionCommand => ({
-    name, description, argumentHint: "", aliases: [], builtin: false, ...extra,
+    name,
+    description,
+    argumentHint: "",
+    aliases: [],
+    builtin: false,
+    ...extra,
   });
   const known = [
     command("compact", "Free up context", { builtin: true, argumentHint: "<instructions>" }),
@@ -1984,17 +2136,25 @@ describe("/run finds a conversation's commands", () => {
   const runnable = (name: string) => classifyPrompt(`/${name}`, ["doctor"]).kind === "passthrough";
 
   it("reads the list the session sends, tidying what a label cannot hold", () => {
-    const event = { type: "system", subtype: "commands_changed", commands: [
-      { name: "ledger:audit", description: "Audit\n  the books", argumentHint: " [year] ", aliases: ["books"] },
-      { name: "compact", description: "Free up context", argumentHint: "", builtin: true },
-      { description: "no name" },
-    ] } as unknown as ClaudeEvent;
+    const event = {
+      type: "system",
+      subtype: "commands_changed",
+      commands: [
+        { name: "ledger:audit", description: "Audit\n  the books", argumentHint: " [year] ", aliases: ["books"] },
+        { name: "compact", description: "Free up context", argumentHint: "", builtin: true },
+        { description: "no name" },
+      ],
+    } as unknown as ClaudeEvent;
     expect(commandsChanged(event)).toEqual([
       { name: "ledger:audit", description: "Audit the books", argumentHint: "[year]", aliases: ["books"], builtin: false },
       { name: "compact", description: "Free up context", argumentHint: "", aliases: [], builtin: true },
     ]);
     expect(commandsChanged({ type: "system", subtype: "status", status: null })).toBeNull();
-    const long = { type: "system", subtype: "commands_changed", commands: [{ name: "wordy", description: "y".repeat(400) }] } as unknown as ClaudeEvent;
+    const long = {
+      type: "system",
+      subtype: "commands_changed",
+      commands: [{ name: "wordy", description: "y".repeat(400) }],
+    } as unknown as ClaudeEvent;
     expect(commandsChanged(long)![0]!.description).toBe(`${"y".repeat(280)}...`);
   });
 
@@ -2183,7 +2343,14 @@ describe("chunkForDiscord with a smaller limit", () => {
 describe("convertTables", () => {
   // Discord has no table markup, so a two-column table reads best as a list with the key in bold.
   it("turns a two-column table into a list, keeping inline formatting", () => {
-    const table = ["Deployed:", "", "| Surface | Check |", "|---|---|", "| api | new wording served |", "| wiki | every chunk `application/javascript` |"].join("\n");
+    const table = [
+      "Deployed:",
+      "",
+      "| Surface | Check |",
+      "|---|---|",
+      "| api | new wording served |",
+      "| wiki | every chunk `application/javascript` |",
+    ].join("\n");
     expect(convertTables(table)).toBe(
       ["Deployed:", "", "- **api**: new wording served", "- **wiki**: every chunk `application/javascript`"].join("\n"),
     );
@@ -2324,7 +2491,9 @@ describe("repo links", () => {
     const gitlab = referenceLinks("https://gitlab.com/team/thing", verified);
     expect(gitlab.commit("e2ea070")).toBe("https://gitlab.com/team/thing/-/commit/e2ea070");
     expect(gitlab.file("README.md", "3")).toBe(`https://gitlab.com/team/thing/-/blob/${verified.head}/README.md#L3`);
-    expect(linkReferences("Merged as !12.", gitlab)).toBe("Merged as [!12](<https://gitlab.com/team/thing/-/merge_requests/12>).");
+    expect(linkReferences("Merged as !12.", gitlab)).toBe(
+      "Merged as [!12](<https://gitlab.com/team/thing/-/merge_requests/12>).",
+    );
     expect(linkReferences("Merged as !12.", links)).toBe("Merged as !12.");
     const bitbucket = referenceLinks("https://bitbucket.org/team/thing", verified);
     expect(bitbucket.commit("e2ea070")).toBe("https://bitbucket.org/team/thing/commits/e2ea070");
@@ -2352,7 +2521,12 @@ describe("UsageLedger", () => {
     ledger.record("s1", result(0.75));
 
     expect(ledger.forSession("s1")).toMatchObject({
-      turns: 2, costUsd: 0.75, inputTokens: 200, outputTokens: 20, cachedTokens: 14, lastCostUsd: 0.25,
+      turns: 2,
+      costUsd: 0.75,
+      inputTokens: 200,
+      outputTokens: 20,
+      cachedTokens: 14,
+      lastCostUsd: 0.25,
     });
   });
 
@@ -2408,7 +2582,6 @@ describe("UsageLedger", () => {
 });
 
 describe("ContextTracker", () => {
-
   it("stays quiet well below the threshold", () => {
     expect(new ContextTracker(200_000).observe(usage(50_000))).toBeNull();
   });
@@ -2656,7 +2829,13 @@ describe("pluginSelectOptions", () => {
 
   it("caps at the Discord 25 option limit", () => {
     const many = JSON.stringify(
-      Array.from({ length: 40 }, (_, index) => ({ id: `p${index}`, version: "1", scope: "user", enabled: true, installPath: "/z" })),
+      Array.from({ length: 40 }, (_, index) => ({
+        id: `p${index}`,
+        version: "1",
+        scope: "user",
+        enabled: true,
+        installPath: "/z",
+      })),
     );
     expect(pluginSelectOptions(say, parsePluginList(many))).toHaveLength(25);
   });
@@ -2798,7 +2977,10 @@ describe("transcript view", () => {
       text: `message ${index}`,
     }));
     expect(latestThatFit(say, many, 1880).map((exchange) => exchange.text)).toEqual([
-      "message 6", "message 7", "message 8", "message 9",
+      "message 6",
+      "message 7",
+      "message 8",
+      "message 9",
     ]);
 
     const long = many.map((exchange) => ({ ...exchange, text: "y".repeat(1200) }));
@@ -2961,8 +3143,21 @@ describe("access tiers", () => {
   // Tier "none" is the only security boundary the bridge has: anyone past it runs as the host user.
   it("lets anyone below operator run nothing at all", () => {
     const everyCommand = [
-      "ask", "sync", "whoami", "members", "skills", "stop",
-      "create", "resume", "invite", "operator", "unbind", "purge", "clear", "takeover", "run",
+      "ask",
+      "sync",
+      "whoami",
+      "members",
+      "skills",
+      "stop",
+      "create",
+      "resume",
+      "invite",
+      "operator",
+      "unbind",
+      "purge",
+      "clear",
+      "takeover",
+      "run",
     ];
     for (const command of everyCommand) {
       expect(canRunCommand("none", command)).toBe(false);
@@ -3180,7 +3375,6 @@ describe("session choices", () => {
 });
 
 describe("ContextTracker ceiling", () => {
-
   it("stays silent until it knows where this session compacts", () => {
     expect(new ContextTracker().observe(usage(500_000))).toBeNull();
   });
@@ -3242,9 +3436,7 @@ describe("purge", () => {
   });
 
   it("says the conversation survives when the channel is one", () => {
-    expect(describePurge(say, { bulkDeleted: 1, slowDeleted: 0, failed: 0 }, true)).toContain(
-      "conversation itself is untouched",
-    );
+    expect(describePurge(say, { bulkDeleted: 1, slowDeleted: 0, failed: 0 }, true)).toContain("conversation itself is untouched");
   });
 
   it("says nothing about /sync in a channel that is not a conversation", () => {
@@ -3271,7 +3463,6 @@ describe("/clear is not passed through", () => {
     expect(result.kind === "ambiguous" && describeNotRun(say, result)).toContain("own `/clear` command");
     expect(result.kind === "ambiguous" && describeNotRun(say, result)).toContain("/purge");
   });
-
 });
 
 describe("attachment lifetime", () => {
@@ -3313,7 +3504,6 @@ describe("bridge system note", () => {
 });
 
 describe("turn queue", () => {
-
   it("runs the first message immediately", () => {
     expect(new TurnQueue().admit("s1").kind).toBe("run-now");
   });
@@ -3522,9 +3712,7 @@ describe("deciding a message is for the bot", () => {
   });
 
   it("joins a reply to another person once it is tagged in", () => {
-    expect(
-      addressesSomeoneElse(addressing({ mentionsBot: true, repliedAuthorId: "someone-else" })),
-    ).toBe(false);
+    expect(addressesSomeoneElse(addressing({ mentionsBot: true, repliedAuthorId: "someone-else" }))).toBe(false);
   });
 
   it("still hears someone replying to their own earlier message", () => {
@@ -3584,12 +3772,13 @@ describe("the file limit reaches the model", () => {
   });
 });
 
-
 describe("command visibility", () => {
   const defs = bridgeCommandDefinitions();
 
   it("hides operator and owner commands from ordinary members", () => {
-    const hidden = defs.filter((definition) => definition.default_member_permissions != null).map((definition) => definition.name);
+    const hidden = defs
+      .filter((definition) => definition.default_member_permissions != null)
+      .map((definition) => definition.name);
     expect(hidden).toContain("create");
     expect(hidden).toContain("invite");
     expect(hidden).toContain("purge");
@@ -3651,7 +3840,6 @@ describe("OperatorStore", () => {
 });
 
 describe("stopping drains the queue", () => {
-
   it("skips what has not started and leaves the running turn to its own stop", async () => {
     const queue = new TurnQueue();
     const order: string[] = [];
@@ -3709,7 +3897,6 @@ describe("stopping drains the queue", () => {
 });
 
 describe("a repeated status reads as one line", () => {
-
   it("does not grow the trail when the same status arrives again", async () => {
     const sink = recordingSink();
     const status = new StatusMessage(say, sink, () => 0);
@@ -3915,7 +4102,9 @@ describe("skills across several menus", () => {
   });
 
   it("tells the reader how many there are, and how to reach the ones that did not fit", () => {
-    expect(describeSkillMenus(say, 63, skillSelectMenus(say, names(63)))).toBe("63 skills available in this conversation, A to Z across 3 menus.");
+    expect(describeSkillMenus(say, 63, skillSelectMenus(say, names(63)))).toBe(
+      "63 skills available in this conversation, A to Z across 3 menus.",
+    );
     expect(describeSkillMenus(say, 130, skillSelectMenus(say, names(130)))).toContain("The last 5 did not fit; send `/name`");
     expect(describeSkillMenus(say, 1, skillSelectMenus(say, ["one"]))).toBe("1 skill available in this conversation.");
   });
@@ -3937,9 +4126,7 @@ describe("the ceiling comes only from automatic compactions", () => {
   };
 
   it("ignores a manual compaction, which marks where someone asked rather than where the session fills", async () => {
-    const file = await transcriptWith([
-      { type: "system", compactMetadata: { trigger: "manual", preTokens: 42_012 } },
-    ]);
+    const file = await transcriptWith([{ type: "system", compactMetadata: { trigger: "manual", preTokens: 42_012 } }]);
     expect(await lastCompactionCeiling(file)).toBeNull();
   });
 
@@ -3984,7 +4171,14 @@ describe("an approval belongs to the turn that asked", () => {
 
   it("still denies its own turn's pending prompt when that turn ends", async () => {
     const prompts = new ApprovalPrompts();
-    const own = prompts.ask(say, "turn-a", askingSink(() => undefined), [OWNER], "Bash", { command: "ls" });
+    const own = prompts.ask(
+      say,
+      "turn-a",
+      askingSink(() => undefined),
+      [OWNER],
+      "Bash",
+      { command: "ls" },
+    );
     await new Promise((resolve) => setTimeout(resolve, 5));
     prompts.finish("turn-a");
     expect((await own).allow).toBe(false);
@@ -4035,7 +4229,6 @@ describe("a download that fails is named, not skipped in silence", () => {
 });
 
 describe("outbox delivery", () => {
-
   it("names a file it cannot attach once, not on every sweep", async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outbox-once-"));
     await fs.mkdir(outboxPath(cwd, "s1"), { recursive: true });
@@ -4100,7 +4293,9 @@ describe("outbox delivery", () => {
   });
 
   it("tells the session which folder is its own", () => {
-    expect(bridgeSystemNote("11111111-2222-4333-8444-555555555555")).toContain(".discord-outbox/11111111-2222-4333-8444-555555555555/");
+    expect(bridgeSystemNote("11111111-2222-4333-8444-555555555555")).toContain(
+      ".discord-outbox/11111111-2222-4333-8444-555555555555/",
+    );
   });
 });
 

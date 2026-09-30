@@ -7,9 +7,7 @@ function contentBlocks(event: ClaudeEvent): ContentBlock[] {
 }
 
 export function toolUses(event: ClaudeEvent): Array<Extract<ContentBlock, { type: "tool_use" }>> {
-  return contentBlocks(event).filter(
-    (block): block is Extract<ContentBlock, { type: "tool_use" }> => block.type === "tool_use",
-  );
+  return contentBlocks(event).filter((block): block is Extract<ContentBlock, { type: "tool_use" }> => block.type === "tool_use");
 }
 
 export function assistantText(event: ClaudeEvent): string {

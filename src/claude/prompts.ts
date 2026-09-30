@@ -5,8 +5,7 @@ export function helloToNew(name: string): string {
   return `This conversation was created from Discord and is named "${name}". ${SAY_HELLO}`;
 }
 
-export const HELLO_AFTER_CLEAR =
-  `This conversation was just started over from Discord in place of an earlier one in the same folder. ${SAY_HELLO}`;
+export const HELLO_AFTER_CLEAR = `This conversation was just started over from Discord in place of an earlier one in the same folder. ${SAY_HELLO}`;
 
 export function helloToBranch(name: string): string {
   return (

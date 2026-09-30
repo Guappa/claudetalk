@@ -22,8 +22,7 @@ export const sv: Catalog = {
     daysAgo: "{{quantity}} d sedan",
   },
   language: {
-    current:
-      "Bryggans språk: **{{name}}**. Det gäller det bryggan själv säger; Claude svarar på det språk du skriver på.",
+    current: "Bryggans språk: **{{name}}**. Det gäller det bryggan själv säger; Claude svarar på det språk du skriver på.",
     changed:
       "Bryggans språk: **{{name}}**, från och med nu. Det gäller det bryggan själv säger; en omgång som redan körs behåller språket den började på. Claudes svar påverkas inte: den svarar på det språk du skriver på.",
   },
@@ -65,8 +64,7 @@ export const sv: Catalog = {
   context: {
     critical:
       "Kontexten är ungefär {{percent}} % full. Kör `/compact` snart, annars komprimeras den av sig själv mitt i en uppgift.",
-    approaching:
-      "Kontexten är ungefär {{percent}} % full. `/context` visar fördelningen, `/compact` frigör utrymme.",
+    approaching: "Kontexten är ungefär {{percent}} % full. `/context` visar fördelningen, `/compact` frigör utrymme.",
   },
   trail: {
     working: "**Arbetar** {{elapsed}}",
@@ -216,8 +214,7 @@ export const sv: Catalog = {
       "{{count}} meddelande har tillkommit i den här konversationen utanför Discord sedan du senast var här. Det kom {{ago}}, {{when}}. Kör `/sync` för att se det.",
     drift_other:
       "{{count}} meddelanden har tillkommit i den här konversationen utanför Discord sedan du senast var här. Det senaste kom {{ago}}, {{when}}. Kör `/sync` för att se dem.",
-    running:
-      "En omgång körs här just nu, och det den säger är på väg till den här kanalen. Kör `/sync` igen när den är klar.",
+    running: "En omgång körs här just nu, och det den säger är på väg till den här kanalen. Kör `/sync` igen när den är klar.",
     nothingNew: "Inget nytt: inget har hänt i den här konversationen utanför Discord sedan du senast var här.",
     all_one: "{{count}} meddelande från utanför Discord:",
     all_other: "{{count}} meddelanden från utanför Discord:",
@@ -272,7 +269,8 @@ export const sv: Catalog = {
       "Bara en ägare kan skapa konversationer här. Sätt WORKSPACES_ROOT för att ge andra operatörer en egen plats att arbeta på.",
     folderFailed:
       "Kunde inte använda `{{cwd}}` som arbetskatalog: {{error}}. Kontrollera att sökvägen ligger där bryggan får skriva, eller ange en befintlig mapp som `project`.",
-    categoryFailed: "Kunde inte använda kategorin **{{name}}**: {{error}}. Boten behöver behörigheten Hantera kanaler (Manage Channels) för att skapa en.",
+    categoryFailed:
+      "Kunde inte använda kategorin **{{name}}**: {{error}}. Boten behöver behörigheten Hantera kanaler (Manage Channels) för att skapa en.",
     done: "Skapade {{channel}} för **{{name}}** i `{{cwd}}`.",
     resumeButton: "Återuppta {{name}} ({{age}})",
     startNew: "Starta en ny",
@@ -297,8 +295,7 @@ export const sv: Catalog = {
   resume: {
     ambiguous: '"{{name}}" är tvetydigt. Menade du: {{candidates}}?',
     notFound: 'Ingen konversation heter "{{name}}". Använd `/sessions` för att se vilka som finns.',
-    noFolder:
-      'Hittade "{{name}}" men kunde inte läsa dess arbetskatalog ur transkriptet, så den kan inte återupptas.',
+    noFolder: 'Hittade "{{name}}" men kunde inte läsa dess arbetskatalog ur transkriptet, så den kan inte återupptas.',
     opened: "Öppnade {{channel}} för **{{name}}** i `{{cwd}}`.",
     openedPastOlder_one:
       "Öppnade {{channel}} för **{{name}}** i `{{cwd}}` ({{count}} äldre konversation med samma namn hoppades över).",
@@ -386,8 +383,7 @@ export const sv: Catalog = {
     effort: "Effort",
   },
   usage: {
-    notReported:
-      "Plananvändning: inte rapporterad än. Claude Code skickar den med varje omgång, så den syns efter den första.",
+    notReported: "Plananvändning: inte rapporterad än. Claude Code skickar den med varje omgång, så den syns efter den första.",
     plan: "Plananvändning: {{windows}} (senast rapporterad {{when}})",
     window: "{{label}} {{percent}} % använt, nollställs {{when}}",
     fiveHour: "5-timmarsfönster",

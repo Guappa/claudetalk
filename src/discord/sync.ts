@@ -3,10 +3,7 @@ import type { Conversation } from "../conversations.ts";
 import type { SessionRecord } from "../sessions/index.ts";
 import { readExchanges, type Exchange } from "../sessions/exchanges.ts";
 
-export async function pendingDrift(
-  conversation: Conversation,
-  record: SessionRecord | null,
-): Promise<Exchange[]> {
+export async function pendingDrift(conversation: Conversation, record: SessionRecord | null): Promise<Exchange[]> {
   if (!record) return [];
   const since = conversation.syncedThrough ? new Date(conversation.syncedThrough) : undefined;
   return await readExchanges(record.transcriptPath, since);

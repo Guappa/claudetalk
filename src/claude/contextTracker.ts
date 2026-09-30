@@ -34,12 +34,10 @@ export class ContextTracker {
   observe(usage: TokenUsage): Warning | null {
     if (!this.ceiling) return null;
 
-    const usedTokens =
-      usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens;
+    const usedTokens = usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens;
     const percent = usedTokens / this.ceiling;
 
-    const level: WarningLevel | null =
-      percent >= CRITICAL ? "critical" : percent >= APPROACHING ? "approaching" : null;
+    const level: WarningLevel | null = percent >= CRITICAL ? "critical" : percent >= APPROACHING ? "approaching" : null;
     if (!level || this.fired.has(level)) return null;
     this.fired.add(level);
 

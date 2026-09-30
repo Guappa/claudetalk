@@ -81,7 +81,11 @@ describe("the catalog", () => {
   // The typecheck holds each language to English's keys; this holds a language added without the type to the same.
   it("holds the same keys in every language", () => {
     for (const language of languages) {
-      expect(sentences(CATALOGS[language]).map(([key]) => key).sort()).toEqual([...english.keys()].sort());
+      expect(
+        sentences(CATALOGS[language])
+          .map(([key]) => key)
+          .sort(),
+      ).toEqual([...english.keys()].sort());
     }
   });
 

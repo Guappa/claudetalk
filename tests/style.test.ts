@@ -39,9 +39,11 @@ describe("comment rules", () => {
   it("has no module-scope mutable state", () => {
     const offenders: string[] = [];
     for (const file of files) {
-      fs.readFileSync(file, "utf8").split("\n").forEach((line, index) => {
-        if (/^(export )?(let|var) /.test(line)) offenders.push(`${path.basename(file)}:${index + 1}`);
-      });
+      fs.readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, index) => {
+          if (/^(export )?(let|var) /.test(line)) offenders.push(`${path.basename(file)}:${index + 1}`);
+        });
     }
     expect(offenders).toEqual([]);
   });
@@ -74,12 +76,14 @@ describe("naming rules", () => {
   it("never names a parameter, function or variable with a single letter", () => {
     const offenders: string[] = [];
     for (const file of checked) {
-      fs.readFileSync(file, "utf8").split("\n").forEach((line, index) => {
-        if (exempt(line)) return;
-        if (singleLetter.some((pattern) => pattern.test(line))) {
-          offenders.push(`${path.relative(repoRoot, file)}:${index + 1}  ${line.trim().slice(0, 70)}`);
-        }
-      });
+      fs.readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, index) => {
+          if (exempt(line)) return;
+          if (singleLetter.some((pattern) => pattern.test(line))) {
+            offenders.push(`${path.relative(repoRoot, file)}:${index + 1}  ${line.trim().slice(0, 70)}`);
+          }
+        });
     }
     expect(offenders).toEqual([]);
   });
@@ -87,11 +91,9 @@ describe("naming rules", () => {
 
 describe("docs follow code", () => {
   const registeredCommands = (): string[] =>
-    [
-      ...read("src/discord/commands/registry.ts").matchAll(
-        /new SlashCommandBuilder\(\)\s*\.setName\("([a-z-]+)"\)/g,
-      ),
-    ].map((match) => match[1]!);
+    [...read("src/discord/commands/registry.ts").matchAll(/new SlashCommandBuilder\(\)\s*\.setName\("([a-z-]+)"\)/g)].map(
+      (match) => match[1]!,
+    );
 
   it("documents every registered slash command in the reference table", () => {
     const reference = read("docs/REFERENCE.md");
@@ -258,7 +260,8 @@ describe("what the bridge says lives in the catalog", () => {
       let depth = 0;
       while (index < source.length) {
         const char = source[index]!;
-        if (source.startsWith("//", index)) index = source.indexOf("\n", index) === -1 ? source.length : source.indexOf("\n", index);
+        if (source.startsWith("//", index))
+          index = source.indexOf("\n", index) === -1 ? source.length : source.indexOf("\n", index);
         else if (source.startsWith("/*", index)) index = source.indexOf("*/", index) + 2;
         else if (char === '"' || char === "'") index = readQuoted(index);
         else if (char === "`") index = readTemplate(index);
@@ -320,8 +323,12 @@ describe("what the bridge says lives in the catalog", () => {
   });
 
   it("reads a string, a template, a comment and a regular expression apart", () => {
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: the sample is source text, template and all
-    const sample = 'const first = "one two three"; // not "four five six"\nconst second = `seven ${eight("nine")} ten`; /quote"mark/.test(other);';
+    const lines = [
+      'const first = "one two three"; // not "four five six"',
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: the sample is source text, template and all
+      'const second = `seven ${eight("nine")} ten`; /quote"mark/.test(other);',
+    ];
+    const sample = lines.join("\n");
     expect(stringLiterals(sample).map((literal) => literal.text)).toEqual(["one two three", "nine", "seven {} ten"]);
   });
 });

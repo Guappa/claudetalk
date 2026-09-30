@@ -49,10 +49,7 @@ import { errorMessage, truncate } from "../../text.ts";
 
 type Action<K extends MenuAction["kind"]> = Extract<MenuAction, { kind: K }>;
 
-export async function handlePluginsCommand(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handlePluginsCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   const plugins = await listPlugins();
   if (plugins.length === 0) {
@@ -74,10 +71,7 @@ export async function handlePluginsCommand(
   });
 }
 
-export async function handleSkillsCommand(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleSkillsCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 
@@ -91,10 +85,7 @@ export async function handleSkillsCommand(
   const menus = skillSelectMenus(say, skills);
   const rows = menus.pages.map((page, index) =>
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(skillSelectId(index))
-        .setPlaceholder(menuPlaceholder(say, page))
-        .addOptions(page),
+      new StringSelectMenuBuilder().setCustomId(skillSelectId(index)).setPlaceholder(menuPlaceholder(say, page)).addOptions(page),
     ),
   );
 
@@ -107,10 +98,7 @@ function isConversationChannel(bridge: Bridge, channelId: string): boolean {
   return conversation !== undefined && !conversation.mentionOnly;
 }
 
-export async function handlePurgeCommand(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handlePurgeCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   if (!interaction.channel || !("bulkDelete" in interaction.channel)) {
     await respond(interaction, say("purge.notDeletable"));
@@ -135,8 +123,14 @@ async function choosePlugin(bridge: Bridge, interaction: StringSelectMenuInterac
     return;
   }
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(pluginToggleId(action.id, true)).setLabel(say("plugins.enable")).setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(pluginToggleId(action.id, false)).setLabel(say("plugins.disable")).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(pluginToggleId(action.id, true))
+      .setLabel(say("plugins.enable"))
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(pluginToggleId(action.id, false))
+      .setLabel(say("plugins.disable"))
+      .setStyle(ButtonStyle.Danger),
   );
   await settleMenu(interaction, `\`${action.id}\``, [row]);
 }
@@ -171,9 +165,7 @@ function otherAnswerModal(say: Say, action: Action<"question-pick">): ModalBuild
     .setCustomId(questionOtherId(action.askId, action.index))
     .setTitle(truncate(say("questions.ownAnswerTitle", { number: action.index + 1 }), MODAL_TEXT_LIMIT - 3))
     .addLabelComponents(
-      new LabelBuilder()
-        .setLabel(truncate(say("questions.ownAnswerLabel"), MODAL_TEXT_LIMIT - 3))
-        .setTextInputComponent(field),
+      new LabelBuilder().setLabel(truncate(say("questions.ownAnswerLabel"), MODAL_TEXT_LIMIT - 3)).setTextInputComponent(field),
     );
 }
 

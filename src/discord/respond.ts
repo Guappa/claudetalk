@@ -29,10 +29,7 @@ export async function acknowledgeQuietly(interaction: ButtonInteraction): Promis
 }
 
 // Every command is deferred by the router and every button by its handler, so a reply is always an edit.
-export async function respond(
-  interaction: Respondable,
-  content: string | InteractionEditReplyOptions,
-): Promise<void> {
+export async function respond(interaction: Respondable, content: string | InteractionEditReplyOptions): Promise<void> {
   await interaction.editReply(forDiscordReply(content));
 }
 

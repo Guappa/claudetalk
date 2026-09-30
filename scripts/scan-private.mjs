@@ -11,7 +11,10 @@ const TEXT = /\.(ts|mts|mjs|js|json|md|yml|yaml|sh|ps1|txt|example)$/;
 // Shapes, not names: these mean the same thing in anyone's checkout.
 export const SHAPES = [
   ["a credential", /(gh[pousr]_[A-Za-z0-9]{16,}|sk-[A-Za-z0-9]{16,}|MT[A-Za-z0-9._-]{40,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/],
-  ["a real home directory", /([A-Za-z]:[\\/]Users[\\/](?!<|your|user|USER|me\b)[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!user|you|me\b)[a-z0-9._-]{2,}\/|\/Users\/(?!you|user|me\b)[A-Za-z0-9 ._-]{2,}\/)/],
+  [
+    "a real home directory",
+    /([A-Za-z]:[\\/]Users[\\/](?!<|your|user|USER|me\b)[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!user|you|me\b)[a-z0-9._-]{2,}\/|\/Users\/(?!you|user|me\b)[A-Za-z0-9 ._-]{2,}\/)/,
+  ],
   ["an 8.3 short path", /[\\/][A-Za-z0-9]+~[0-9][\\/]/],
 ];
 

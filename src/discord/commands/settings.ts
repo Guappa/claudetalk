@@ -42,7 +42,10 @@ export function classifyPrompt(content: string, terminalOnly: string[]): PromptK
   if (BRIDGE_OWNED.has(command)) return { kind: "bridge-owned", command };
   if (terminalOnly.includes(command)) return { kind: "terminal-only", command };
 
-  const args = content.trim().slice(command.length + 1).trim();
+  const args = content
+    .trim()
+    .slice(command.length + 1)
+    .trim();
   const guarded = ASKS_FIRST.find((entry) => entry.commands.includes(command) && entry.when.test(args));
   if (guarded) return { kind: "asks-first", command, args, caution: guarded.caution };
 
@@ -88,10 +91,7 @@ claude --resume ${conversation.sessionId}
   ).setFooter({ text: `bridge v${bridgeVersion()}` });
 }
 
-export async function handleWhoami(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleWhoami(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
   await respond(interaction, { embeds: [bindingEmbed(bridge.language.say, conversation, await readHostDefaults())] });

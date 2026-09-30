@@ -6,10 +6,7 @@ import { runConversationTurn } from "../turn.ts";
 import { buildContext, composePrompt, toContextMessage, type ContextMessage } from "../context.ts";
 import { respond } from "../respond.ts";
 
-export async function handleAsk(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
   if (!interaction.channel?.isSendable()) return;

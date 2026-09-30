@@ -3,9 +3,7 @@ import { displayName } from "./displayName.ts";
 import { samePath } from "../platform.ts";
 import { fromChannelName, toChannelName } from "../discord/channelName.ts";
 
-export type Resolution =
-  | { match: SessionRecord; shadowed: SessionRecord[] }
-  | { match: null; candidates: SessionRecord[] };
+export type Resolution = { match: SessionRecord; shadowed: SessionRecord[] } | { match: null; candidates: SessionRecord[] };
 
 export function byRecencyDesc(left: SessionRecord, right: SessionRecord): number {
   return (right.lastActivity?.getTime() ?? 0) - (left.lastActivity?.getTime() ?? 0);
@@ -17,7 +15,10 @@ export function resolveByName(records: SessionRecord[], query: string): Resoluti
 
   const labelled = records.map((record) => ({ record, label: displayName(record).toLowerCase() }));
 
-  const exact = labelled.filter((entry) => entry.label === needle).map((entry) => entry.record).sort(byRecencyDesc);
+  const exact = labelled
+    .filter((entry) => entry.label === needle)
+    .map((entry) => entry.record)
+    .sort(byRecencyDesc);
   if (exact[0]) return { match: exact[0], shadowed: exact.slice(1) };
 
   const matching = labelled.filter((entry) => entry.label.startsWith(needle));

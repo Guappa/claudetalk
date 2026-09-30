@@ -30,8 +30,7 @@ function add(totals: UsageTotals, turn: TurnCost): UsageTotals {
     costUsd: reported !== undefined && reported > totals.costUsd ? reported : totals.costUsd,
     inputTokens: totals.inputTokens + (usage?.input_tokens ?? 0),
     outputTokens: totals.outputTokens + (usage?.output_tokens ?? 0),
-    cachedTokens:
-      totals.cachedTokens + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0),
+    cachedTokens: totals.cachedTokens + (usage?.cache_read_input_tokens ?? 0) + (usage?.cache_creation_input_tokens ?? 0),
     lastCostUsd: known ? reported - totals.costUsd : null,
   };
 }

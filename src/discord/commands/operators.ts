@@ -4,10 +4,7 @@ import { detail } from "../embeds.ts";
 import { respond } from "../respond.ts";
 import { NO_MENTIONS } from "../sink.ts";
 
-export async function handleOperator(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleOperator(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   const action = interaction.options.getSubcommand();
 
