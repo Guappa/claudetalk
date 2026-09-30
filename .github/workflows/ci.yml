@@ -48,7 +48,10 @@ jobs:
       - name: lint the PowerShell scripts
         if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
         shell: pwsh
-        run: Invoke-ScriptAnalyzer -Path scripts -Recurse -EnableExitCode
+        run: |
+          $found = Invoke-ScriptAnalyzer -Path scripts -Recurse
+          $found | Format-Table -AutoSize -Wrap
+          if ($found) { exit 1 }
       # Fetched by version and held to its published checksum, for the reason the actions above are pinned by commit.
       - name: lint the workflows
         if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
