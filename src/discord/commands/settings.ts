@@ -119,7 +119,7 @@ claude --resume ${conversation.sessionId}
       { name: say("whoami.model"), value: describeDefault(say, conversation.settings.model, defaults.model), inline: true },
       { name: say("whoami.effort"), value: describeDefault(say, conversation.settings.effort, defaults.effort), inline: true },
     ],
-  ).setFooter({ text: `bridge v${bridgeVersion()}` });
+  ).setFooter({ text: say("whoami.version", { version: bridgeVersion() }) });
 }
 
 export async function handleWhoami(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
@@ -144,9 +144,9 @@ export async function handleSetting(
     await respond(
       interaction,
       current
-        ? say("settings.current", { setting: key, value: current })
+        ? say("settings.current", { setting: say(`whoami.${key}`), value: current })
         : say("settings.notOverridden", {
-            setting: key,
+            setting: say(`whoami.${key}`),
             fallback: describeDefault(say, undefined, (await readHostDefaults(conversation.cwd))[key]),
           }),
     );
@@ -154,5 +154,5 @@ export async function handleSetting(
   }
 
   await bridge.store.updateSettings(conversation.sessionId, { [key]: value });
-  await respond(interaction, say("settings.changed", { setting: key, value }));
+  await respond(interaction, say("settings.changed", { setting: say(`whoami.${key}`), value }));
 }

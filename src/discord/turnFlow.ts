@@ -241,6 +241,8 @@ export class TurnFlow {
   private readonly finishing = new Set<string>();
   // Conversations whose running turn is a branch's first: asked of this session, answered in another.
   private readonly branching = new Set<string>();
+  // The language each running turn was started in, which a message joining it is told about in too.
+  private readonly spoken = new Map<string, Say>();
   private readonly boards = new Map<string, AgentBoard>();
   private readonly folded = new Map<string, Map<string, Folded>>();
   private readonly queue = new TurnQueue();
@@ -460,7 +462,7 @@ export class TurnFlow {
     waiting.set(uuid, entry);
     this.folded.set(sessionId, waiting);
     await options.onState?.("queued");
-    const say = this.say();
+    const say = this.spoken.get(sessionId) ?? this.say();
     const hurry = [{ id: sendNowActionId(sessionId), label: say("fold.sendNow") }];
     entry.notice = (await sink.ask?.(say("fold.handedOver"), hurry)) ?? null;
     // It can be taken up, or the turn can end, while the notice is still on its way.
@@ -474,7 +476,7 @@ export class TurnFlow {
     if (!entry || entry.taken) return;
     entry.taken = true;
     await entry.onState?.("running");
-    await entry.notice?.close(this.say()("fold.takenUp"));
+    await entry.notice?.close((this.spoken.get(sessionId) ?? this.say())("fold.takenUp"));
   }
 
   // A message that joined a turn ends the way the turn did; one never taken up says so, since nothing answered it.
@@ -483,7 +485,7 @@ export class TurnFlow {
     this.folded.delete(sessionId);
     for (const entry of entries) {
       entry.missed = !entry.taken;
-      if (entry.missed) await entry.notice?.close(this.say()("fold.neverTaken"));
+      if (entry.missed) await entry.notice?.close((this.spoken.get(sessionId) ?? this.say())("fold.neverTaken"));
       await entry.onState?.(entry.taken ? state : "stopped");
     }
   }
@@ -572,6 +574,7 @@ export class TurnFlow {
       await status.flush();
       await this.activeTurns.clear(sessionId);
       this.running.delete(sessionId);
+      this.spoken.delete(sessionId);
       this.branching.delete(sessionId);
       await this.settleFolded(sessionId, "stopped");
       this.boards.delete(sessionId);
@@ -612,6 +615,7 @@ export class TurnFlow {
       },
     );
     this.running.set(sessionId, turn);
+    this.spoken.set(sessionId, say);
     if (options.fork) this.branching.add(sessionId);
     this.settingUp.delete(sessionId);
 
