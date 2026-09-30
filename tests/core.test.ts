@@ -4378,14 +4378,24 @@ describe("plan usage", () => {
   it("renders percentages and Discord timestamps, and says when it was seen", () => {
     const usage = new PlanUsage();
     usage.record(event, new Date("2026-09-22T18:00:00Z"));
-    const text = describePlanUsage(say, usage.latest());
+    const text = describePlanUsage(say, usage.latest(), new Date("2026-09-22T18:05:00Z"));
     expect(text).toContain("5-hour window 17% used, resets <t:1790109600:R>");
     expect(text).toContain("week, all models 4% used");
     expect(text).toContain("as of <t:");
   });
 
+  // The figure last seen for a window belongs to the one before, once its reset has passed.
+  it("shows a window past its reset as reset, not as the share last seen for it", () => {
+    const usage = new PlanUsage();
+    usage.record(event, new Date("2026-09-22T18:00:00Z"));
+    const text = describePlanUsage(say, usage.latest(), new Date(1790109600 * 1000 + 60_000));
+    expect(text).toContain("5-hour window reset <t:1790109600:R>, with no figure reported since");
+    expect(text).not.toContain("17%");
+    expect(text).toContain("week, all models 4% used");
+  });
+
   it("says so before any turn has reported", () => {
-    expect(describePlanUsage(say, new PlanUsage().latest())).toContain("not reported yet");
+    expect(describePlanUsage(say, new PlanUsage().latest(), new Date())).toContain("not reported yet");
   });
 
   it("keeps the latest value per window across turns", () => {

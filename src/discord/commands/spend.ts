@@ -47,7 +47,7 @@ export async function handleSpend(bridge: Bridge, interaction: ChatInputCommandI
   await respond(
     interaction,
     [
-      describePlanUsage(say, bridge.planUsage.latest()),
+      describePlanUsage(say, bridge.planUsage.latest(), new Date()),
       describeTotals(say, "mine", mine),
       describeTotals(say, "all", all),
       describeCost(say, mine, all),

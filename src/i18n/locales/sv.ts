@@ -399,6 +399,7 @@ export const sv: Catalog = {
     notReported: "Plananvändning: inte rapporterad än. Claude Code skickar den med varje omgång, så den syns efter den första.",
     plan: "Plananvändning: {{windows}} (senast rapporterad {{when}})",
     window: "{{label}} {{percent}} % använt, nollställs {{when}}",
+    windowReset: "{{label}} nollställdes {{when}}, ingen siffra rapporterad sedan dess",
     fiveHour: "5-timmarsfönster",
     weekAll: "vecka, alla modeller",
     weekOpus: "vecka, Opus",
@@ -416,7 +417,7 @@ export const sv: Catalog = {
     costWithLast:
       "API-motsvarande kostnad, som en prenumeration inte debiteras efter: {{mine}} för den här konversationen under dess livstid (senaste omgången {{last}}), {{all}} över alla berörda konversationer.",
     footnote:
-      "Plananvändningen gäller hela kontot. Omgångar och tokens räknas sedan bryggan startade {{since}}; en omstart nollställer dem, och omgångar som körs i en terminal räknas aldrig.",
+      "Plananvändningen gäller hela kontot. Omgångar och tokens räknas sedan bryggan startade {{since}}; en omstart nollställer dem, och omgångar som körs i en terminal räknas aldrig. Tokens är sessionens egna och utelämnar det dess agenter använde; kostnaden räknar med dem.",
   },
   plugins: {
     none: "Inga plugin rapporterades av `claude plugin list --json`. Om du väntade dig några, kontrollera att Claude Code finns på PATH för den här processen.",
