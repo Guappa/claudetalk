@@ -120,8 +120,8 @@ cp .env.example .env
 | `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |
 | `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
 | `BRIDGE_LANGUAGE` | Optional, `en` by default. The language the bridge itself speaks: `en` or `sv`. `/language` changes it from Discord. Claude's answers are not affected |
-| `BINDINGS_PATH` | Optional, defaults to `data/conversations.json` |
-| `OPERATORS_PATH` | Optional, defaults to `data/operators.json` |
+| `BINDINGS_PATH` | Optional, defaults to `data/conversations.json`. Its folder is where every other state file lives too: the lock, the language, the command cache, the active turns and, unless set apart, the operators |
+| `OPERATORS_PATH` | Optional, defaults to `operators.json` beside the bindings |
 
 ## Running
 
