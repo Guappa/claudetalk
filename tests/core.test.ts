@@ -274,6 +274,38 @@ describe("scanTranscript", () => {
     expect(info.hasContent).toBe(false);
   });
 
+  // Claude Code stamps each record with where its shell stands. A session left in a subfolder was bound to that subfolder, and ran there from then on.
+  describe("the directory a session belongs to", () => {
+    const transcriptIn = async (projectFolder: string, stamps: string[]): Promise<string> => {
+      const folder = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "stamped-")), projectFolder);
+      await fs.mkdir(folder, { recursive: true });
+      const records = stamps.map((cwd) => JSON.stringify({ type: "user", cwd, timestamp: "2026-09-10T10:00:00.000Z" }));
+      const file = path.join(folder, "session.jsonl");
+      await fs.writeFile(file, `${records.join("\n")}\n`);
+      return file;
+    };
+
+    it("is the one its folder is named after, not wherever the shell went last", async () => {
+      const file = await transcriptIn("-srv-app", ["/srv/app", "/srv/app/scripts", "/srv/app/scripts"]);
+      expect((await scanTranscript(file)).cwd).toBe("/srv/app");
+    });
+
+    it("is found above the shell's directory when the tail only shows the subfolder", async () => {
+      const file = await transcriptIn("-srv-app", ["/srv/app/scripts/deep", "/srv/app/scripts"]);
+      expect((await scanTranscript(file)).cwd).toBe("/srv/app");
+    });
+
+    it("reads a Windows path the same way, drive letter in either case", async () => {
+      const file = await transcriptIn("C--work-my-app", ["c:\\work\\my app\\tools\\release"]);
+      expect((await scanTranscript(file)).cwd).toBe("c:\\work\\my app");
+    });
+
+    it("falls back to the last directory stamped when none matches the folder's name", async () => {
+      const file = await transcriptIn("somewhere-else", ["/srv/app", "/srv/app/scripts"]);
+      expect((await scanTranscript(file)).cwd).toBe("/srv/app/scripts");
+    });
+  });
+
   it("returns empty info for a missing file rather than throwing", async () => {
     expect(await scanTranscript(fixture("does-not-exist.jsonl"))).toEqual({
       name: null,
