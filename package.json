@@ -20,6 +20,8 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "knip": "knip",
+    "dupes": "jscpd src scripts --min-tokens 50 --threshold 1 --reporters console --no-tips",
+    "coverage": "vitest run --coverage",
     "check:boot": "node --disable-warning=ExperimentalWarning scripts/check-boot.mjs"
   },
   "dependencies": {
@@ -30,6 +32,8 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
     "@types/node": "^22.20.4",
+    "@vitest/coverage-v8": "^5.0.3",
+    "jscpd": "^5.3.3",
     "knip": "^6.38.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"

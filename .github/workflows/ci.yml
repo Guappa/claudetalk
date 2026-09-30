@@ -38,4 +38,25 @@ jobs:
       # Vitest accepts syntax Node's type stripper rejects, so the suite passing does not show the bridge starts.
       - run: npm run check:boot
       - run: npm run knip
+      - run: npm run dupes
       - run: npm run check:private
+
+      # The scripts and the workflows are code no step above reads. Once is enough: none of it varies by Node version, and the runner image brings shellcheck and PSScriptAnalyzer.
+      - name: lint the shell scripts
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
+        run: shellcheck scripts/*.sh
+      - name: lint the PowerShell scripts
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
+        shell: pwsh
+        run: Invoke-ScriptAnalyzer -Path scripts -Recurse -EnableExitCode
+      # Fetched by version and held to its published checksum, for the reason the actions above are pinned by commit.
+      - name: lint the workflows
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '24'
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/actionlint.tar.gz" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check --quiet
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint"
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"

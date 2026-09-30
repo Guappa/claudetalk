@@ -16,6 +16,10 @@
         // noUncheckedIndexedAccess types every index as possibly undefined; `!` after a bounds check is how the code says it looked.
         "noNonNullAssertion": "off"
       },
+      "suspicious": {
+        // Two modules that need each other at load time start in whichever order the first import happens to pick; a type-only import is erased and does not count.
+        "noImportCycles": "error"
+      },
       "complexity": {
         // A `continue` in a catch says the failure is skipped on purpose; the empty catch this rule leaves behind says nothing.
         "noUselessContinue": "off"
