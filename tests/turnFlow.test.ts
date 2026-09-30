@@ -84,14 +84,14 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   };
 });
 
-function makeFlow(language: () => Say = () => sayIn("en")): TurnFlow {
+function makeFlow(language: () => Say = () => sayIn("en"), approvals = new ApprovalPrompts()): TurnFlow {
   const config = { toolApprovals: false, ownerIds: [] } as unknown as Config;
   return new TurnFlow(
     new CapabilityCache(),
     () => new ContextTracker(),
     new UsageLedger(),
     new PlanUsage(),
-    new ApprovalPrompts(),
+    approvals,
     new QuestionPrompts(),
     new OutboxDelivery(),
     new ActiveTurns(path.join(os.tmpdir(), `claudetalk-turns-${process.pid}-${Math.random()}.json`)),
@@ -323,6 +323,45 @@ describe("TurnFlow", () => {
     expect(states).toEqual(["queued", "running", "done"]);
     expect(closed).toEqual(["Taken up by the running turn."]);
     expect(await flow.sendNow("s13")).toBe("not-running");
+  });
+
+  // The approval was given for the turn as it stood, and the message added to it may be from somebody who is not an owner.
+  it("asks about tools again once a message is handed to a turn whose rest was approved", async () => {
+    const approvals = new ApprovalPrompts();
+    const flow = makeFlow(() => sayIn("en"), approvals);
+    const letEnd = keepRunning("approved so far");
+    const running = flow.run("s40", cwd, "approved so far", {}, recordingSink(), { resume: true });
+    await vi.waitFor(() => expect(started).toContain("approved so far"));
+
+    let asks = 0;
+    const owner = "owner-1";
+    const press = {
+      ...quietSink(),
+      ask: async (_text: string, actions: Array<{ id: string }>) => {
+        asks += 1;
+        if (asks === 1)
+          approvals.decide(
+            sayIn("en"),
+            actions.find((action) => action.id.startsWith("approve-all:"))!.id.slice(12),
+            owner,
+            "approve-all",
+          );
+        return { close: async () => undefined };
+      },
+    };
+    const english = sayIn("en");
+    expect(await approvals.ask(english, "s40", press, [owner], "Bash", { command: "ls" })).toEqual({ allow: true });
+    expect(await approvals.ask(english, "s40", press, [owner], "Bash", { command: "pwd" })).toEqual({ allow: true });
+    expect(asks).toBe(1);
+
+    const handed = { ...quietSink(), ask: async () => ({ close: async () => undefined }) };
+    await flow.run("s40", cwd, "and one from somebody else", {}, handed, { resume: true, foldable: true });
+    const afterwards = approvals.ask(english, "s40", press, [owner], "Bash", { command: "rm -r build" });
+    await vi.waitFor(() => expect(asks).toBe(2));
+
+    letEnd();
+    await running;
+    expect((await afterwards).allow).toBe(false);
   });
 
   // A session with nothing in hand starts on a message at once, long before its first words, and Send now would then cut the answer to that very message.

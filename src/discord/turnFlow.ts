@@ -439,6 +439,7 @@ export class TurnFlow {
     if (!turn || this.stopping.has(sessionId) || this.finishing.has(sessionId)) return false;
     const uuid = turn.handOver(prompt);
     if (!uuid) return false;
+    this.approvals.revoke(sessionId);
 
     const entry: Folded = { onState: options.onState, notice: null, taken: false, missed: false };
     const waiting = this.folded.get(sessionId) ?? new Map<string, Folded>();

@@ -275,7 +275,13 @@ export class StatusMessage {
     this.rollOverOverflow("sealed");
     await this.pendingEdit;
     const trail = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, mood, this.extra());
-    await this.sink.edit(await this.finalize(trail), []);
+    await this.sink.edit(await this.finalized(trail), []);
+  }
+
+  // A link is longer than the reference it replaces, and the trail was measured before it was linked. One that no longer fits goes out as it was: a refused edit would leave it reading as live work, or lose what it sealed.
+  private async finalized(text: string): Promise<string> {
+    const linked = await this.finalize(text);
+    return forDiscord(linked).length <= DISCORD_MESSAGE_LIMIT ? linked : text;
   }
 
   stop(): void {
@@ -324,7 +330,7 @@ export class StatusMessage {
     this.moving = true;
     this.chain(async () => {
       try {
-        await this.sink.edit(await this.finalize(sealedText), []);
+        await this.sink.edit(await this.finalized(sealedText), []);
         const live = renderActivity(this.say, this.notes, this.now() - this.startedAt, this.steps, "working", this.extra());
         await this.sink.continueIn!(live, this.actions());
         await this.onContinue?.();

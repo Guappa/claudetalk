@@ -37,11 +37,15 @@ function wait(ms: number): Promise<void> {
 
 export async function purgeChannel(channel: GuildTextBasedChannel, keepMessageId?: string): Promise<PurgeResult> {
   const result: PurgeResult = { bulkDeleted: 0, slowDeleted: 0, failed: 0 };
+  let before: string | undefined;
 
+  // Discord answers newest first, and each page starts below the last: a message that cannot be deleted is met once, and never holds the purge at the top of the channel.
   for (;;) {
-    const page = await channel.messages.fetch({ limit: FETCH_PAGE });
-    const targets = [...page.values()].filter((message) => message.id !== keepMessageId);
-    if (targets.length === 0) break;
+    const page = await channel.messages.fetch(before ? { limit: FETCH_PAGE, before } : { limit: FETCH_PAGE });
+    const fetched = [...page.values()];
+    if (fetched.length === 0) break;
+    before = fetched.at(-1)!.id;
+    const targets = fetched.filter((message) => message.id !== keepMessageId);
 
     const recent = targets.filter((message) => isBulkDeletable(message.createdAt));
     const old = targets.filter((message) => !isBulkDeletable(message.createdAt));
@@ -73,8 +77,6 @@ export async function purgeChannel(channel: GuildTextBasedChannel, keepMessageId
       }
       await wait(SLOW_DELETE_PAUSE_MS);
     }
-
-    if (result.failed >= targets.length) break;
   }
 
   return result;

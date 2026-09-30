@@ -35,7 +35,7 @@ export interface CommandChoice {
 
 function label(command: SessionCommand): string {
   const usage = command.argumentHint ? `${command.name} ${command.argumentHint}` : command.name;
-  return truncate(command.description ? `${usage} · ${command.description}` : usage, CHOICE_CHARS - 3);
+  return truncate(command.description ? `${usage} · ${command.description}` : usage, CHOICE_CHARS);
 }
 
 // A name that starts with what was typed beats one that contains it, which beats a match in the description.
@@ -77,7 +77,7 @@ export async function suggestCommands(bridge: Bridge, interaction: AutocompleteI
   }
   const commands = bridge.capabilities.commands(conversation.cwd);
   if (commands.length === 0) {
-    await interaction.respond([{ name: truncate(bridge.language.say("run.noListChoice"), CHOICE_CHARS - 3), value: NO_LIST }]);
+    await interaction.respond([{ name: truncate(bridge.language.say("run.noListChoice"), CHOICE_CHARS), value: NO_LIST }]);
     return;
   }
   await interaction.respond(

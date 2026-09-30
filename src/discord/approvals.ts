@@ -60,7 +60,21 @@ export class ApprovalPrompts {
 
     this.pending.delete(id);
     waiting.settle(choice);
-    return choice === "approve-all" ? say("approvals.approvedRestQuiet") : describeChoice(say, choice);
+    if (choice !== "approve-all") return describeChoice(say, choice);
+
+    this.approveAll.add(waiting.turnId);
+    // Tools asked about side by side each have a prompt on screen; the rest of the turn includes those, or each would wait out its timer and be denied.
+    for (const [otherId, other] of this.pending) {
+      if (other.turnId !== waiting.turnId) continue;
+      this.pending.delete(otherId);
+      other.settle("approve-all");
+    }
+    return say("approvals.approvedRestQuiet");
+  }
+
+  // The standing approval was given for the turn as it stood. A message added to it since may be somebody else's, and is asked about afresh.
+  revoke(turnId: string): void {
+    this.approveAll.delete(turnId);
   }
 
   async ask(
@@ -94,7 +108,6 @@ export class ApprovalPrompts {
     const choice = await answered;
     clearTimeout(timer);
 
-    if (choice === "approve-all") this.approveAll.add(turnId);
     await handle.close(describeChoice(say, choice));
 
     if (choice === "approve" || choice === "approve-all") return { allow: true };
