@@ -186,7 +186,14 @@ that format.
 
 **The working directory comes from inside the transcript**, never from the
 directory name under `~/.claude/projects`. That name collapses separators, dots
-and spaces to `-`, so it cannot be reversed into a path.
+and spaces to `-`, so it cannot be reversed into a path. It can still tell
+candidates apart, and has to: a record is stamped with where the shell stood,
+which moves with every `cd`, so the last one in a transcript is often a
+subfolder. The bridge takes, among the directories a transcript names and
+their parents, the one whose collapsed form is the folder's name, and falls
+back to the last one stamped only when none is. Taking the last one bound a
+conversation to a subfolder, and every turn run there then stamped the
+subfolder again, so it never righted itself.
 
 **Model and effort are process-scoped.** Every turn is a new process, so the
 bridge owns them per conversation and passes them on each run. Passing `/model`
