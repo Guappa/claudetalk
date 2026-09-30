@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Fails on anything that would be a leak once this repository is public.
-import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync, realpathSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,19 +9,20 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SKIP_DIRS = new Set(["node_modules", ".git", "dist", ".claude", "coverage"]);
 // The bridge's own state lives in data/ at the root and is never committed; a folder of that name anywhere else is ordinary.
 const SKIP_AT_ROOT = new Set(["data"]);
-const TEXT = /\.(ts|tsx|mts|mjs|cjs|js|jsx|json|jsonc|md|yml|yaml|toml|sh|ps1|txt|example|plist|service)$/;
+// Everything is read but what cannot hold a path in words. A list of what to read left out the transcripts kept as fixtures, the files likeliest to be captured from a real session.
+const BINARY = /\.(webp|png|jpe?g|gif|ico|pdf|zip|gz|woff2?)$/i;
 
 // Shapes, not names: these mean the same thing in anyone's checkout.
 export const SHAPES = [
   // A key's body takes hyphens and underscores after its prefix, as in sk-ant-api03-... and sk-proj-...
   [
     "a credential",
-    /(gh[pousr]_[A-Za-z0-9]{16,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|MT[A-Za-z0-9._-]{40,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/,
+    /(gh[pousr]_[A-Za-z0-9]{16,}|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|(?<![A-Za-z0-9_-])[MNO][A-Za-z0-9_-]{22,27}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/,
   ],
   // A Windows path in source or JSON is written with its separators doubled.
   [
     "a real home directory",
-    /([A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}(?!<|your|user|USER|me\b)[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!user|you|me\b)[a-z0-9._-]{2,}\/|\/Users\/(?!you|user|me\b)[A-Za-z0-9 ._-]{2,}\/)/,
+    /([A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}(?!(?:your?|user|USER|me)[\\/])[A-Za-z0-9 ._-]{2,}[\\/]|\/home\/(?!(?:user|you|me)\/)[a-z0-9._-]{2,}\/|\/Users\/(?!(?:you|user|me)\/)[A-Za-z0-9 ._-]{2,}\/)/,
   ],
   ["an 8.3 short path", /[\\/][A-Za-z0-9]+~[0-9][\\/]/],
 ];
@@ -44,9 +46,24 @@ function walk(dir) {
     if (SKIP_DIRS.has(entry) || (dir === root && SKIP_AT_ROOT.has(entry))) continue;
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) found.push(...walk(full));
-    else if (TEXT.test(entry)) found.push(full);
+    else found.push(full);
   }
   return found;
+}
+
+// What git would publish: every file it tracks, and every new one it does not ignore.
+export function publishable() {
+  try {
+    const listed = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    const files = listed.split("\0").filter((file) => file && existsSync(path.join(root, file)));
+    return files.filter((file) => !BINARY.test(file)).map((file) => path.join(root, file));
+  } catch {
+    // Outside a checkout, an archive somebody downloaded for one, what is under the root is what there is to read.
+    return walk(root).filter((file) => !BINARY.test(file));
+  }
 }
 
 function lineOf(text, index) {
@@ -57,7 +74,7 @@ export function scan() {
   const terms = localTerms();
   const findings = [];
 
-  for (const file of walk(root)) {
+  for (const file of publishable()) {
     const relative = path.relative(root, file).split(path.sep).join("/");
     if (relative === "scripts/scan-private.mjs" || relative.endsWith("package-lock.json")) continue;
 
@@ -81,7 +98,8 @@ export function scan() {
   return { findings, termCount: terms.length };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compared as real paths: reached through a junction or a linked folder the two spell the same file differently, and the scan would do nothing and pass.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const { findings, termCount } = scan();
   for (const finding of findings) {
     console.error(`${finding.file}:${finding.line}  ${finding.label}`);

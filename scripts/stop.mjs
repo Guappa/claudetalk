@@ -63,6 +63,7 @@ for (let waited = 0; ; waited += POLL_MS) {
 rmSync(stopRequestPath(lockPath), { force: true });
 console.error(
   `Bridge pid ${lock.pid} did not answer within ${ACK_MS / 1000} seconds. It may be running a version ` +
-    `that predates stop requests. Try again, or stop the scheduled task and delete ${lockPath}.`,
+    `that predates stop requests, or be stuck. Try again. If it still does not answer, end the process itself: ` +
+    `\`Stop-Process -Id ${lock.pid}\` on Windows, \`kill ${lock.pid}\` elsewhere. The lock it leaves behind is taken over by the next start.`,
 );
 process.exit(1);
