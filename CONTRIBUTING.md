@@ -174,9 +174,10 @@ path under Git Bash and makes message text injectable.
 transformation. Write explicit fields and assign them in the constructor body.
 Vitest uses esbuild and will happily accept syntax that Node then rejects at
 runtime, so a green test run does not prove the app boots. `npm run check:boot`
-is what does: it loads every source file the way Node will. A file whose first
-statement is neither an import nor an export fails it too, since the stripper
-does not take such a file for a module.
+is what does: it hands every source file to Node's own type stripper, which
+refuses a parameter property, an enum and a namespace. `erasableSyntaxOnly` in
+`tsconfig.json` makes the type check refuse the same three, so an editor shows
+them before either check runs.
 
 **Compaction data is spelled differently depending on the source.** A
 stream-json event carries `compact_metadata.pre_tokens` in snake_case; the same
