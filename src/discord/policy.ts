@@ -3,10 +3,7 @@ import type { Bridge } from "../bridge.ts";
 import { tierFor, workspaceFor, type Tier } from "../access.ts";
 
 export function tierOf(bridge: Bridge, userId: string): Tier {
-  return tierFor(
-    { ownerIds: bridge.config.ownerIds, operatorIds: bridge.operators.all() },
-    userId,
-  );
+  return tierFor({ ownerIds: bridge.config.ownerIds, operatorIds: bridge.operators.all() }, userId);
 }
 
 export function adHocWorkingDir(bridge: Bridge, tier: Tier, userId: string): string | null {

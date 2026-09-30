@@ -74,7 +74,10 @@ function shapesFor(host: string): PathShapes {
 
 // The SSH, ssh:// and HTTPS spellings of a remote all name the same web page.
 export function remoteWebUrl(remote: string): string | null {
-  const trimmed = remote.trim().replace(/\.git$/, "").replace(/\/$/, "");
+  const trimmed = remote
+    .trim()
+    .replace(/\.git$/, "")
+    .replace(/\/$/, "");
   const scp = /^(?:[\w.-]+@)?([\w.-]+):([\w.-]+\/[\w.-]+)$/.exec(trimmed);
   if (scp?.[1] && scp[2]) return `https://${scp[1]}/${scp[2]}`;
   const url = /^(?:ssh|https?|git):\/\/(?:[\w.-]+@)?([\w.-]+)(?::\d+)?\/([\w.-]+\/[\w.-]+)$/.exec(trimmed);

@@ -33,7 +33,10 @@ function cells(line: string): string[] {
 
 // Inside a code block, inline markup would show as its own punctuation, so it is dropped rather than kept.
 function plain(cell: string): string {
-  return cell.replace(/`([^`]*)`/g, "$1").replace(/\*\*([^*]*)\*\*/g, "$1").replace(/\*([^*]*)\*/g, "$1");
+  return cell
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\*\*([^*]*)\*\*/g, "$1")
+    .replace(/\*([^*]*)\*/g, "$1");
 }
 
 function asList(rows: string[][]): string[] {
@@ -43,6 +46,10 @@ function asList(rows: string[][]): string[] {
 function asBlock(header: string[], rows: string[][]): string[] {
   const table = [header, ...rows].map((row) => row.map(plain));
   const widths = header.map((_, column) => Math.max(...table.map((row) => (row[column] ?? "").length)));
-  const pad = (row: string[]): string => row.map((cell, column) => cell.padEnd(widths[column] ?? 0)).join("  ").trimEnd();
+  const pad = (row: string[]): string =>
+    row
+      .map((cell, column) => cell.padEnd(widths[column] ?? 0))
+      .join("  ")
+      .trimEnd();
   return ["```", pad(table[0]!), widths.map((width) => "-".repeat(width)).join("  "), ...table.slice(1).map(pad), "```"];
 }

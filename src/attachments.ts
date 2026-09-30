@@ -22,8 +22,26 @@ export interface ScreenedAttachments {
 
 // Formats whose only purpose is to be run rather than read; source and scripts stay allowed on purpose.
 const EXECUTABLE_EXTENSIONS = new Set([
-  ".exe", ".com", ".scr", ".pif", ".msi", ".msix", ".appx", ".dll", ".cpl", ".hta",
-  ".lnk", ".reg", ".vbs", ".vbe", ".wsf", ".wsh", ".jse", ".jar", ".app", ".msc",
+  ".exe",
+  ".com",
+  ".scr",
+  ".pif",
+  ".msi",
+  ".msix",
+  ".appx",
+  ".dll",
+  ".cpl",
+  ".hta",
+  ".lnk",
+  ".reg",
+  ".vbs",
+  ".vbe",
+  ".wsf",
+  ".wsh",
+  ".jse",
+  ".jar",
+  ".app",
+  ".msc",
 ]);
 
 // Only formats whose extension decides how they are opened; text keeps whatever name it was sent under.
@@ -127,10 +145,7 @@ export function describeUnfetched(say: Say, failed: string[]): string | null {
   return say("attachments.unfetched", { count: failed.length, names });
 }
 
-export async function downloadAttachments(
-  attachments: RemoteAttachment[],
-  turnId: string,
-): Promise<DownloadedAttachments> {
+export async function downloadAttachments(attachments: RemoteAttachment[], turnId: string): Promise<DownloadedAttachments> {
   if (attachments.length === 0) return { saved: [], failed: [] };
 
   const dir = path.join(await ownedRoot(), turnId);

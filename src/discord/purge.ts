@@ -35,10 +35,7 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function purgeChannel(
-  channel: GuildTextBasedChannel,
-  keepMessageId?: string,
-): Promise<PurgeResult> {
+export async function purgeChannel(channel: GuildTextBasedChannel, keepMessageId?: string): Promise<PurgeResult> {
   const result: PurgeResult = { bulkDeleted: 0, slowDeleted: 0, failed: 0 };
 
   for (;;) {

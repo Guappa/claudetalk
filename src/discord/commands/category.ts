@@ -11,10 +11,7 @@ import {
 import { respond } from "../respond.ts";
 import { errorMessage } from "../../text.ts";
 
-export async function handleCategory(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleCategory(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 

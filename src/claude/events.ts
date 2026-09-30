@@ -52,12 +52,7 @@ export function isInit(event: ClaudeEvent): event is InitEvent {
 }
 
 export function isCompactionStart(event: ClaudeEvent): boolean {
-  return (
-    event.type === "system" &&
-    event.subtype === "status" &&
-    "status" in event &&
-    event.status === "compacting"
-  );
+  return event.type === "system" && event.subtype === "status" && "status" in event && event.status === "compacting";
 }
 
 // A task the previous process left running is reported once, by the next process to resume the session.
@@ -89,10 +84,15 @@ export function commandsChanged(event: ClaudeEvent): SessionCommand[] | null {
   const listed = (event as unknown as { commands?: unknown }).commands;
   if (!Array.isArray(listed)) return null;
   return listed
-    .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null && typeof entry.name === "string")
+    .filter(
+      (entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null && typeof entry.name === "string",
+    )
     .map((entry) => ({
       name: entry.name as string,
-      description: truncate((typeof entry.description === "string" ? entry.description : "").replace(/\s+/g, " ").trim(), DESCRIPTION_CHARS),
+      description: truncate(
+        (typeof entry.description === "string" ? entry.description : "").replace(/\s+/g, " ").trim(),
+        DESCRIPTION_CHARS,
+      ),
       argumentHint: typeof entry.argumentHint === "string" ? entry.argumentHint.trim() : "",
       aliases: Array.isArray(entry.aliases) ? entry.aliases.filter((alias): alias is string => typeof alias === "string") : [],
       builtin: entry.builtin === true,
@@ -105,7 +105,14 @@ export type AgentEvent =
   | { kind: "started"; taskId: string; toolUseId: string | null; description: string; agentType: string; remote: boolean }
   | { kind: "background"; taskId: string; toolUseId: string | null }
   | { kind: "progress"; taskId: string; activity: string; toolUses: number; tokens: number }
-  | { kind: "ended"; taskId: string; outcome: AgentOutcome; toolUses: number | null; tokens: number | null; durationMs: number | null };
+  | {
+      kind: "ended";
+      taskId: string;
+      outcome: AgentOutcome;
+      toolUses: number | null;
+      tokens: number | null;
+      durationMs: number | null;
+    };
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 const usageOf = (value: unknown): { tool_uses?: number; total_tokens?: number; duration_ms?: number } =>

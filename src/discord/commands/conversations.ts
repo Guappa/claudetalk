@@ -49,8 +49,7 @@ async function createConversationChannel(
   if (!guild) return null;
 
   const say = bridge.language.say;
-  const parent =
-    interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null;
+  const parent = interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null;
   const target = categoryId ?? bridge.config.categoryId ?? parent;
 
   try {
@@ -115,10 +114,7 @@ async function resolveWantedCategory(
   }
 }
 
-export async function handleCreate(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleCreate(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const name = interaction.options.getString("name", true);
 
   const guild = await requireGuild(bridge, interaction);
@@ -145,13 +141,7 @@ export async function startConversation(
   interaction: ChatInputCommandInteraction | ButtonInteraction,
   request: PendingCreate,
 ): Promise<void> {
-  const channel = await createConversationChannel(
-    bridge,
-    interaction,
-    request.name,
-    request.cwd,
-    request.categoryId,
-  );
+  const channel = await createConversationChannel(bridge, interaction, request.name, request.cwd, request.categoryId);
   if (!channel) return;
 
   const conversation = await bridge.store.bindNew({
@@ -192,9 +182,7 @@ async function askWhichConversation(
   const buttons = offered.map((record) =>
     new ButtonBuilder()
       .setCustomId(createResumeId(record.sessionId))
-      .setLabel(
-        say("create.resumeButton", { name: displayName(record), age: humanAge(say, record.lastActivity) }).slice(0, 80),
-      )
+      .setLabel(say("create.resumeButton", { name: displayName(record), age: humanAge(say, record.lastActivity) }).slice(0, 80))
       .setStyle(ButtonStyle.Primary),
   );
   buttons.push(
@@ -222,10 +210,7 @@ async function reportBack(interaction: ChatInputCommandInteraction, text: string
   }
 }
 
-export async function handleFork(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleFork(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   const source = await requireConversation(bridge, interaction, say("fork.unbound"));
   if (!source) return;
@@ -254,10 +239,7 @@ export async function handleFork(
   await reportBack(interaction, say("fork.done", { source: sourceName, channel: String(channel), name }));
 }
 
-export async function handleResume(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleResume(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   const name = interaction.options.getString("name", true);
   const index = await bridge.sessions.build();
@@ -268,10 +250,7 @@ export async function handleResume(
 
   if (!resolution.match) {
     const candidates = resolution.candidates.map(displayName).join(", ");
-    await respond(
-      interaction,
-      candidates ? say("resume.ambiguous", { name, candidates }) : say("resume.notFound", { name }),
-    );
+    await respond(interaction, candidates ? say("resume.ambiguous", { name, candidates }) : say("resume.notFound", { name }));
     return;
   }
 

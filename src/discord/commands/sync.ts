@@ -8,10 +8,7 @@ import { respond } from "../respond.ts";
 
 const HEADER_ROOM = 120;
 
-export async function handleSync(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleSync(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 

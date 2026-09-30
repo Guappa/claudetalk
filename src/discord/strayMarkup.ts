@@ -31,7 +31,10 @@ const OPENERS: Record<string, RegExp[]> = {
 };
 
 // Tokens Discord takes whole, so nothing inside them is a marker.
-const OPAQUE: Record<string, RegExp> = { "<": ANGLE_TOKEN, "h": BARE_URL };
+const OPAQUE = new Map([
+  ["<", ANGLE_TOKEN],
+  ["h", BARE_URL],
+]);
 
 function defuseStretch(prose: string): string {
   let result = "";
@@ -46,7 +49,7 @@ function defuseStretch(prose: string): string {
       continue;
     }
 
-    const whole = OPAQUE[char]?.exec(rest)?.[0] ?? closedSpan(char, rest);
+    const whole = OPAQUE.get(char)?.exec(rest)?.[0] ?? closedSpan(char, rest);
     if (whole) {
       result += whole;
       index += whole.length;

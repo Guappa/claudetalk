@@ -87,13 +87,15 @@ describe("TurnFlow", () => {
   it("runs the after hook even when the turn throws", async () => {
     const flow = makeFlow();
     const order: string[] = [];
-    await flow.run("s2", cwd, "boom", {}, quietSink(), {
-      resume: true,
-      beforeTurn: async () => {
-        throw new Error("preflight blew up");
-      },
-      afterTurn: async () => void order.push("after"),
-    }).catch(() => undefined);
+    await flow
+      .run("s2", cwd, "boom", {}, quietSink(), {
+        resume: true,
+        beforeTurn: async () => {
+          throw new Error("preflight blew up");
+        },
+        afterTurn: async () => void order.push("after"),
+      })
+      .catch(() => undefined);
     expect(order).toEqual(["after"]);
   });
 
@@ -124,7 +126,10 @@ describe("TurnFlow", () => {
     const order: string[] = [];
     const hooks = (tag: string) => ({ resume: true, beforeTurn: async () => void order.push(tag) });
     const states: string[] = [];
-    const first = flow.run("s8", cwd, "wrong", {}, quietSink(), { ...hooks("wrong"), onState: async (state) => void states.push(state) });
+    const first = flow.run("s8", cwd, "wrong", {}, quietSink(), {
+      ...hooks("wrong"),
+      onState: async (state) => void states.push(state),
+    });
     const second = flow.run("s8", cwd, "correction", {}, quietSink(), hooks("correction"));
     await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -158,11 +163,32 @@ describe("TurnFlow", () => {
   // An agent's edit once showed in the trail as if the session had made it, with its report repeated as a remark.
   it("keeps an agent out of the trail altogether, and shows it as an entry in the side room's roster", async () => {
     scripted.set("fan out", [
-      { type: "system", subtype: "task_started", task_id: "t1", tool_use_id: "use1", description: "Write the fixture", subagent_type: "general-purpose", task_type: "local_agent" },
-      { type: "assistant", parent_tool_use_id: "use1", message: { content: [{ type: "tool_use", name: "Write", input: { file_path: "/srv/app/fixture.txt", content: "alpha" } }] } },
+      {
+        type: "system",
+        subtype: "task_started",
+        task_id: "t1",
+        tool_use_id: "use1",
+        description: "Write the fixture",
+        subagent_type: "general-purpose",
+        task_type: "local_agent",
+      },
+      {
+        type: "assistant",
+        parent_tool_use_id: "use1",
+        message: {
+          content: [{ type: "tool_use", name: "Write", input: { file_path: "/srv/app/fixture.txt", content: "alpha" } }],
+        },
+      },
       { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: "Waiting on the agent." }] } },
       { type: "assistant", parent_tool_use_id: "use1", message: { content: [{ type: "text", text: "Wrote the fixture." }] } },
-      { type: "system", subtype: "task_notification", task_id: "t1", status: "completed", summary: "Wrote the fixture.", usage: { total_tokens: 1, tool_uses: 1, duration_ms: 2000 } },
+      {
+        type: "system",
+        subtype: "task_notification",
+        task_id: "t1",
+        status: "completed",
+        summary: "Wrote the fixture.",
+        usage: { total_tokens: 1, tool_uses: 1, duration_ms: 2000 },
+      },
     ]);
     const flow = makeFlow();
     const sink = recordingSink();
@@ -178,7 +204,12 @@ describe("TurnFlow", () => {
   });
 
   const agentStart = (taskId: string, taskType: string) => ({
-    type: "system", subtype: "task_started", task_id: taskId, tool_use_id: `use-${taskId}`, description: `Task ${taskId}`, task_type: taskType,
+    type: "system",
+    subtype: "task_started",
+    task_id: taskId,
+    tool_use_id: `use-${taskId}`,
+    description: `Task ${taskId}`,
+    task_type: taskType,
   });
 
   // Asking Claude to stop its agents costs a turn and an interruption; the button reaches them directly.
@@ -218,12 +249,17 @@ describe("TurnFlow", () => {
     const states: string[] = [];
     const asks: string[] = [];
     const closed: string[] = [];
-    const sink = { ...quietSink(), ask: async (text: string, actions: Array<{ label: string }>) => {
-      asks.push(`${text} [${actions.map((action) => action.label).join(",")}]`);
-      return { close: async (outcome: string) => void closed.push(outcome) };
-    } };
+    const sink = {
+      ...quietSink(),
+      ask: async (text: string, actions: Array<{ label: string }>) => {
+        asks.push(`${text} [${actions.map((action) => action.label).join(",")}]`);
+        return { close: async (outcome: string) => void closed.push(outcome) };
+      },
+    };
     const folded = await flow.run("s13", cwd, "and this too", {}, sink, {
-      resume: true, foldable: true, onState: async (state) => void states.push(state),
+      resume: true,
+      foldable: true,
+      onState: async (state) => void states.push(state),
     });
     expect(folded).toBe(true);
     expect(asked).toContain("handOver and this too");

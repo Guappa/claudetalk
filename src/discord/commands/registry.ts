@@ -7,9 +7,7 @@ export function bridgeCommandDefinitions() {
     new SlashCommandBuilder()
       .setName("create")
       .setDescription("Start a new conversation in a channel of its own")
-      .addStringOption((option) =>
-        option.setName("name").setDescription("Conversation name").setRequired(true),
-      )
+      .addStringOption((option) => option.setName("name").setDescription("Conversation name").setRequired(true))
       .addStringOption((option) =>
         option.setName("project").setDescription("Folder name or absolute path, created if it does not exist"),
       )
@@ -21,19 +19,13 @@ export function bridgeCommandDefinitions() {
       .setName("resume")
       .setDescription("Open an existing conversation in a channel of its own")
       .addStringOption((option) =>
-        option
-          .setName("name")
-          .setDescription("Conversation name")
-          .setRequired(true)
-          .setAutocomplete(true),
+        option.setName("name").setDescription("Conversation name").setRequired(true).setAutocomplete(true),
       ),
 
     new SlashCommandBuilder()
       .setName("fork")
       .setDescription("Branch this conversation into a new one, leaving this one untouched")
-      .addStringOption((option) =>
-        option.setName("name").setDescription("Name for the branch (default: this one plus -fork)"),
-      ),
+      .addStringOption((option) => option.setName("name").setDescription("Name for the branch (default: this one plus -fork)")),
 
     new SlashCommandBuilder()
       .setName("sessions")
@@ -77,13 +69,9 @@ export function bridgeCommandDefinitions() {
     new SlashCommandBuilder()
       .setName("category")
       .setDescription("Show or set the Discord category this conversation's channel sits in")
-      .addStringOption((option) =>
-        option.setName("name").setDescription("Category name, created if it does not exist"),
-      ),
+      .addStringOption((option) => option.setName("name").setDescription("Category name, created if it does not exist")),
 
-    new SlashCommandBuilder()
-      .setName("unbind")
-      .setDescription("Unbind this channel; the conversation is kept on the host"),
+    new SlashCommandBuilder().setName("unbind").setDescription("Unbind this channel; the conversation is kept on the host"),
 
     new SlashCommandBuilder()
       .setName("invite")
@@ -112,16 +100,12 @@ export function bridgeCommandDefinitions() {
       .setDescription("Stop someone seeing this conversation's channel")
       .addUserOption((option) => option.setName("user").setDescription("Who to remove").setRequired(true)),
 
-    new SlashCommandBuilder()
-      .setName("members")
-      .setDescription("Who owns this conversation, who can see it, and where it runs"),
+    new SlashCommandBuilder().setName("members").setDescription("Who owns this conversation, who can see it, and where it runs"),
 
     new SlashCommandBuilder()
       .setName("ask")
       .setDescription("Ask with a chosen amount of this channel's recent history as context")
-      .addStringOption((option) =>
-        option.setName("prompt").setDescription("What to ask").setRequired(true),
-      )
+      .addStringOption((option) => option.setName("prompt").setDescription("What to ask").setRequired(true))
       .addIntegerOption((option) =>
         option
           .setName("context")
@@ -130,17 +114,11 @@ export function bridgeCommandDefinitions() {
           .setMaxValue(50),
       ),
 
-    new SlashCommandBuilder()
-      .setName("sync")
-      .setDescription("Show what happened in this conversation outside Discord"),
+    new SlashCommandBuilder().setName("sync").setDescription("Show what happened in this conversation outside Discord"),
 
-    new SlashCommandBuilder()
-      .setName("plugins")
-      .setDescription("List Claude Code plugins and toggle one"),
+    new SlashCommandBuilder().setName("plugins").setDescription("List Claude Code plugins and toggle one"),
 
-    new SlashCommandBuilder()
-      .setName("skills")
-      .setDescription("List the skills this conversation has and run one"),
+    new SlashCommandBuilder().setName("skills").setDescription("List the skills this conversation has and run one"),
 
     new SlashCommandBuilder()
       .setName("run")
@@ -152,11 +130,11 @@ export function bridgeCommandDefinitions() {
           .setRequired(true)
           .setAutocomplete(true),
       )
-      .addStringOption((option) => option.setName("args").setDescription("What to pass to the command, as you would type after it")),
+      .addStringOption((option) =>
+        option.setName("args").setDescription("What to pass to the command, as you would type after it"),
+      ),
 
-    new SlashCommandBuilder()
-      .setName("purge")
-      .setDescription("Delete every message in this channel; the conversation is kept"),
+    new SlashCommandBuilder().setName("purge").setDescription("Delete every message in this channel; the conversation is kept"),
 
     new SlashCommandBuilder()
       .setName("clear")
@@ -165,17 +143,11 @@ export function bridgeCommandDefinitions() {
     new SlashCommandBuilder()
       .setName("stop")
       .setDescription("Stop the in-flight turn; what is queued behind it runs next")
-      .addBooleanOption((option) =>
-        option.setName("all").setDescription("Also drop everything queued behind it"),
-      ),
+      .addBooleanOption((option) => option.setName("all").setDescription("Also drop everything queued behind it")),
 
-    new SlashCommandBuilder()
-      .setName("queue")
-      .setDescription("Show what is running and queued in this conversation"),
+    new SlashCommandBuilder().setName("queue").setDescription("Show what is running and queued in this conversation"),
 
-    new SlashCommandBuilder()
-      .setName("takeover")
-      .setDescription("Stop a background agent holding this conversation"),
+    new SlashCommandBuilder().setName("takeover").setDescription("Stop a background agent holding this conversation"),
   ].map((builder) => {
     builder.setDefaultMemberPermissions(0n);
     return builder.toJSON();

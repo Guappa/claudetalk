@@ -15,7 +15,9 @@ function sourceFiles(dir) {
 
 const failures = [];
 for (const file of sourceFiles(root)) {
-  const checked = spawnSync(process.execPath, ["--experimental-strip-types", "--no-warnings", "--check", file], { encoding: "utf8" });
+  const checked = spawnSync(process.execPath, ["--experimental-strip-types", "--no-warnings", "--check", file], {
+    encoding: "utf8",
+  });
   if (checked.status !== 0) failures.push(`${path.relative(path.join(root, ".."), file)}\n${checked.stderr.trim()}`);
 }
 

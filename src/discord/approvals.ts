@@ -22,9 +22,7 @@ function detail(input: Record<string, unknown>): string {
   const target = input.file_path ?? input.path;
   const other = input.command ?? input.url ?? input.pattern;
   const shown =
-    typeof target === "string"
-      ? displayPath(target)
-      : redactHome(typeof other === "string" ? other : JSON.stringify(input));
+    typeof target === "string" ? displayPath(target) : redactHome(typeof other === "string" ? other : JSON.stringify(input));
   return truncate(shown, DETAIL_LIMIT);
 }
 

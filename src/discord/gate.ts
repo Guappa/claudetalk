@@ -9,11 +9,7 @@ export function isFromGuild(config: GateConfig, guildId: string | null, isBot: b
 }
 
 // Scoping stops this bridge auto-binding inside another bridge's channels; commands use tiers.
-export function isMessageInScope(
-  config: GateConfig,
-  channelParentId: string | null,
-  isBound: boolean,
-): boolean {
+export function isMessageInScope(config: GateConfig, channelParentId: string | null, isBound: boolean): boolean {
   if (isBound) return true;
   if (!config.categoryId) return true;
   return channelParentId === config.categoryId;

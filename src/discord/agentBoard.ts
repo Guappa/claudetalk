@@ -285,7 +285,10 @@ export class AgentBoard {
   private roster(page: number): string {
     return [...this.agents.values()]
       .filter((agent) => pageOf(agent) === page)
-      .map((agent) => `**${agent.index} · ${agent.type}** · ${truncate(agent.description, ROSTER_DESCRIPTION_CHARS)}\n${this.standing(agent, false)}`)
+      .map(
+        (agent) =>
+          `**${agent.index} · ${agent.type}** · ${truncate(agent.description, ROSTER_DESCRIPTION_CHARS)}\n${this.standing(agent, false)}`,
+      )
       .join("\n\n");
   }
 
@@ -299,7 +302,11 @@ export class AgentBoard {
     const spent = agent.tokens > 0 ? `${tools} · ${this.tokens(agent.tokens)}` : tools;
     if (this.waiting(agent)) return `${this.say("agents.waiting")} · ${spent}`;
     if (agent.state !== "running") return `${this.ending(agent.state, agent.durationMs)} · ${spent}`;
-    const doing = agent.activity ? `${truncate(agent.activity, ACTIVITY_CHARS)} · ` : live ? "" : `${this.say("agents.running")} · `;
+    const doing = agent.activity
+      ? `${truncate(agent.activity, ACTIVITY_CHARS)} · `
+      : live
+        ? ""
+        : `${this.say("agents.running")} · `;
     const elapsed = live ? ` · ${formatElapsed(this.say, agent.earlierMs + this.now() - agent.startedAt)}` : "";
     return `${doing}${spent}${elapsed}`;
   }

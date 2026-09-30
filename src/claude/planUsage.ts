@@ -19,9 +19,7 @@ const WINDOW_LABELS = {
 
 // A window Claude Code adds later is still shown, under the name it was reported by.
 function windowLabel(say: Say, name: string): string {
-  return Object.hasOwn(WINDOW_LABELS, name)
-    ? say(WINDOW_LABELS[name as keyof typeof WINDOW_LABELS])
-    : name.replace(/_/g, " ");
+  return Object.hasOwn(WINDOW_LABELS, name) ? say(WINDOW_LABELS[name as keyof typeof WINDOW_LABELS]) : name.replace(/_/g, " ");
 }
 
 function isWindow(value: unknown): value is PlanWindow {

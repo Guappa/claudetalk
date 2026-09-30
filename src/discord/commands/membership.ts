@@ -39,10 +39,7 @@ function describeConversation(say: Say, conversation: Conversation): string {
   return `${say("members.runs", { cwd: displayPath(conversation.cwd) })} ${seen}`;
 }
 
-export async function handleInvite(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleInvite(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 
@@ -64,10 +61,7 @@ export async function handleInvite(
   await respond(interaction, `${invited}\n\n${say("members.inviteWarning")}${accessWarning}`);
 }
 
-export async function handleUninvite(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleUninvite(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 
@@ -87,10 +81,7 @@ export async function handleUninvite(
   await respond(interaction, `${removed} ${describeConversation(say, updated)}${accessWarning}`);
 }
 
-export async function handleMembers(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleMembers(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 

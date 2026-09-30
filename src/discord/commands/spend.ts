@@ -35,10 +35,7 @@ function describeCost(say: Say, mine: UsageTotals, all: UsageTotals): string {
     : say("spend.costWithLast", { ...costs, last: money(say, mine.lastCostUsd) });
 }
 
-export async function handleSpend(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleSpend(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 

@@ -18,9 +18,7 @@ const SNOWFLAKE = /^[0-9]{17,20}$/;
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key]?.trim();
   if (!value) {
-    throw new Error(
-      `${key} is not set. Copy .env.example to .env and fill it in; README.md says where each value comes from.`,
-    );
+    throw new Error(`${key} is not set. Copy .env.example to .env and fill it in; README.md says where each value comes from.`);
   }
   return value;
 }
@@ -51,8 +49,7 @@ function toolApprovals(env: NodeJS.ProcessEnv): boolean {
   const value = env.CLAUDE_TOOL_APPROVALS?.trim() || "false";
   if (value !== "true" && value !== "false") {
     throw new Error(
-      `CLAUDE_TOOL_APPROVALS is "${value}", which is neither true nor false. ` +
-        `Set it in .env, then restart the bridge.`,
+      `CLAUDE_TOOL_APPROVALS is "${value}", which is neither true nor false. Set it in .env, then restart the bridge.`,
     );
   }
   return value === "true";

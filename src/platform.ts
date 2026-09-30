@@ -122,9 +122,7 @@ export function killTree(pid: number): void {
 // Only POSIX gets its own process group: on Windows that would give the child a console of its own.
 type SpawnStdio = ["pipe", "pipe", "pipe"];
 
-export function turnSpawnOptions(
-  cwd: string,
-): { cwd: string; shell: false; stdio: SpawnStdio; detached?: boolean } {
+export function turnSpawnOptions(cwd: string): { cwd: string; shell: false; stdio: SpawnStdio; detached?: boolean } {
   // The SDK writes the prompt and its control messages over stdin, so all three are pipes.
   const stdio: SpawnStdio = ["pipe", "pipe", "pipe"];
   if (process.platform === "win32") return { cwd, shell: false, stdio };

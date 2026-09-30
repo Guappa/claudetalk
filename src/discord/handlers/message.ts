@@ -20,12 +20,7 @@ import { runConversationTurn } from "../turn.ts";
 import { reactionMarker } from "../reactions.ts";
 import { isFromGuild, isMessageInScope } from "../gate.ts";
 import { toChannelName } from "../channelName.ts";
-import {
-  addressesBot,
-  addressesSomeoneElse,
-  shouldQuoteReplied,
-  type Addressing,
-} from "../addressing.ts";
+import { addressesBot, addressesSomeoneElse, shouldQuoteReplied, type Addressing } from "../addressing.ts";
 import { adHocWorkingDir, tierOf } from "../policy.ts";
 import {
   attributionOnly,
@@ -224,5 +219,13 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
 
   const target = await targetFor(bridge, message, channel, addressing);
   if (!target) return;
-  await runTurn(bridge, message, channel, target, prompt, contextFor(message, replied, addressing), classification.kind === "turn");
+  await runTurn(
+    bridge,
+    message,
+    channel,
+    target,
+    prompt,
+    contextFor(message, replied, addressing),
+    classification.kind === "turn",
+  );
 }

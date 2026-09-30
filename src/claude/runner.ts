@@ -106,7 +106,12 @@ interface HookOutput {
 
 function allowed(reason: string, updatedInput?: Record<string, unknown>): HookOutput {
   return {
-    hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: reason, updatedInput },
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "allow",
+      permissionDecisionReason: reason,
+      updatedInput,
+    },
   };
 }
 

@@ -470,8 +470,7 @@ export class TurnFlow {
         name: options.name,
         fork: options.fork,
         approve: this.approvalGate(say, sessionId, sink, options.onState),
-        askQuestions: (questions) =>
-          whileWaiting(options.onState, () => this.questions.ask(say, sessionId, sink, questions)),
+        askQuestions: (questions) => whileWaiting(options.onState, () => this.questions.ask(say, sessionId, sink, questions)),
       },
       (event) => {
         const noteCompaction = (): void => {

@@ -7,17 +7,13 @@ import { respond } from "../respond.ts";
 
 const AUTOCOMPLETE_LIMIT = 25;
 
-export async function handleAutocomplete(
-  bridge: Bridge,
-  interaction: AutocompleteInteraction,
-): Promise<void> {
+export async function handleAutocomplete(bridge: Bridge, interaction: AutocompleteInteraction): Promise<void> {
   const typed = interaction.options.getFocused().toLowerCase();
   const index = await bridge.sessions.build();
   const pool = typed ? index : withoutScratch(index).shown;
   // An id is how you reach past the newest one, so it is searchable as well as the name.
   const matching = pool.filter(
-    (record) =>
-      displayName(record).toLowerCase().includes(typed) || record.sessionId.toLowerCase().startsWith(typed),
+    (record) => displayName(record).toLowerCase().includes(typed) || record.sessionId.toLowerCase().startsWith(typed),
   );
 
   const choices = newestPerName(matching)
@@ -26,10 +22,7 @@ export async function handleAutocomplete(
   await interaction.respond(choices);
 }
 
-export async function handleSessions(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleSessions(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const filter = interaction.options.getString("filter")?.toLowerCase() ?? "";
   const index = await bridge.sessions.build();
   const { shown, hidden } = filter

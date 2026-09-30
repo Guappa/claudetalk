@@ -24,8 +24,7 @@ export function noContext(): BuiltContext {
 const MAX_MESSAGE_CHARS = 600;
 
 // Your reply is already threaded to their message, so tagging them again only adds noise.
-const MENTION_GUIDANCE =
-  "Do not tag the person you are answering. Use <@id> only to bring in someone else the answer concerns.";
+const MENTION_GUIDANCE = "Do not tag the person you are answering. Use <@id> only to bring in someone else the answer concerns.";
 
 export function toContextMessage(message: Message): ContextMessage {
   return {
@@ -50,9 +49,7 @@ export function buildContext(messages: ContextMessage[]): BuiltContext {
       `${message.authorName} (<@${message.authorId}>) at ${utcDateAndTime(message.at)}: ${truncate(message.content, MAX_MESSAGE_CHARS)}`,
   );
 
-  const mentionableUserIds = [
-    ...new Set(usable.filter((message) => !message.isBot).map((message) => message.authorId)),
-  ];
+  const mentionableUserIds = [...new Set(usable.filter((message) => !message.isBot).map((message) => message.authorId))];
 
   const token = randomBytes(8).toString("hex");
 

@@ -7,10 +7,7 @@ import { describeStop, describeStopTurn, preflight } from "../turnFlow.ts";
 import { describeDepth } from "../turnQueue.ts";
 import { respond } from "../respond.ts";
 
-export async function handleStop(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleStop(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   const conversation = bridge.store.byChannel(interaction.channelId);
   if (interaction.options.getBoolean("all")) {
@@ -22,20 +19,14 @@ export async function handleStop(
   await respond(interaction, describeStopTurn(say, outcome));
 }
 
-export async function handleQueue(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleQueue(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = bridge.store.byChannel(interaction.channelId);
   const depth = conversation ? bridge.flow.queueDepth(conversation.sessionId) : 0;
   await respond(interaction, describeDepth(bridge.language.say, depth));
 }
 
 // Unbinding is safe and immediate; deleting the channel is not, so that part waits for a press.
-export async function handleUnbind(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleUnbind(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   await bridge.store.unbind(interaction.channelId);
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -45,10 +36,7 @@ export async function handleUnbind(
   await respond(interaction, { content: say("unbind.done"), components: [row] });
 }
 
-export async function handleTakeover(
-  bridge: Bridge,
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function handleTakeover(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
 

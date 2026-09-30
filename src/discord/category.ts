@@ -27,9 +27,7 @@ export function describeCategoryFull(say: Say, name: string): string {
 
 export async function resolveCategory(guild: Guild, name: string): Promise<CategoryChannel> {
   const wanted = normaliseCategoryName(name);
-  const existing = guild.channels.cache.filter(
-    (channel) => channel.type === ChannelType.GuildCategory,
-  );
+  const existing = guild.channels.cache.filter((channel) => channel.type === ChannelType.GuildCategory);
 
   const match = findCategory(
     existing.map((channel) => ({ id: channel.id, name: channel.name })),

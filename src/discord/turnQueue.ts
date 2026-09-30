@@ -2,10 +2,7 @@ import type { Say } from "../i18n/index.ts";
 
 export const MAX_QUEUE_DEPTH = 5;
 
-export type QueueOutcome =
-  | { kind: "run-now" }
-  | { kind: "queued"; ahead: number }
-  | { kind: "full" };
+export type QueueOutcome = { kind: "run-now" } | { kind: "queued"; ahead: number } | { kind: "full" };
 
 interface Ticket {
   started: boolean;

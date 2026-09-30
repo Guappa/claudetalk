@@ -111,12 +111,19 @@ function fitsInOne(say: Say, notes: string[], elapsedMs: number, steps: number, 
 
 // A remark keeps its paragraphs and code blocks, the way the terminal shows it; only stray blank lines go.
 function tidy(text: string): string {
-  return redactHome(text).replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  return redactHome(text)
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 // Whitespace and the escapes the markup guard adds never decide whether two texts are the same remark.
 function comparable(text: string): string {
-  return text.replace(/\\([^0-9A-Za-z\s])/g, "$1").replace(/\s+/g, " ").trim();
+  return text
+    .replace(/\\([^0-9A-Za-z\s])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 // The trail reads in time order, like the terminal: a message is left as it stands once it is full or buried.
