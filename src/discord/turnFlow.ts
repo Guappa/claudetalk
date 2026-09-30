@@ -690,13 +690,13 @@ export class TurnFlow {
     }
 
     const uses = toolUses(event);
-    status.stepped(uses.length);
-    // As in the terminal, an agent is shown working and on what; its own edits, commands and words are not the session's.
+    // As in the terminal, an agent is shown working and on what; its own edits, commands, words and steps are not the session's.
     const parent = parentToolUseId(event);
     if (parent && board.follows(parent)) {
       for (const use of uses) if (use.id) board.noteCall(parent, use.id);
       return;
     }
+    status.stepped(uses.length);
 
     for (const use of uses) {
       const shown = describeToolUse(say, use.name, use.input);
