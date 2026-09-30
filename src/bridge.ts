@@ -52,16 +52,16 @@ export async function createBridge(config: Config): Promise<Bridge> {
   const operators = new OperatorStore(config.operatorsPath);
   await operators.load();
 
-  const language = new LanguageChoice(path.join(path.dirname(config.bindingsPath), "language.json"), config.language);
+  const language = new LanguageChoice(path.join(config.dataDir, "language.json"), config.language);
   await language.load();
 
-  const capabilities = new CapabilityCache(path.join(path.dirname(config.bindingsPath), "commands.json"));
+  const capabilities = new CapabilityCache(path.join(config.dataDir, "commands.json"));
   await capabilities.load();
   const usage = new UsageLedger();
   const planUsage = new PlanUsage();
   const approvals = new ApprovalPrompts();
   const questions = new QuestionPrompts();
-  const activeTurns = new ActiveTurns(path.join(path.dirname(config.bindingsPath), "turns.json"));
+  const activeTurns = new ActiveTurns(path.join(config.dataDir, "turns.json"));
   await activeTurns.load();
   const outbox = new OutboxDelivery();
   const trackers = new Map<string, ContextTracker>();

@@ -33,6 +33,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     ownerIds: [OWNER],
     projectsRoot: path.join(dir, "projects"),
     bindingsPath: path.join(dir, "conversations.json"),
+    dataDir: dir,
     operatorsPath: path.join(dir, "operators.json"),
     toolApprovals: false,
     language: "en",

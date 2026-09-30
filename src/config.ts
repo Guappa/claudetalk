@@ -1,3 +1,4 @@
+import path from "node:path";
 import { LANGUAGES, isLanguage, type Language } from "./i18n/index.ts";
 
 export interface Config {
@@ -6,6 +7,8 @@ export interface Config {
   ownerIds: string[];
   projectsRoot: string;
   bindingsPath: string;
+  // Where the bridge's state lives: beside the bindings, so that moving them moves the lock, the language, the cache and the turns with them.
+  dataDir: string;
   operatorsPath: string;
   toolApprovals: boolean;
   language: Language;
@@ -79,7 +82,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ownerIds: ownerIds(env),
     projectsRoot: required(env, "PROJECTS_ROOT"),
     bindingsPath: bindingsPathFrom(env),
-    operatorsPath: env.OPERATORS_PATH?.trim() || "data/operators.json",
+    dataDir: path.dirname(bindingsPathFrom(env)),
+    operatorsPath: env.OPERATORS_PATH?.trim() || path.join(path.dirname(bindingsPathFrom(env)), "operators.json"),
     toolApprovals: toolApprovals(env),
     language: language(env),
     categoryId: env.DISCORD_CATEGORY_ID?.trim() || undefined,
