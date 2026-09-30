@@ -160,7 +160,7 @@ describe("TurnFlow", () => {
     expect(flow.activeCount()).toBe(0);
   });
 
-  // An agent's edit once showed in the trail as if the session had made it, with its report repeated as a remark.
+  // An agent's edit is not the session's and its report is not a remark, so neither belongs in the trail.
   it("keeps an agent out of the trail altogether, and shows it as an entry in the side room's roster", async () => {
     scripted.set("fan out", [
       {
@@ -240,7 +240,7 @@ describe("TurnFlow", () => {
     expect(order).toEqual(["stopTasks t4", "stop review it"]);
   });
 
-  // A message sent mid-turn used to wait for the whole turn; the terminal takes one at the next step.
+  // The terminal takes a message typed mid-turn at the next step, and so does the bridge.
   it("hands a plain message to the turn already running, and marks it taken up and then done with the turn", async () => {
     const flow = makeFlow();
     const running = flow.run("s13", cwd, "long job", {}, recordingSink(), { resume: true });
@@ -278,7 +278,7 @@ describe("TurnFlow", () => {
     expect(await flow.sendNow("s13")).toBe("not-running");
   });
 
-  // A session with nothing in hand starts on a message at once, long before its first words; Send now then cut the answer to that very message.
+  // A session with nothing in hand starts on a message at once, long before its first words, and Send now would then cut the answer to that very message.
   it("does not interrupt a message the session has already started on", async () => {
     const flow = makeFlow();
     const running = flow.run("s17", cwd, "idle with a watcher", {}, recordingSink(), { resume: true });
@@ -331,7 +331,7 @@ describe("TurnFlow", () => {
     expect(second.messages[0]).toContain("**Arbetade**");
   });
 
-  // The final edit was awaited bare: with the progress message purged mid-turn it threw, and the answer, the reaction and the outbox were all skipped.
+  // A progress message purged mid-turn cannot take the final edit, and the answer, the reaction and the outbox must not go down with it.
   it("still says the answer when the progress message is gone by the end", async () => {
     scripted.set("purged under it", [
       { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: "Looking." }] } },
@@ -358,7 +358,7 @@ describe("TurnFlow", () => {
     expect(states).toEqual(["running", "done"]);
   });
 
-  // A notice that could not be sent mid-turn was a rejection nobody handled until the turn ended, which ends the process.
+  // A notice that cannot be sent mid-turn is a rejection nobody awaits until the turn ends, which would end the process.
   it("keeps the turn going when a notice in the middle of it cannot be sent", async () => {
     scripted.set("compacts to a dead channel", [
       {

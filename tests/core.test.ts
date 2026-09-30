@@ -239,7 +239,7 @@ describe("buildOptions", () => {
     expect(options.effort).toBe("high");
   });
 
-  // No typed option covers autocompact, so it has to keep reaching the flag it had before.
+  // No typed option covers autocompact, so it travels as a flag of its own.
   it("still reaches autocompact through the escape hatch", () => {
     const options = buildOptions({ ...base, resume: true, settings: { autocompact: "false" } });
     expect(options.extraArgs).toEqual({ "replay-user-messages": null, autocompact: "false" });
@@ -277,7 +277,7 @@ describe("scanTranscript", () => {
     expect(info.hasContent).toBe(false);
   });
 
-  // Claude Code stamps each record with where its shell stands. A session left in a subfolder was bound to that subfolder, and ran there from then on.
+  // Claude Code stamps each record with where its shell stands, so the last one is often a subfolder the session only visited.
   describe("the directory a session belongs to", () => {
     const transcriptIn = async (projectFolder: string, stamps: string[]): Promise<string> => {
       const folder = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "stamped-")), projectFolder);
@@ -380,7 +380,7 @@ describe("ConversationStore", () => {
     file = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "conv-")), "conversations.json");
   });
 
-  // It once loaded as empty, and the first save afterwards wrote that emptiness over every binding.
+  // Loaded as empty, the next save would write that emptiness over every binding.
   it("refuses to load a file that does not parse, and leaves it exactly as it was", async () => {
     const damaged = '{ "conversations": { "keep": { "sessionId": "keep" } }, "channelIndex": { "c1": "keep" }, }';
     await fs.writeFile(file, damaged, "utf8");
@@ -396,7 +396,7 @@ describe("ConversationStore", () => {
     expect(store.all()).toEqual([]);
   });
 
-  // Every save shared one temporary file, so two that overlapped lost one of them to a failed rename.
+  // Saves that overlap must not share a temporary file, or one loses its rename to the other.
   it("lands every save when several overlap, and ends holding the last state", async () => {
     const store = new ConversationStore(file);
     await store.load();
@@ -415,7 +415,7 @@ describe("ConversationStore", () => {
     expect((await fs.readdir(path.dirname(file))).filter((name) => name.endsWith(".tmp"))).toEqual([]);
   });
 
-  // Left behind, it routed the old voice channel into whatever was next bound under the same session.
+  // A voice channel left in the index routes into whatever is bound under the same session next.
   it("forgets every channel of a conversation when its text channel is unbound", async () => {
     const store = new ConversationStore(file);
     await store.load();
@@ -572,7 +572,7 @@ describe("chunkForDiscord", () => {
     expect(chunkForDiscord("")).toEqual([]);
   });
 
-  // The first piece used to be the opener closed at once: an empty code block, then the code outside any block.
+  // An opener closed at once is an empty code block, with the code after it outside any block.
   it("does not leave an empty code block when a fenced line needs a chunk to itself", () => {
     const chunks = chunkForDiscord(`\`\`\`\n${"x".repeat(1995)}\n\`\`\``);
     expect(chunks).not.toContain("```\n```");
@@ -609,7 +609,7 @@ describe("chunkForDiscord", () => {
 });
 
 describe("splitForDiscord", () => {
-  // Pieces were cut at the limit and only then escaped; one that grew past it was refused by Discord and the answer never appeared.
+  // Escaping lengthens a piece, and Discord refuses one over the limit, so an answer cut before escaping may never appear.
   it("cuts pieces that still fit once stray markers in them are escaped", () => {
     const answer = Array.from({ length: 200 }, () => "word my_var_name other_var_name and 2 * 3 then").join("\n");
     expect(chunkForDiscord(answer).some((piece) => forDiscord(piece).length > DISCORD_MESSAGE_LIMIT)).toBe(true);
@@ -935,7 +935,7 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
     expect(redactPaths(once, ownHome)).toBe(once);
   });
 
-  // A command run through WSL named the home as /mnt/c/Users/..., which no pattern knew, and it reached Discord as written.
+  // WSL spells a Windows home under /mnt/c and Cygwin under /cygdrive/c, and a command run through either carries that spelling.
   it("knows the home as WSL and Cygwin spell it, and at the end of a sentence", () => {
     const cases: Array<[string, string]> = [
       [`cd '/mnt${slashed(home).replace("C:", "/c")}/Documents/projects/x'`, "cd '~/Documents/projects/x'"],
@@ -1154,7 +1154,7 @@ describe("displayName", () => {
   it("is what /resume names the channel and the reply after", () => {
     const sessionId = "4c241d90-c5ad-44e4-94d7-a8d374b00000";
     const untitled = { ...record({ sessionId, name: "x", cwd: "/p/kitchen-site" }), name: null };
-    // Autocomplete submits the session id, so a fallback to it named the channel after a UUID.
+    // Autocomplete submits the session id, so a name that falls back to it would call the channel a UUID.
     expect(displayName(untitled)).toBe("kitchen-site");
     expect(displayName(untitled)).not.toContain(sessionId);
   });
@@ -1421,7 +1421,7 @@ describe("ApprovalPrompts", () => {
     expect(asks).toBe(2);
   });
 
-  // Claude Code runs the tool when the hook throws, so a prompt that failed to post once let a command run unapproved.
+  // Claude Code runs the tool when the hook throws, so a prompt that cannot be posted has to come back as a refusal.
   it("denies when the prompt cannot be posted, and leaves nothing waiting on it", async () => {
     const prompts = new ApprovalPrompts();
     const sink = { ...quietSink(), ask: async () => Promise.reject(new Error("Missing Permissions")) };
@@ -1452,7 +1452,7 @@ describe("ApprovalPrompts", () => {
     expect(answer).toMatchObject({ hookSpecificOutput: { permissionDecision: "deny" } });
   });
 
-  // It used to read "Denied from Discord." when nobody had denied anything.
+  // Nobody denied it, so it must not read as denied.
   it("closes a prompt its turn outlived as ended, not as denied", async () => {
     const prompts = new ApprovalPrompts();
     const closed: string[] = [];
@@ -1683,7 +1683,7 @@ describe("HeldPrompt", () => {
     return await Promise.race([ended, wait(ms).then(() => false)]);
   }
 
-  // The shapes here were captured: a message handed over is echoed back the moment the session takes it up.
+  // A captured shape: replay echoes a handed-over message, at take-up mid-step and with the model's first output otherwise.
   const replay = (uuid: string) => ({ type: "user", message: { content: [] }, uuid, isReplay: true }) as ClaudeEvent;
 
   it("passes on a message handed over mid-turn, and refuses one before the turn is under way or after it has let go", async () => {
@@ -1747,7 +1747,7 @@ describe("HeldPrompt", () => {
     expect(takenUp(spoke)).toBeNull();
   });
 
-  // A failed follow-up once quoted the answer of the turn before it as the reason it failed.
+  // The reason a result failed is its own errors; the answer an earlier turn left in the same process is not one.
   it("words a failed result from its own errors", () => {
     expect(resultError("error_during_execution", [])).toEqual({ kind: "ended", subtype: "error_during_execution", text: "" });
     expect(resultError("error_max_turns", ["hit the limit", "twice"])).toEqual({
@@ -1937,7 +1937,7 @@ describe("describeToolUse", () => {
     expect(shown).toBe("`/srv/app/src/thing.ts`\n```diff\n- const alpha = 1;\n- const beta = 2;\n+ const alpha = 10;\n```");
   });
 
-  // Discord read the underscores in a plain path as italics that ran into the fence and broke it.
+  // Discord reads the underscores in a plain path as italics, which run into the fence and break it.
   it("keeps a path with underscores out of Markdown, whichever tool drew it", () => {
     const input = { file_path: "/srv/app/memory/project_backup_notes.md", old_string: "a", new_string: "b", content: "c" };
     expect(describeToolUse(say, "Edit", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md`");
@@ -2203,7 +2203,7 @@ describe("agents in a turn", () => {
     expect(sink.details[1]).toContain("**12 · general-purpose** · Part 11");
   });
 
-  // An agent that backgrounded a command was reported done, then sent back to finish; it kept its first report's standing.
+  // An agent reported done and then sent back to work is running again, under the entry it already has.
   it("puts an agent that is sent back to work under the entry it already has, adding to what it had done", async () => {
     const sink = recordingSink();
     const agents = board(sink);
@@ -2255,7 +2255,7 @@ describe("agents in a turn", () => {
     expect(describeStopAgents(say, 2)).toContain("Asked 2 tasks to stop");
   });
 
-  // Two agents each left a sleep running and were reported done; nothing looked stoppable, and the roster said done.
+  // An agent reported done with a command of its own still running is not done: it stays stoppable, and the roster says it is waiting.
   it("treats an agent that left a command running as waiting, and reaches that command when stopping", async () => {
     const sink = recordingSink();
     const stopped: string[] = [];
@@ -2506,7 +2506,7 @@ describe("StatusMessage formatting", () => {
     for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
   });
 
-  // /context once showed twice: its tables as raw pipes in the trail, then again in boxes as the answer.
+  // An answer with tables has to match its own remark, or it shows twice: raw pipes in the trail, boxes beneath.
   it("drops the echoed answer when it names a home path, is long enough to be cut up, or holds a table", async () => {
     const homePath = path.join(os.homedir(), "notes", "plan.md");
     const table = "| Kind | Tokens |\n|---|---|\n| System | 2.5k |\n| Tools | 8k |\n| Files | 5k |";
@@ -2639,7 +2639,7 @@ describe("repo links", () => {
     expect(linkReferences("Not a commit: `deadbee` nor cafef00d.", links)).toBe("Not a commit: `deadbee` nor cafef00d.");
   });
 
-  // "Issue #3" was once the third point someone raised, and it linked to a tracker item that had nothing to do with it.
+  // "#3" is as often the third point someone raised as a tracker item, and a link to the wrong item misleads.
   it("links a number only when the words before it name a change request", () => {
     expect(linkReferences("Landed as PR #8.", links)).toBe(`Landed as PR [#8](<${base}/issues/8>).`);
     expect(linkReferences("Pull requests #4, #5 and #6 merged.", links)).toBe(
@@ -2891,7 +2891,7 @@ describe("formatSessionList", () => {
     expect(output).toContain("live (interactive, idle)");
   });
 
-  // The listing once gave a UTC time without saying so, which read as local and was hours off.
+  // A UTC time that does not say so reads as local, and is hours off.
   it("gives the last activity as a Discord timestamp, so it shows in the reader's zone", () => {
     const lastActivity = new Date("2026-09-13T14:32:00Z");
     const output = formatSessionList(say, [record({ sessionId: "a", name: "Deploy Scripts", cwd: "/p/deploy", lastActivity })]);
@@ -2960,7 +2960,7 @@ describe("toChannelName", () => {
 });
 
 describe("killTree", () => {
-  // On POSIX both signals throw for a process that has exited, and the second was not caught: a late Stop took the bridge down.
+  // On POSIX both signals throw for a process that has exited, and a Stop that lands late must not.
   it("does nothing, and does not throw, for a process that is already gone", async () => {
     const child = spawn(process.execPath, ["-e", ""], { stdio: "ignore" });
     const pid = child.pid!;
@@ -2976,7 +2976,7 @@ describe("acquireInstanceLock", () => {
     lockPath = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "lock-")), "bridge.lock");
   });
 
-  // Reading the lock and then writing it let two bridges started in the same instant both take it.
+  // Read and then written, the lock goes to both of two bridges starting in the same instant; taking it has to be one step.
   it("lets only one of two processes starting together take the lock", async () => {
     const lockModule = pathToFileURL(path.join(import.meta.dirname, "..", "src", "instanceLock.ts")).href;
     const contender = `
@@ -3207,7 +3207,7 @@ describe("transcript view", () => {
 
   const stamp = (at: Date) => `<t:${Math.floor(at.getTime() / 1000)}:f>`;
 
-  // A time alone read as today's when the exchange was weeks old.
+  // A time alone reads as today's, and what is caught up on can be weeks old.
   it("labels the source, and the date and time as a Discord timestamp so it shows in the reader's zone", () => {
     const out = formatExchanges(say, exchanges);
     expect(out).toContain(`**You** · terminal · ${stamp(exchanges[0]!.at)}`);
@@ -4134,7 +4134,7 @@ describe("stopping drains the queue", () => {
     expect(describeStop(say, { stopped: false, dropped: 0 })).toBe("Nothing is running here.");
   });
 
-  // It once said plain /stop dropped the queue, long after /stop had stopped doing that.
+  // Plain /stop ends only the turn in flight; dropping the queue takes /stop all:true, and the refusal says which is which.
   it("points the full-queue refusal at what each stop really does", async () => {
     const queue = new TurnQueue();
     const running = Array.from({ length: MAX_QUEUE_DEPTH }, () => queue.enqueue("s1", () => wait(5)));
