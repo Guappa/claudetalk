@@ -24,7 +24,8 @@ export function refusal(source) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compared as real paths: reached through a junction or a linked folder the two spell the same file differently, and the check would do nothing and pass.
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   if (typeof nodeModule.stripTypeScriptTypes !== "function") {
     console.error(
       `This check asks Node's type stripper directly, which Node ${process.versions.node} does not offer to a script. The bridge runs on it; the check needs Node 22.13 or newer. Run it again under a newer Node, for example \`nvm use 24\`.`,

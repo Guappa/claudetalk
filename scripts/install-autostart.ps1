@@ -7,7 +7,10 @@ param(
     [string]$TaskName = 'claudetalk',
 
     # A logon trigger can fire before the network is up, which surfaces as a login failure.
-    [int]$DelaySeconds = 30
+    [int]$DelaySeconds = 30,
+
+    # Whose task it is, handed on when the script relaunches itself elevated: that window may run as somebody else.
+    [string]$Account = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -48,13 +51,15 @@ switch ($Action) {
         }
 
         $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        # A standard account elevates with an administrator's credentials, and everything after that runs as the administrator.
+        $owner = if ($Account) { $Account } else { $identity.Name }
         $isAdmin = (New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole(
             [Security.Principal.WindowsBuiltInRole]::Administrator)
         if (-not $isAdmin) {
             Write-Output "Registering a windowless task needs administrator rights. Asking for them now."
             # One quoted absolute path: Start-Process neither quotes a path with spaces nor honours -WorkingDirectory under RunAs.
-            $relaunch = '-NoProfile -NoExit -ExecutionPolicy Bypass -File "{0}" -Action install -TaskName "{1}" -DelaySeconds {2}' -f
-                $PSCommandPath, $TaskName, $DelaySeconds
+            $relaunch = '-NoProfile -NoExit -ExecutionPolicy Bypass -File "{0}" -Action install -TaskName "{1}" -DelaySeconds {2} -Account "{3}"' -f
+                $PSCommandPath, $TaskName, $DelaySeconds, $owner
             try {
                 Start-Process powershell -Verb RunAs -ArgumentList $relaunch
                 Write-Output "Continuing in the elevated window that just opened."
@@ -71,11 +76,11 @@ switch ($Action) {
         # Starting at boot as well as at logon means a reboot needs nobody to sign in.
         $atStartup = New-ScheduledTaskTrigger -AtStartup
         $atStartup.Delay = "PT${DelaySeconds}S"
-        $atLogon = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+        $atLogon = New-ScheduledTaskTrigger -AtLogOn -User $owner
         $atLogon.Delay = "PT${DelaySeconds}S"
 
         # S4U runs as the user with no desktop session, so no console window exists to be closed.
-        $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited
+        $principal = New-ScheduledTaskPrincipal -UserId $owner -LogonType S4U -RunLevel Limited
 
         $settings = New-ScheduledTaskSettingsSet `
             -AllowStartIfOnBatteries `

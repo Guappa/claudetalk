@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { refusal } from "../scripts/check-boot.mjs";
-import { DOC_ONLY, SHAPES } from "../scripts/scan-private.mjs";
+import { DOC_ONLY, SHAPES, publishable } from "../scripts/scan-private.mjs";
+import { execFileSync } from "node:child_process";
+import os from "node:os";
 
 const repoRoot = path.join(import.meta.dirname, "..");
 
@@ -434,7 +436,70 @@ describe("what is drawn on a control, an embed or a file passes the gate too", (
   });
 });
 
+describe("the private-data scan", () => {
+  const shape = (label: string): RegExp => SHAPES.find(([name]) => name === label)![1] as RegExp;
+
+  // A placeholder is exempt as a whole name; a real name that merely starts the same way is not.
+  it("exempts the placeholder names whole, and catches a name that only begins like one", () => {
+    const home = shape("a real home directory");
+    for (const placeholder of [
+      "/home/user/x",
+      "/home/you/x",
+      "/Users/me/x",
+      "C:\\\\Users\\\\you\\\\x",
+      "C:\\\\Users\\\\your\\\\x",
+    ]) {
+      expect(home.test(placeholder), placeholder).toBe(false);
+    }
+    // Spelled in pieces, or this file would be the one leak the scan reports.
+    const posix = (...parts: string[]) => `/${parts.join("/")}/`;
+    const windows = (...parts: string[]) => parts.join("\\\\");
+    for (const real of [
+      posix("home", "young", "notes"),
+      posix("home", "yousef", "x"),
+      posix("Users", "youssef", "x"),
+      posix("home", "users1", "x"),
+      windows("C:", "Users", "yourick", "x"),
+      windows("C:", "Users", "username7", "x"),
+    ]) {
+      expect(home.test(real), real).toBe(true);
+    }
+  });
+
+  // A bot token starts with its application id in base64, and an id can start with any digit.
+  it("knows a bot token whatever digit its id starts with", () => {
+    const credential = shape("a credential");
+    const token = (id: string) => `${Buffer.from(id).toString("base64").replace(/=+$/, "")}.Gx7Yq2.${"a".repeat(38)}`;
+    for (const id of ["123456789012345678", "298765432109876543", "432109876543210987", "876543210987654321"]) {
+      expect(credential.test(token(id)), id).toBe(true);
+    }
+    expect(credential.test("MTIz.short")).toBe(false);
+  });
+
+  // A transcript kept as a fixture is the file likeliest to have been captured from a real session.
+  it("reads the transcript fixtures and the files with no extension, as git would publish them", () => {
+    const listed = publishable().map((file: string) => path.relative(repoRoot, file).split(path.sep).join("/"));
+    expect(listed).toContain("tests/fixtures/transcript-stub.jsonl");
+    expect(listed).toContain("LICENSE");
+    expect(listed).toContain(".gitignore");
+    expect(listed.some((file: string) => file.startsWith("node_modules/"))).toBe(false);
+    expect(listed.some((file: string) => file.endsWith(".webp"))).toBe(false);
+  });
+});
+
 describe("the boot check", () => {
+  // A checkout reached through a junction or a linked folder is spelled two ways, and a guard comparing them as written runs nothing and passes.
+  it("runs when the checkout is reached through a linked folder", () => {
+    const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "linked-")), "checkout");
+    fs.symlinkSync(repoRoot, link, "junction");
+    try {
+      const printed = execFileSync(process.execPath, [path.join(link, "scripts", "check-boot.mjs")], { encoding: "utf8" });
+      expect(printed).toContain("Every source file loads");
+    } finally {
+      fs.rmSync(link, { recursive: false, force: true });
+    }
+  });
+
   // The suite compiles with esbuild, which runs all of these, so only Node's own stripper can say which of them the bridge would start with.
   it("refuses what Node's type stripper cannot run, and nothing that it can", () => {
     expect(refusal("enum Mood { Done }")).toContain("enum");

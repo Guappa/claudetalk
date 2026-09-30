@@ -36,6 +36,24 @@ unload_agent() {
   launchctl bootout "$domain/$label" 2>/dev/null || launchctl unload -w "$plist_path" 2>/dev/null || true
 }
 
+is_loaded() {
+  launchctl print "$domain/$label" >/dev/null 2>&1
+}
+
+# launchd lets go of a job only once its process has ended, which a bridge finishing a turn puts off, and it refuses to load the job again before then.
+wait_until_unloaded() {
+  local waited=0
+  while is_loaded; do
+    if [ "$waited" -ge 60 ]; then
+      echo "The agent that was running is still stopping, most likely finishing a turn, so the new one was not loaded." >&2
+      echo "Run this again once it has stopped: scripts/install-autostart-macos.sh status says when." >&2
+      exit 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
 case "$action" in
   status)
     if [ ! -f "$plist_path" ]; then
@@ -138,7 +156,13 @@ PLIST
     fi
 
     unload_agent
+    wait_until_unloaded
     load_agent
+    if ! is_loaded; then
+      echo "The agent was written to $plist_path but launchd did not load it; what it said is above." >&2
+      echo "Log out and in again to have it loaded, or run this again." >&2
+      exit 1
+    fi
 
     echo "Installed $label."
     echo "Starts when you log in, restarts if it exits badly, waits 10s between tries."
