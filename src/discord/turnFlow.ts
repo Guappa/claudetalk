@@ -474,9 +474,10 @@ export class TurnFlow {
           whileWaiting(options.onState, () => this.questions.ask(say, sessionId, sink, questions)),
       },
       (event) => {
-        pending.push(
-          this.handleEvent(say, event, sessionId, cwd, status, board, sink, tracker, () => void (compaction.happened = true)),
-        );
+        const noteCompaction = (): void => {
+          compaction.happened = true;
+        };
+        pending.push(this.handleEvent(say, event, sessionId, cwd, status, board, sink, tracker, noteCompaction));
       },
     );
     this.running.set(sessionId, turn);

@@ -4,12 +4,8 @@ import fs from "node:fs/promises";
 export const TAIL_BYTES = 3 * 1024 * 1024;
 
 export async function readTail(transcriptPath: string, bytes: number): Promise<string | null> {
-  let handle;
-  try {
-    handle = await fs.open(transcriptPath, "r");
-  } catch {
-    return null;
-  }
+  const handle = await fs.open(transcriptPath, "r").catch(() => null);
+  if (!handle) return null;
 
   try {
     const { size } = await handle.stat();

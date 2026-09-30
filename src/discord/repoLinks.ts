@@ -103,7 +103,7 @@ export function referenceLinks(webUrl: string, verified: Verified): ReferenceLin
 
 const HASH = /^[0-9a-f]{7,40}$/;
 const FILE = /^((?:[\w.-]+\/)*[\w-][\w.-]*\.\w+)(?::(\d+)(?:-(\d+))?)?$/;
-const NAME = /^[\w][\w.\-\/]*$/;
+const NAME = /^[\w][\w.\-/]*$/;
 const TRAILING_PUNCTUATION = /[.,;:!?)]+$/;
 // Fences pass through untouched and an existing link keeps its text; everything else is scanned for something worth a link.
 const TOKENS = new RegExp(
@@ -257,7 +257,9 @@ function existingCommits(cwd: string, hashes: string[]): Promise<Set<string>> {
       stdio: ["pipe", "pipe", "ignore"],
     });
     let output = "";
-    child.stdout.on("data", (chunk: Buffer) => void (output += chunk.toString()));
+    child.stdout.on("data", (chunk: Buffer) => {
+      output += chunk.toString();
+    });
     child.on("error", () => resolve(new Set()));
     child.on("close", () => {
       const full = new Set<string>();

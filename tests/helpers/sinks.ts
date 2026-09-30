@@ -40,7 +40,11 @@ export function recordingSink(): RecordingSink {
       return {
         post: async (text) => {
           const at = details.push(text) - 1;
-          return { revise: async (next) => void (details[at] = next) };
+          return {
+            revise: async (next) => {
+              details[at] = next;
+            },
+          };
         },
       };
     },

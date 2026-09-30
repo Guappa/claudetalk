@@ -29,7 +29,7 @@ export type ContentBlock =
   | { type: "tool_use"; id?: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; content: unknown };
 
-export interface BackgroundTask {
+interface BackgroundTask {
   task_id: string;
   ambient?: boolean;
 }

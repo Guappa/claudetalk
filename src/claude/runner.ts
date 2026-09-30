@@ -58,7 +58,7 @@ export function bridgeSystemNote(sessionId: string): string {
 }
 
 // Reading the working directory is what a turn is for; approving each read would make the gate unusable.
-export const UNGATED_TOOLS = new Set(["Read", "Glob", "Grep", "TodoWrite", "NotebookRead"]);
+const UNGATED_TOOLS = new Set(["Read", "Glob", "Grep", "TodoWrite", "NotebookRead"]);
 
 export function buildOptions(request: TurnRequest): Options {
   const { settings } = request;

@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  // package.json and the lockfile are npm's to write, and a fixture is kept byte for byte as it was captured.
+  "files": { "includes": ["src/**", "tests/**", "scripts/**", "*.ts", "!tests/fixtures"] },
+  // 130 is the width the code is written to; a narrower one would rewrap a tenth of it for nothing.
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 130, "lineEnding": "lf" },
+  "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" } },
+  // Imports are grouped by what they belong to, not by the alphabet, so nothing reorders them.
+  "assist": { "enabled": false },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // noUncheckedIndexedAccess types every index as possibly undefined; `!` after a bounds check is how the code says it looked.
+        "noNonNullAssertion": "off"
+      },
+      "complexity": {
+        // A `continue` in a catch says the failure is skipped on purpose; the empty catch this rule leaves behind says nothing.
+        "noUselessContinue": "off"
+      }
+    }
+  }
+}

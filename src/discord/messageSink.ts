@@ -20,7 +20,7 @@ export interface SinkAnchor {
   messageId: string;
 }
 
-export interface SinkMenuOption {
+interface SinkMenuOption {
   value: string;
   label: string;
   description?: string;

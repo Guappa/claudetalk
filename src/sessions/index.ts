@@ -74,12 +74,8 @@ export class SessionIndex {
   }
 
   private async recordFor(transcriptPath: string, file: string): Promise<SessionRecord | null> {
-    let stat;
-    try {
-      stat = await fs.stat(transcriptPath);
-    } catch {
-      return null;
-    }
+    const stat = await fs.stat(transcriptPath).catch(() => null);
+    if (!stat) return null;
 
     const cached = this.scanned.get(transcriptPath);
     if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) return cached.record;
