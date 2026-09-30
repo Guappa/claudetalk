@@ -492,8 +492,6 @@ export class TurnFlow {
   ): Promise<void> {
     // Read once, so a turn finishes in the language it started in even if another is picked while it runs.
     const say = this.say();
-    // True once Claude Code's process has ended, which is before the answer is posted and the turn is cleared away.
-    let over = false;
     // The record follows the trail into each new message, so an interruption is marked where the reader looks.
     let ended = false;
     const remember = async (): Promise<void> => {
@@ -547,13 +545,7 @@ export class TurnFlow {
         await options.onState?.("stopped");
         return;
       }
-      await this.live(
-        scope,
-        () => !over,
-        () => {
-          over = true;
-        },
-      );
+      await this.live(scope);
     } finally {
       status.stop();
       this.approvals.finish(sessionId);
@@ -573,8 +565,11 @@ export class TurnFlow {
   }
 
   // The part of a turn during which Claude Code runs, and the posting of what it came to.
-  private async live(scope: TurnScope, stillRunning: () => boolean, onOver: () => void): Promise<void> {
+  private async live(scope: TurnScope): Promise<void> {
     const { sessionId, cwd, prompt, settings, sink, options, resume, say, status, board, tracker } = scope;
+    // True once Claude Code's process has ended, which is before the answer is posted and the turn is cleared away.
+    let over = false;
+    const stillRunning = (): boolean => !over;
     const pending: Array<Promise<void>> = [];
     const compaction = { happened: false };
 
@@ -604,7 +599,7 @@ export class TurnFlow {
     this.settingUp.delete(sessionId);
 
     const result = await turn.done;
-    onOver();
+    over = true;
     this.finishing.add(sessionId);
     this.recordSpend(sessionId, result, options, resume);
     await Promise.allSettled(pending);

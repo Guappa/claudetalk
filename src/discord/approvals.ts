@@ -7,8 +7,8 @@ import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 
 export type ApprovalChoice = "approve" | "deny" | "approve-all";
-// What a person chose, or that the turn was over before anyone did.
-type Settlement = ApprovalChoice | "ended";
+// What a person chose, or that the turn was over or the time was up before anyone did.
+type Settlement = ApprovalChoice | "ended" | "expired";
 
 // Long enough to answer from a phone, short enough that a forgotten prompt does not hold a turn open.
 const APPROVAL_TIMEOUT_MS = 5 * 60_000;
@@ -40,11 +40,12 @@ function approvalActions(say: Say, id: string): SinkAction[] {
   ];
 }
 
-function describeChoice(say: Say, choice: Settlement, expired = false): string {
+function describeChoice(say: Say, choice: Settlement): string {
   if (choice === "ended") return say("approvals.ended");
+  if (choice === "expired") return say("approvals.expired", { minutes: APPROVAL_TIMEOUT_MS / 60_000 });
   if (choice === "approve") return say("approvals.approvedOnce");
   if (choice === "approve-all") return say("approvals.approvedRest");
-  return expired ? say("approvals.expired", { minutes: APPROVAL_TIMEOUT_MS / 60_000 }) : say("approvals.denied");
+  return say("approvals.denied");
 }
 
 // One per turn: a decision to approve the rest of it must not outlive the turn it was given for.
@@ -78,11 +79,8 @@ export class ApprovalPrompts {
     const { promise: answered, resolve: settle } = Promise.withResolvers<Settlement>();
 
     this.pending.set(id, { turnId, ownerIds, settle });
-    let expired = false;
     const timer = setTimeout(() => {
-      if (!this.pending.delete(id)) return;
-      expired = true;
-      settle("deny");
+      if (this.pending.delete(id)) settle("expired");
     }, APPROVAL_TIMEOUT_MS);
     timer.unref();
 
@@ -97,11 +95,10 @@ export class ApprovalPrompts {
     clearTimeout(timer);
 
     if (choice === "approve-all") this.approveAll.add(turnId);
-    await handle.close(describeChoice(say, choice, expired));
+    await handle.close(describeChoice(say, choice));
 
     if (choice === "approve" || choice === "approve-all") return { allow: true };
-    if (choice === "ended") return { allow: false, reason: APPROVAL_REFUSED.ended };
-    return { allow: false, reason: expired ? APPROVAL_REFUSED.expired : APPROVAL_REFUSED.denied };
+    return { allow: false, reason: APPROVAL_REFUSED[choice === "deny" ? "denied" : choice] };
   }
 
   // A turn's standing approval dies with it, and so does anything of its own still waiting on an answer.
