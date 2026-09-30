@@ -2463,6 +2463,14 @@ describe("formatSessionList", () => {
     expect(output).toContain("live (interactive, idle)");
   });
 
+  // The listing once gave a UTC time without saying so, which read as local and was hours off.
+  it("gives the last activity as a Discord timestamp, so it shows in the reader's zone", () => {
+    const lastActivity = new Date("2026-09-13T14:32:00Z");
+    const output = formatSessionList(say, [record({ sessionId: "a", name: "Deploy Scripts", cwd: "/p/deploy", lastActivity })]);
+    expect(output).toContain(`<t:${Math.floor(lastActivity.getTime() / 1000)}:f>`);
+    expect(output).not.toContain("2026-09-13 14:32");
+  });
+
   it("says so when there is nothing to list", () => {
     expect(formatSessionList(say, [])).toMatch(/no conversations/i);
   });
@@ -2730,17 +2738,18 @@ describe("transcript view", () => {
     { at: new Date("2026-09-13T14:33:00Z"), role: "assistant" as const, text: "mounted" },
   ];
 
-  const stamp = (at: Date) => `<t:${Math.floor(at.getTime() / 1000)}:t>`;
+  const stamp = (at: Date) => `<t:${Math.floor(at.getTime() / 1000)}:f>`;
 
-  it("labels the source, and the time as a Discord timestamp so it shows in the reader's zone", () => {
+  // A time alone read as today's when the exchange was weeks old.
+  it("labels the source, and the date and time as a Discord timestamp so it shows in the reader's zone", () => {
     const out = formatExchanges(say, exchanges);
     expect(out).toContain(`**You** · terminal · ${stamp(exchanges[0]!.at)}`);
     expect(out).toContain(`**Claude** · terminal · ${stamp(exchanges[1]!.at)}`);
   });
 
-  it("uses a plain clock where Discord will not render one", () => {
+  it("uses a plain clock with its date where Discord will not render one", () => {
     const out = formatExchanges(say, exchanges, "plain");
-    expect(out).toContain("**You** · terminal · 14:32 UTC");
+    expect(out).toContain("**You** · terminal · 2026-09-13 14:32 UTC");
     expect(out).not.toContain("<t:");
   });
 
@@ -2766,10 +2775,10 @@ describe("transcript view", () => {
     expect(latestThatFit(say, long.slice(0, 1), 10)).toEqual([long[0]]);
   });
 
-  it("describes drift with a count and the last time", () => {
+  it("describes drift with a count, how long ago the last was, and its date", () => {
     const notice = describeDrift(say, exchanges);
     expect(notice).toContain("2 messages");
-    expect(notice).toContain(stamp(exchanges[1]!.at));
+    expect(notice).toContain(`The last was <t:${Math.floor(exchanges[1]!.at.getTime() / 1000)}:R>, ${stamp(exchanges[1]!.at)}.`);
     expect(notice).toContain("/sync");
   });
 
@@ -2822,8 +2831,8 @@ describe("buildContext", () => {
 
   it("names each speaker with a taggable id", () => {
     const context = buildContext(messages);
-    expect(context.text).toContain("First (<@u1>) at 14:30: the nas is full");
-    expect(context.text).toContain("Second (<@u2>) at 14:31: since when?");
+    expect(context.text).toContain("First (<@u1>) at 2026-09-13 14:30 UTC: the nas is full");
+    expect(context.text).toContain("Second (<@u2>) at 2026-09-13 14:31 UTC: since when?");
   });
 
   it("lets the bot tag back the humans it saw", () => {
