@@ -19,20 +19,20 @@ if ((Test-Path -LiteralPath $logPath) -and ((Get-Item -LiteralPath $logPath).Len
 }
 
 # Appended through cmd so the log stays readable while the bridge runs, redirect first because cmd reads a digit straight before >> as a handle number and eats it.
-function Write-Log([string]$Message) {
+function Write-BridgeLog([string]$Message) {
     & cmd.exe /c ">> `"$logPath`" echo $Message" | Out-Null
 }
 
 $node = (Get-Command node -ErrorAction SilentlyContinue).Source
 if (-not $node) {
-    Write-Log "$(Get-Date -Format o)  node is not on PATH for this session; the bridge cannot start."
+    Write-BridgeLog "$(Get-Date -Format o)  node is not on PATH for this session; the bridge cannot start."
     exit 1
 }
 
-Write-Log "$(Get-Date -Format o)  starting bridge"
+Write-BridgeLog "$(Get-Date -Format o)  starting bridge"
 
 & cmd.exe /c "`"$node`" --env-file-if-exists=.env --experimental-strip-types src/index.ts >> `"$logPath`" 2>&1"
 $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 
-Write-Log "$(Get-Date -Format o)  bridge exited with code $code"
+Write-BridgeLog "$(Get-Date -Format o)  bridge exited with code $code"
 exit $code
