@@ -2004,6 +2004,32 @@ describe("StatusMessage formatting", () => {
     for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
   });
 
+  // /context once showed twice: its tables as raw pipes in the trail, then again in boxes as the answer.
+  it("drops the echoed answer when it names a home path, is long enough to be cut up, or holds a table", async () => {
+    const homePath = path.join(os.homedir(), "notes", "plan.md");
+    const table = "| Kind | Tokens |\n|---|---|\n| System | 2.5k |\n| Tools | 8k |\n| Files | 5k |";
+    const answer = `Context usage\n\n${table}\n\nMemory file: ${homePath}\n\n${"A long paragraph of remark. ".repeat(120)}`;
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("Looking it up.");
+    status.note(answer);
+    status.dropEcho(answer);
+    await status.settle();
+    expect(sink.messages.join("\n")).toContain("Looking it up.");
+    expect(sink.messages.join("\n")).not.toContain("Context usage");
+  });
+
+  it("draws a table in a remark the way it draws one in an answer", async () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(sink, () => 0);
+    await status.start();
+    status.note("| Kind | Tokens | Share |\n|---|---|---|\n| System | 2.5k | 1% |");
+    await status.settle();
+    expect(sink.messages[0]).toContain("```");
+    expect(sink.messages[0]).not.toContain("|---|");
+  });
+
   it("still drops the echoed answer when the remark kept its line breaks", () => {
     const sink = recordingSink();
     const status = new StatusMessage(sink, () => 0);

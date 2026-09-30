@@ -3,6 +3,7 @@ import { count, truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
 import { DISCORD_MESSAGE_LIMIT, chunkForDiscord } from "./renderer.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
+import { convertTables } from "./tables.ts";
 
 const MAX_NOTES_SHOWN = 10;
 // Discord caps a message at 2000, and the log has to stay under it however long a turn runs.
@@ -100,6 +101,9 @@ function comparable(text: string): string {
 // The trail reads in time order, like the terminal: a message is left as it stands once it is full or buried.
 export class StatusMessage {
   private notes: string[] = [];
+  // Which remark each piece of the trail came from, and the remarks as they were said before being cut up and drawn.
+  private origins: number[] = [];
+  private readonly remarks: string[] = [];
   private sealed = 0;
   private steps = 0;
   private timer: NodeJS.Timeout | null = null;
@@ -153,17 +157,22 @@ export class StatusMessage {
   note(text: string): void {
     const clean = tidy(text);
     if (!clean) return;
+    const origin = this.remarks.push(clean) - 1;
     // Remarks share one message, so each is sealed on its own and none can reach into the next.
-    for (const piece of chunkForDiscord(clean, NOTE_BUDGET)) this.addNote(defuseStrayMarkup(piece));
+    for (const piece of chunkForDiscord(convertTables(clean), NOTE_BUDGET)) this.addNote(defuseStrayMarkup(piece), origin);
   }
 
-  private addNote(piece: string): void {
+  private addNote(piece: string, origin: number): void {
     // While a move is still queued the sink reads as buried; the remarks meanwhile belong to that new message.
     const buried = this.sink.continueIn !== undefined && !this.moving && this.sink.isLatest?.() === false;
     if (buried) this.rollOver(this.notes);
     this.notes.push(piece);
+    this.origins.push(origin);
     // Without a way to continue, the oldest remarks give way instead.
-    if (!this.sink.continueIn && this.notes.length > MAX_NOTES_KEPT) this.notes.shift();
+    if (!this.sink.continueIn && this.notes.length > MAX_NOTES_KEPT) {
+      this.notes.shift();
+      this.origins.shift();
+    }
   }
 
   // Overflow moves at the next edit, not on arrival, so a remark that turns out to be the answer can still be taken back.
@@ -190,7 +199,7 @@ export class StatusMessage {
 
   // A status Claude Code repeats every few seconds should read as one line, not a growing column.
   noteOnce(text: string): void {
-    const last = this.notes.at(-1);
+    const last = this.lastRemark();
     if (last !== undefined && comparable(last) === comparable(tidy(text))) return;
     this.note(text);
   }
@@ -205,15 +214,23 @@ export class StatusMessage {
 
   // The last thing said is the answer, which is about to be posted in full beneath the trail.
   dropEcho(answer: string): void {
-    const flat = comparable(answer);
-    if (!flat) return;
+    // Tidied the way a remark is, or an answer naming a home path would never match the remark that had it redacted.
+    const said = comparable(tidy(answer));
+    if (!said) return;
 
-    while (this.notes.length > 0) {
-      const last = comparable(this.notes[this.notes.length - 1]!);
-      const probe = last.endsWith("...") ? last.slice(0, -3) : last;
-      if (!probe || !flat.includes(probe)) break;
-      this.notes.pop();
+    for (let last = this.lastRemark(); last !== undefined && said.includes(comparable(last)); last = this.lastRemark()) {
+      const origin = this.origins.at(-1);
+      while (this.origins.length > 0 && this.origins.at(-1) === origin) {
+        this.notes.pop();
+        this.origins.pop();
+      }
     }
+  }
+
+  // The newest remark still in hand, as it was said: a piece of the trail may be a cut of it, or a table redrawn.
+  private lastRemark(): string | undefined {
+    const origin = this.origins.at(-1);
+    return origin === undefined ? undefined : this.remarks[origin];
   }
 
   // Leaves the trail in place, marked finished, so the answer can arrive beneath it.
@@ -255,6 +272,7 @@ export class StatusMessage {
   // The sealed remarks stay in the current message as they are; the heading and the button move to a new one below.
   private rollOver(sealed: string[]): void {
     this.notes = this.notes.slice(sealed.length);
+    this.origins = this.origins.slice(sealed.length);
     this.sealed += sealed.length;
     // A message with no remarks yet must not be left reading as live work, so it becomes a plain marker.
     const sealedText = sealed.length > 0 ? sealed.join("\n\n") : "**Started**";
