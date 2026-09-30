@@ -17,6 +17,8 @@ import fs from "node:fs/promises";
 import { outboxPath } from "../src/discord/outbox.ts";
 
 const started = vi.hoisted(() => [] as string[]);
+// Whether each mocked turn was asked to resume its session, keyed by its prompt.
+const resumed = vi.hoisted(() => new Map<string, boolean>());
 // Events a mocked turn replays before it finishes, keyed by its prompt.
 const scripted = vi.hoisted(() => new Map<string, unknown[]>());
 // What a mocked turn was asked to do, in order: tasks stopped inside it, and the turn itself stopped.
@@ -29,6 +31,8 @@ const endings = vi.hoisted(() => new Map<string, unknown>());
 const asks = vi.hoisted(() => new Map<string, unknown[]>());
 // Prompts whose mocked turn refuses to be interrupted.
 const uninterruptible = vi.hoisted(() => new Set<string>());
+// Events a mocked turn sends a moment after it starts, keyed by its prompt.
+const later = vi.hoisted(() => new Map<string, unknown>());
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
@@ -36,11 +40,13 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   return {
     ...actual,
     runTurn: (
-      request: { prompt: string; askQuestions?: (questions: unknown[]) => Promise<unknown> },
+      request: { prompt: string; resume: boolean; askQuestions?: (questions: unknown[]) => Promise<unknown> },
       onEvent: (event: unknown) => void,
     ) => {
       started.push(request.prompt);
+      resumed.set(request.prompt, request.resume);
       for (const event of scripted.get(request.prompt) ?? []) onEvent(event);
+      if (later.has(request.prompt)) setTimeout(() => onEvent(later.get(request.prompt)), 10);
       const questions = asks.get(request.prompt);
       if (questions) void request.askQuestions?.(questions);
       return {
@@ -443,6 +449,117 @@ describe("TurnFlow", () => {
 
     expect(sink.messages.at(-1)).toBe("echo answers after a prompt");
     expect(sink.messages.join("\n")).not.toContain("**Worked**");
+  });
+
+  describe("an outcome too long for one message", () => {
+    const remark = (text: string) => ({
+      type: "assistant",
+      parent_tool_use_id: null,
+      message: { content: [{ type: "text", text }] },
+    });
+    // A sink that refuses what Discord would refuse.
+    const strictSink = () => {
+      const sink = recordingSink();
+      const within = (text: string): void => {
+        if (text.length > 2000) throw new Error("Invalid Form Body: content must be 2000 or fewer in length");
+      };
+      const { send, edit } = sink;
+      sink.send = async (text) => {
+        within(text);
+        await send(text);
+      };
+      sink.edit = async (text, actions) => {
+        within(text);
+        await edit(text, actions);
+      };
+      return sink;
+    };
+
+    it("shows the whole reason a turn failed, across as many messages as it needs, and leaves no trail reading as live work", async () => {
+      const reason = Array.from({ length: 60 }, (_, index) => `line ${index + 1}: ${"e".repeat(60)}`).join("\n");
+      scripted.set("fails at length", [remark("Trying the build first.")]);
+      endings.set("fails at length", { ok: false, text: "", error: { kind: "reported", text: reason } });
+      const flow = makeFlow();
+      const sink = strictSink();
+      const states: string[] = [];
+      await flow.run("s30", cwd, "fails at length", {}, sink, {
+        resume: true,
+        onState: async (state) => void states.push(state),
+      });
+
+      const shown = sink.messages.join("\n");
+      expect(shown).toContain("line 1: ");
+      expect(shown).toContain("line 60: ");
+      expect(shown).not.toContain("**Working**");
+      expect(states.at(-1)).toBe("failed");
+    });
+
+    // The first remark is sealed when a prompt buries the trail, so the answer's first message sits under a heading and has to leave it room.
+    it("puts a long answer under the heading of the message the trail moved to, not beneath a bare one", async () => {
+      // Twenty lines of 99 characters fill a message to within one character, which leaves a heading no room at all.
+      const answer = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: `.padEnd(99, "y")).join("\n");
+      scripted.set("long after a prompt", [remark("Looking into it first.")]);
+      later.set("long after a prompt", remark(answer));
+      endings.set("long after a prompt", { ok: true, text: answer });
+      const flow = makeFlow();
+      const sink = strictSink();
+      setTimeout(() => {
+        sink.othersBelow = true;
+      }, 5);
+      await flow.run("s31", cwd, "long after a prompt", {}, sink, { resume: true });
+
+      const headings = sink.messages.filter((message) => message.includes("**Worked**"));
+      expect(headings).toHaveLength(1);
+      expect(headings[0]).toContain("Point 1: ");
+      expect(sink.messages.join("\n")).toContain("Point 40: ");
+    });
+  });
+
+  // The lane still holds the turn while it is being marked as seen, and nothing is left in it to stop by then.
+  it("does not take a stop that lands after a turn's answer for a stop of the next turn", async () => {
+    const flow = makeFlow();
+    const marking = Promise.withResolvers<void>();
+    const first = flow.run("s32", cwd, "answered already", {}, quietSink(), { resume: true, afterTurn: () => marking.promise });
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    expect(flow.stop("s32")).toEqual({ stopped: false, dropped: 0 });
+    expect(flow.stopTurn("s32")).toEqual({ stopped: false, queued: 0 });
+    marking.resolve();
+    await first;
+
+    const sink = recordingSink();
+    await flow.run("s32", cwd, "the next one", {}, sink, { resume: true });
+    expect(started).toContain("the next one");
+    expect(sink.messages.at(-1)).toBe("echo the next one");
+  });
+
+  it("does not run a turn its own check turns back when its place in the lane comes up, and says why", async () => {
+    const flow = makeFlow();
+    const sink = recordingSink();
+    const states: string[] = [];
+    const ran = await flow.run("s33", cwd, "turned back", {}, sink, {
+      resume: true,
+      beforeTurn: async () => "The conversation this was for is gone.",
+      onState: async (state) => void states.push(state),
+    });
+
+    expect(ran).toBe(false);
+    expect(started).not.toContain("turned back");
+    expect(sink.written).toEqual(["The conversation this was for is gone."]);
+    expect(states).toEqual(["stopped"]);
+  });
+
+  it("asks whether to resume only when the turn's place in the lane comes up", async () => {
+    const flow = makeFlow();
+    const exists = { yet: false };
+    const first = flow.run("s34", cwd, "creates it", {}, quietSink(), { resume: () => exists.yet });
+    const second = flow.run("s34", cwd, "finds it there", {}, quietSink(), { resume: () => exists.yet });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    exists.yet = true;
+    await Promise.all([first, second]);
+
+    expect(resumed.get("creates it")).toBe(false);
+    expect(resumed.get("finds it there")).toBe(true);
   });
 
   it("says so when the files a turn left could not be attached, and still ends the turn as done", async () => {

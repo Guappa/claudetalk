@@ -44,6 +44,5 @@ export async function handleAsk(bridge: Bridge, interaction: ChatInputCommandInt
       allowedUserIds: [...new Set([interaction.user.id, ...context.mentionableUserIds])],
       latestPosts: bridge.latestPosts,
     }),
-    resume: true,
   });
 }

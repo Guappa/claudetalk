@@ -149,6 +149,7 @@ export async function startConversation(
     cwd: request.cwd,
     channelId: channel.id,
     ownerId: interaction.user.id,
+    fresh: true,
   });
   await respond(interaction, {
     content: bridge.language.say("create.done", {
@@ -163,7 +164,6 @@ export async function startConversation(
     actorId: interaction.user.id,
     prompt: helloToNew(request.name),
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
-    resume: false,
     name: request.name,
   });
 }

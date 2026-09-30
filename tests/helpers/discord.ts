@@ -130,11 +130,18 @@ export function fakeCommand(
 
 export interface FakePress {
   interaction: ButtonInteraction;
+  // What the menu the button sits on was made to say, in order.
   replies: string[];
+  // What was said to the presser alone, beside the menu.
+  whispers: string[];
 }
 
 export function fakePress(place: FakeChannel, userId: string, customId: string, guild: unknown = null): FakePress {
   const replies: string[] = [];
+  const whispers: string[] = [];
+  const written = (payload: string | Payload): void => {
+    if (typeof payload === "string" || payload.content !== undefined) replies.push(textOf(payload));
+  };
   const interaction = {
     customId,
     channelId: place.channel.id,
@@ -146,15 +153,16 @@ export function fakePress(place: FakeChannel, userId: string, customId: string, 
     deferred: false,
     replied: false,
     update: async (payload: Payload) => {
-      replies.push(textOf(payload));
+      written(payload);
       interaction.replied = true;
     },
-    editReply: async (payload: string | Payload) => void replies.push(textOf(payload)),
+    editReply: async (payload: string | Payload) => written(payload),
+    followUp: async (payload: Payload) => void whispers.push(textOf(payload)),
     deferUpdate: async () => {
       interaction.deferred = true;
     },
   };
-  return { interaction: interaction as unknown as ButtonInteraction, replies };
+  return { interaction: interaction as unknown as ButtonInteraction, replies, whispers };
 }
 
 interface FakeUpload {

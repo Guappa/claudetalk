@@ -13,7 +13,7 @@ import type { Say } from "../../i18n/index.ts";
 import { displayName } from "../../sessions/displayName.ts";
 import { requireConversation } from "../binding.ts";
 import { CLEAR_CANCEL, clearConfirmId } from "../menus.ts";
-import { respond, settleMenu } from "../respond.ts";
+import { respond, respondQuietly, settleMenu } from "../respond.ts";
 import { channelSink } from "../sink.ts";
 import { runConversationTurn } from "../turn.ts";
 
@@ -48,10 +48,11 @@ export async function clearConversation(bridge: Bridge, interaction: ButtonInter
   await interaction.deferUpdate();
   const record = await bridge.sessions.find(sessionId);
 
-  // Nothing is awaited between these checks and the exchange, so a second press or a message cannot slip in between them.
+  // Nothing is awaited between these checks and the exchange, so a second press cannot slip in between them; a message already on its way to the old conversation is turned back when its turn comes up.
   const previous = bridge.store.byChannel(interaction.channelId);
   if (previous?.sessionId !== sessionId) {
-    await settleMenu(interaction, say("clear.stale"));
+    // Said beside the menu, not over it: a second press on the same menu lands here, and the first press's answer has to stay.
+    await respondQuietly(interaction, say("clear.stale"));
     return;
   }
   if (bridge.flow.isRunning(sessionId)) {
@@ -68,7 +69,6 @@ export async function clearConversation(bridge: Bridge, interaction: ButtonInter
     actorId: interaction.user.id,
     prompt: HELLO_AFTER_CLEAR,
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
-    resume: false,
     name: record ? displayName(record) : undefined,
   });
 }

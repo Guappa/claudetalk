@@ -91,6 +91,74 @@ describe("a message in a channel that holds no conversation", () => {
     expect(asked.map((turn) => [turn.sessionId, turn.resume])).toEqual([[SESSION, true]]);
   });
 
+  // Claude Code holds no session until a first turn gets far enough to create one, and a turn can end before that.
+  it("starts the session on a later message when the first turn never created it, and resumes once it exists", async () => {
+    const records: SessionRecord[] = [];
+    const bridge = await testBridge(records);
+    const place = fakeChannel("m4");
+    const tag = (content: string) =>
+      handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content, mentionsBot: true }).message);
+
+    await tag("first");
+    await tag("second");
+    const sessionId = bridge.store.byChannel("m4")!.sessionId;
+    expect(asked.map((turn) => [turn.sessionId, turn.resume, turn.name])).toEqual([
+      [sessionId, false, "general"],
+      [sessionId, false, "general"],
+    ]);
+
+    records.push(record({ sessionId, name: "general", cwd: bridge.config.projectsRoot, lastActivity: new Date() }));
+    await tag("third");
+    expect(asked[2]!.resume).toBe(true);
+    expect(bridge.store.byChannel("m4")?.unstarted).toBeUndefined();
+  });
+
+  it("resumes a conversation that was bound to a session the host already had, transcript in sight or not", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("m5");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "m5", ownerId: OWNER });
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "still there?" }).message);
+
+    expect(asked.map((turn) => turn.resume)).toEqual([true]);
+  });
+
+  describe("a conversation the bridge started from a tag", () => {
+    const tagged = async (channelId: string, name: string) => {
+      const records: SessionRecord[] = [];
+      const bridge = await testBridge(records, { categoryId: "400000000000000001" });
+      const place = fakeChannel(channelId, name);
+      await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "hello", mentionsBot: true }).message);
+      const sessionId = bridge.store.byChannel(channelId)!.sessionId;
+      records.push(record({ sessionId, name, cwd: bridge.config.projectsRoot, lastActivity: new Date() }));
+      return { bridge, place, sessionId };
+    };
+
+    // The session is titled after the channel, so the channel's name finds it again; the channel is still a shared one.
+    it("goes on answering tags only when it is found again by the channel's name after an unbind", async () => {
+      const { bridge, place, sessionId } = await tagged("g1", "general");
+      await handleUnbind(bridge, fakeCommand(place, OWNER).interaction);
+      await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "back again", mentionsBot: true }).message);
+
+      expect(bridge.store.byChannel("g1")).toMatchObject({ sessionId, mentionOnly: true });
+      await handleMessage(bridge, fakeMessage(place, { authorId: OPERATOR, content: "lunch at noon?" }).message);
+      expect(asked.map((turn) => turn.prompt.includes("lunch"))).toEqual([false, false]);
+
+      const again = fakeCommand(place, OWNER);
+      await handleUnbind(bridge, again.interaction);
+      expect(again.controls()).toEqual([]);
+    });
+
+    it("is not what another channel finds by the start of its name", async () => {
+      const { bridge } = await tagged("g2", "dev-ops");
+      const other = fakeChannel("g3", "dev");
+      await handleMessage(bridge, fakeMessage(other, { authorId: OWNER, content: "hello", mentionsBot: true }).message);
+
+      expect(other.posted.join("\n")).not.toContain("already open");
+      expect(bridge.store.byChannel("g3")).toMatchObject({ mentionOnly: true, unstarted: true });
+      expect(bridge.store.byChannel("g3")?.sessionId).not.toBe(bridge.store.byChannel("g2")?.sessionId);
+    });
+  });
+
   it("stays silent for someone who may not use the bridge", async () => {
     const bridge = await testBridge();
     const place = fakeChannel("m2");
@@ -236,7 +304,27 @@ describe("/clear", () => {
     expect(fresh).toMatchObject({ cwd: bound.cwd, ownerId: OWNER, memberIds: [OPERATOR], settings: { model: "haiku" } });
     expect(bridge.store.bySession(SESSION)).toBeUndefined();
     expect(asked.map((turn) => [turn.sessionId, turn.resume])).toEqual([[fresh.sessionId, false]]);
-    expect(second.replies.at(-1)).toContain("nothing was started over");
+    // The second press is told beside the menu, and the first press's answer stays on it.
+    expect(second.whispers.join()).toContain("nothing was started over");
+    expect([...first.replies, ...second.replies].at(-1)).toContain("Started over.");
+  });
+
+  // A message can have read the channel's conversation and still be waiting on a lookup when the channel is started over.
+  it("turns back a message that was on its way to the conversation the channel held before", async () => {
+    const { bridge, place, bound } = await cleared("k3");
+    const lookup = Promise.withResolvers<null>();
+    const find = bridge.sessions.find.bind(bridge.sessions);
+    bridge.sessions.find = async () => lookup.promise;
+    const onItsWay = handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "one more thing" }).message);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    bridge.sessions.find = find;
+    await bridge.store.startOver(bound, "22222222-2222-4222-8222-222222222222");
+    lookup.resolve(null);
+    await onItsWay;
+
+    expect(asked).toEqual([]);
+    expect(place.posted.join("\n")).toContain("started over or unbound while your message was on its way");
   });
 
   it("leaves the conversation alone when a turn started there after the question was put", async () => {

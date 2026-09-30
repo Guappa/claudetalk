@@ -103,6 +103,8 @@ export const en = {
       "That conversation is running as a background agent (`{{shortId}}`). Run `/takeover` here to stop it and continue, or `claude attach {{shortId}}` on the host.",
     openInTerminal:
       "That conversation is open in a terminal on the host (pid {{pid}}, {{cwd}}). Close that terminal or switch it to another conversation, then try again.",
+    conversationGone:
+      "This channel's conversation was started over or unbound while your message was on its way, so it was not run. Send it again.",
     unknownSession:
       "Claude Code has no conversation under the session id this channel is bound to: its transcript was removed from the host, or its first turn never got far enough to write one. Sending the message again cannot help. Run `/clear` to start a fresh conversation in this channel.",
     errors: {

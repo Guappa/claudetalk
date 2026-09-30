@@ -25,7 +25,6 @@ export async function runFork(
     actorId: interaction.user.id,
     prompt: helloToBranch(name),
     sink: channelSink(channel, { latestPosts: bridge.latestPosts }),
-    resume: true,
     fork: true,
     onSessionId: (id) => {
       forkedId = id;
