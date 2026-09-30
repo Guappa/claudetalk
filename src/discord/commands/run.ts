@@ -178,6 +178,5 @@ export async function runPressed(
     actorId: interaction.user.id,
     prompt,
     sink: channelSink(interaction.channel, { latestPosts: bridge.latestPosts }),
-    resume: true,
   });
 }

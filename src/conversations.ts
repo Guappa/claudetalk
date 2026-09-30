@@ -13,6 +13,8 @@ export interface Conversation {
   memberIds: string[];
   // Ad-hoc channels answer only when tagged, so shared channels stay usable.
   mentionOnly?: boolean;
+  // Set while Claude Code holds no session under this id yet, so the first turn that finds none starts it instead of resuming it.
+  unstarted?: boolean;
   syncedThrough?: string;
 }
 
@@ -23,6 +25,8 @@ export interface NewConversation {
   ownerId: string;
   settings?: ChannelSettings;
   mentionOnly?: boolean;
+  // True for an id minted here, which Claude Code has never seen.
+  fresh?: boolean;
 }
 
 function newConversation(input: NewConversation): Conversation {
@@ -35,16 +39,19 @@ function newConversation(input: NewConversation): Conversation {
     ownerId: input.ownerId,
     memberIds: [],
     mentionOnly: input.mentionOnly,
+    unstarted: input.fresh ? true : undefined,
   };
 }
 
 interface StoreFile {
   conversations: Record<string, Conversation>;
   channelIndex: Record<string, string>;
+  // Sessions the bridge started from a tag. It outlives the binding, so one found again by its name is bound the way it was started.
+  tagStarted: string[];
 }
 
 function emptyStore(): StoreFile {
-  return { conversations: {}, channelIndex: {} };
+  return { conversations: {}, channelIndex: {}, tagStarted: [] };
 }
 
 export class ConversationStore {
@@ -65,7 +72,11 @@ export class ConversationStore {
       conversation.memberIds ??= [];
       conversation.ownerId ??= "";
     }
-    this.data = { conversations, channelIndex: file.channelIndex ?? {} };
+    this.data = { conversations, channelIndex: file.channelIndex ?? {}, tagStarted: file.tagStarted ?? [] };
+  }
+
+  startedByTag(sessionId: string): boolean {
+    return this.data.tagStarted.includes(sessionId);
   }
 
   byChannel(channelId: string): Conversation | undefined {
@@ -90,6 +101,18 @@ export class ConversationStore {
   async bind(channelId: string, conversation: Conversation): Promise<void> {
     this.data.conversations[conversation.sessionId] = conversation;
     this.data.channelIndex[channelId] = conversation.sessionId;
+    this.rememberTagStarted(conversation);
+    await this.flush();
+  }
+
+  private rememberTagStarted(conversation: Conversation): void {
+    if (conversation.mentionOnly && !this.startedByTag(conversation.sessionId)) this.data.tagStarted.push(conversation.sessionId);
+  }
+
+  async markStarted(sessionId: string): Promise<void> {
+    const conversation = this.data.conversations[sessionId];
+    if (!conversation?.unstarted) return;
+    conversation.unstarted = undefined;
     await this.flush();
   }
 
@@ -132,9 +155,11 @@ export class ConversationStore {
       ownerId: previous.ownerId,
       memberIds: [...previous.memberIds],
       mentionOnly: previous.mentionOnly,
+      unstarted: true,
     };
     this.forget(previous);
     this.data.conversations[sessionId] = fresh;
+    this.rememberTagStarted(fresh);
     this.data.channelIndex[fresh.channels.text] = sessionId;
     if (fresh.channels.voice) this.data.channelIndex[fresh.channels.voice] = sessionId;
     await this.flush();

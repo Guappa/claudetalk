@@ -69,24 +69,30 @@ async function bindExisting(
   message: Message,
   channel: SendableChannels,
 ): Promise<Conversation | "already-open" | null> {
-  const resolution = resolveByChannelName(await bridge.sessions.build(), channelNameOf(message));
-  if (!resolution.match?.cwd) return null;
+  const match = resolveByChannelName(await bridge.sessions.build(), channelNameOf(message)).match;
+  if (!match?.cwd) return null;
 
   const say = bridge.language.say;
-  const open = bridge.store.bySession(resolution.match.sessionId);
+  const open = bridge.store.bySession(match.sessionId);
+  // A conversation the bridge started from a tag belongs to the channel it was tagged in: only that channel's own name finds it again, never a prefix of it and never while it is open elsewhere.
+  const startedByTag = bridge.store.startedByTag(match.sessionId);
+  if (startedByTag && (open || toChannelName(displayName(match)) !== toChannelName(channelNameOf(message)))) return null;
   if (open) {
-    const alreadyOpen = { name: displayName(resolution.match), channelId: open.channels.text };
-    await sendNotice(channel, say("binding.alreadyOpen", alreadyOpen));
+    await sendNotice(channel, say("binding.alreadyOpen", { name: displayName(match), channelId: open.channels.text }));
     return "already-open";
   }
 
-  await sendNotice(channel, say("binding.bound", { channel: channelNameOf(message) }));
-  return await bridge.store.bindNew({
-    sessionId: resolution.match.sessionId,
-    cwd: resolution.match.cwd,
+  // Bound before anything is awaited, so a /resume of the same conversation that lands meanwhile finds it open.
+  const bound = await bridge.store.bindNew({
+    sessionId: match.sessionId,
+    cwd: match.cwd,
     channelId: message.channelId,
     ownerId: message.author.id,
+    // Found again, it goes on answering tags only: the channel is a shared one, and its chatter is not for the session.
+    mentionOnly: startedByTag || undefined,
   });
+  await sendNotice(channel, say("binding.bound", { channel: channelNameOf(message) }));
+  return bound;
 }
 
 // Mention-only so follow-up tags keep context while ordinary chatter stays ignored.
@@ -103,6 +109,7 @@ async function startMentionOnly(bridge: Bridge, message: Message, channel: Senda
     channelId: message.channelId,
     ownerId: message.author.id,
     mentionOnly: true,
+    fresh: true,
   });
 }
 
@@ -165,12 +172,11 @@ async function runTurn(
       replyToMessageId: message.id,
       latestPosts: bridge.latestPosts,
     }),
-    resume: !target.isFirstTurn,
-    name: target.isFirstTurn ? toChannelName(channelNameOf(message)) : undefined,
+    name: toChannelName(channelNameOf(message)),
     onState: reactionMarker(message, message.client.user.id),
     asked: prompt,
     // A command is its own turn; only a plain message joins the one already running.
-    foldable: plain && !target.isFirstTurn,
+    foldable: plain,
   });
 }
 

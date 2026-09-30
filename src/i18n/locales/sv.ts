@@ -105,6 +105,8 @@ export const sv: Catalog = {
       "Den konversationen körs som en bakgrundsagent (`{{shortId}}`). Kör `/takeover` här för att stoppa den och fortsätta, eller `claude attach {{shortId}}` på värddatorn.",
     openInTerminal:
       "Den konversationen är öppen i en terminal på värddatorn (pid {{pid}}, {{cwd}}). Stäng den terminalen eller byt den till en annan konversation och försök sedan igen.",
+    conversationGone:
+      "Den här kanalens konversation börjades om eller kopplades från medan ditt meddelande var på väg, så det kördes inte. Skicka det igen.",
     unknownSession:
       "Claude Code har ingen konversation under det sessions-id som den här kanalen är kopplad till: dess transkript har tagits bort från värddatorn, eller så kom dess första omgång aldrig så långt att ett skrevs. Att skicka meddelandet igen hjälper inte. Kör `/clear` för att starta en ny konversation i den här kanalen.",
     errors: {

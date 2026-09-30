@@ -121,6 +121,13 @@ there in mention-only mode, so later messages keep their context while ordinary
 chatter is still ignored. If the channel's name matches an existing conversation
 it binds to that one instead, so `#deploy-scripts` finds "deploy scripts".
 
+A conversation started this way, from a tag, stays a tag-only one for good. It
+is titled after the channel, so tagging the bot there again after `/unbind`
+finds it by that name and carries on, still answering tags only: the channel is
+a shared one and its chatter is not for the session. Only that channel's own
+name finds it; the start of another channel's name does not, and neither does a
+channel elsewhere while it is open.
+
 **Where a channel sits changes nothing about this.** `DISCORD_CATEGORY_ID` is
 a way to file conversation channels, the default place a new one is created,
 and carries no other meaning: a channel is a conversation's because it is
@@ -641,7 +648,9 @@ conversation stays on the host with its transcript intact; `/sessions` lists it
 and `/resume` with its session id reopens it in a channel of its own. The
 channel's messages are left as they are, so the history reads on; `/purge`
 removes them if a clean channel is wanted too. It refuses while a turn is
-running here.
+running here. A message that was already on its way to the previous
+conversation when the channel started over, still downloading a file say, is
+not run against it: it is turned back with a note to send it again.
 
 ## Language
 
@@ -678,7 +687,7 @@ the language it started in, so its trail does not change tongue halfway.
 | Path | What |
 | --- | --- |
 | `~/.claude/projects/<dir>/<uuid>.jsonl` | The conversation. Owned by Claude Code, only ever read by the bridge |
-| `data/conversations.json` | Channel bindings, members, per-conversation settings |
+| `data/conversations.json` | Channel bindings, members, per-conversation settings, and which conversations were started from a tag |
 | `data/operators.json` | Who an owner made an operator |
 | `data/language.json` | The language picked with `/language`. Absent until someone picks one |
 | `data/bridge.lock` | Prevents a second instance. Delete only if you are sure nothing is running |

@@ -61,12 +61,13 @@ export function preflight(say: Say, record: SessionRecord | null): PreflightResu
 }
 
 export interface TurnOptions {
-  resume: boolean;
+  // A function is asked when the turn's place in the lane comes up, since a turn ahead of it may be the one that creates the session.
+  resume: boolean | (() => boolean);
   name?: string;
   fork?: boolean;
   onSessionId?: (sessionId: string) => void;
-  // Both run inside the conversation's lane, so a queued message sees the turn before it as finished.
-  beforeTurn?: () => Promise<void>;
+  // Both run inside the conversation's lane, so a queued message sees the turn before it as finished. The first may return why the turn must not run after all.
+  beforeTurn?: () => Promise<string | undefined>;
   afterTurn?: () => Promise<void>;
   // Where the turn stands, for the reaction on the message that started it.
   onState?: StateMarker;
@@ -93,6 +94,7 @@ interface TurnScope {
   settings: ChannelSettings;
   sink: MessageSink;
   options: TurnOptions;
+  resume: boolean;
   say: Say;
   status: StatusMessage;
   board: AgentBoard;
@@ -186,7 +188,8 @@ async function postAnswer(
   const raw = text.trim() ? text : say(compacted ? "trail.answerCompacted" : "trail.answerDoneNoText");
   // The echo is matched against what the model said, before any rewriting of it.
   status.dropEcho(raw);
-  await conclude(say, status, sink, splitForDiscord(await linkEverything(cwd, convertTables(raw))), "done");
+  const linked = await linkEverything(cwd, convertTables(raw));
+  await conclude(say, status, sink, splitForDiscord(linked, status.roomForOutcome("done")), "done");
 }
 
 async function linkEverything(cwd: string, text: string): Promise<string> {
@@ -198,12 +201,13 @@ async function linkEverything(cwd: string, text: string): Promise<string> {
 async function conclude(say: Say, status: StatusMessage, sink: MessageSink, chunks: string[], mood: Mood): Promise<void> {
   const first = chunks[0] ?? say("trail.answerDone");
   // The progress message can be gone by now, purged or deleted by hand; what it could not be given is then said beneath where it was.
-  const inPlace = await concludeInPlace(status, sink, first, mood).catch(() => null);
+  const inPlace = await concludeInPlace(status, sink, first, mood).catch(() => false);
   if (inPlace) {
     for (const chunk of chunks.slice(1)) await sink.send(chunk);
     return;
   }
-  if (inPlace === false) await status.settle(mood).catch(() => undefined);
+  // Settled whatever kept the outcome out of it, or the trail would go on reading as live work under a Stop button that no longer belongs to this turn.
+  await status.settle(mood).catch(() => undefined);
   for (const chunk of chunks.length > 0 ? chunks : [first]) await sink.send(chunk);
 }
 
@@ -231,6 +235,8 @@ const CLOUD_STOP_GRACE_MS = 2000;
 export class TurnFlow {
   private readonly running = new Map<string, RunningTurn>();
   private readonly stopping = new Set<string>();
+  // Conversations whose turn has the lane and has not been handed to Claude Code yet.
+  private readonly settingUp = new Set<string>();
   // Turns whose process has ended and whose answer is still being posted: there is nothing left in them to stop.
   private readonly finishing = new Set<string>();
   private readonly boards = new Map<string, AgentBoard>();
@@ -301,7 +307,7 @@ export class TurnFlow {
   // The turn a stop can act on: one still setting up is stopped before it starts, one whose process has ended is past stopping.
   private stoppable(sessionId: string): RunningTurn | "starting" | null {
     if (this.finishing.has(sessionId)) return null;
-    return this.running.get(sessionId) ?? (this.queue.hasStarted(sessionId) ? "starting" : null);
+    return this.running.get(sessionId) ?? (this.settingUp.has(sessionId) ? "starting" : null);
   }
 
   private end(sessionId: string, turn: RunningTurn | "starting"): void {
@@ -395,12 +401,18 @@ export class TurnFlow {
     }
     // The place in the lane is taken before anything is awaited, so whatever arrives or is dropped meanwhile counts this message too.
     const announced = Promise.withResolvers<void>();
+    let refused = false;
     const running = this.queue.enqueue(sessionId, async () => {
       await announced.promise;
+      this.settingUp.add(sessionId);
       try {
-        await options.beforeTurn?.();
-        await this.runNow(sessionId, cwd, prompt, settings, sink, options);
+        const refusal = await options.beforeTurn?.();
+        refused = refusal !== undefined;
+        if (refusal === undefined) await this.runNow(sessionId, cwd, prompt, settings, sink, options);
+        else await this.refuse(sink, refusal, options);
       } finally {
+        // Cleared before the hook that follows: a stop that lands while the turn is only being marked as seen has nothing to stop, and must not end the next turn.
+        this.settingUp.delete(sessionId);
         this.stopping.delete(sessionId);
         await options.afterTurn?.();
       }
@@ -413,7 +425,12 @@ export class TurnFlow {
 
     const ran = await running;
     if (!ran) await options.onState?.("stopped");
-    return ran;
+    return ran && !refused;
+  }
+
+  private async refuse(sink: MessageSink, refusal: string, options: TurnOptions): Promise<void> {
+    await sink.notice(refusal).catch(() => undefined);
+    await options.onState?.("stopped");
   }
 
   // False when no turn is running or it is past taking a message, and the message then waits its turn as before.
@@ -513,6 +530,7 @@ export class TurnFlow {
       settings,
       sink,
       options,
+      resume: typeof options.resume === "function" ? options.resume() : options.resume,
       say,
       status,
       board,
@@ -556,7 +574,7 @@ export class TurnFlow {
 
   // The part of a turn during which Claude Code runs, and the posting of what it came to.
   private async live(scope: TurnScope, stillRunning: () => boolean, onOver: () => void): Promise<void> {
-    const { sessionId, cwd, prompt, settings, sink, options, say, status, board, tracker } = scope;
+    const { sessionId, cwd, prompt, settings, sink, options, resume, say, status, board, tracker } = scope;
     const pending: Array<Promise<void>> = [];
     const compaction = { happened: false };
 
@@ -566,7 +584,7 @@ export class TurnFlow {
         cwd,
         prompt,
         settings,
-        resume: options.resume,
+        resume,
         name: options.name,
         fork: options.fork,
         approve: this.approvalGate(say, sessionId, sink, stillRunning, options.onState),
@@ -583,11 +601,12 @@ export class TurnFlow {
       },
     );
     this.running.set(sessionId, turn);
+    this.settingUp.delete(sessionId);
 
     const result = await turn.done;
     onOver();
     this.finishing.add(sessionId);
-    this.recordSpend(sessionId, result, options);
+    this.recordSpend(sessionId, result, options, resume);
     await Promise.allSettled(pending);
     board.end();
 
@@ -597,8 +616,12 @@ export class TurnFlow {
       // Claude Code says its own reason as the turn's last remark too, and once is enough.
       if (result.error.kind === "reported") status.dropEcho(result.error.text);
       const outcome = stopped ? say("trail.answerStopped") : describeFailure(say, result.error);
-      await conclude(say, status, sink, [outcome], stopped ? "stopped" : "failed").catch(reportUnposted(sessionId));
-      await options.onState?.(stopped ? "stopped" : "failed");
+      const mood = stopped ? "stopped" : "failed";
+      // Split like an answer: the reason Claude Code gives for failing can run past one message, and one that does not fit is never shown.
+      await conclude(say, status, sink, splitForDiscord(outcome, status.roomForOutcome(mood)), mood).catch(
+        reportUnposted(sessionId),
+      );
+      await options.onState?.(mood);
       await this.settleFolded(sessionId, stopped ? "stopped" : "failed");
       return;
     }
@@ -636,11 +659,11 @@ export class TurnFlow {
       whileWaiting(onState, stillRunning, () => this.approvals.ask(say, sessionId, sink, this.config.ownerIds, toolName, input));
   }
 
-  private recordSpend(sessionId: string, result: TurnResult, options: TurnOptions): void {
+  private recordSpend(sessionId: string, result: TurnResult, options: TurnOptions, resume: boolean): void {
     // A fork is a new conversation; moving the source's spend to it would empty the source.
     if (result.sessionId && !options.fork) this.usage.migrate(sessionId, result.sessionId);
     // A turn that failed still spent what it spent, so it is recorded before the outcome is read.
-    this.usage.record(result.sessionId ?? sessionId, { ...result, startedHere: !options.resume });
+    this.usage.record(result.sessionId ?? sessionId, { ...result, startedHere: !resume });
     if (result.sessionId) options.onSessionId?.(result.sessionId);
   }
 

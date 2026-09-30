@@ -2,6 +2,7 @@ import { redactHome } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
+import { forDiscord } from "./outgoing.ts";
 import { DISCORD_MESSAGE_LIMIT, chunkForDiscord } from "./renderer.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 import { convertTables } from "./tables.ts";
@@ -14,6 +15,8 @@ const NOTE_BUDGET = 1700;
 const MAX_NOTES_KEPT = 30;
 // Discord clears the typing indicator after about ten seconds.
 const TYPING_MS = 8000;
+// The blank line under a heading, and the characters its elapsed time can grow by between measuring and sending.
+const HEADING_SLACK = 12;
 
 export function formatElapsed(say: Say, ms: number): string {
   const seconds = Math.max(Math.round(ms / 1000), 0);
@@ -293,9 +296,16 @@ export class StatusMessage {
   async finishWithHeading(text: string, mood: Mood = "done"): Promise<boolean> {
     const combined = `${headWith(this.say, this.now() - this.startedAt, this.steps, mood, this.extra())}\n\n${text}`;
     // Measured as it will be sent: the sink escapes what it is given, and that is what has to fit.
-    if (defuseStrayMarkup(redactHome(combined)).length > DISCORD_MESSAGE_LIMIT) return false;
+    if (forDiscord(combined).length > DISCORD_MESSAGE_LIMIT) return false;
     await this.finish(combined);
     return true;
+  }
+
+  // How long the outcome's first message may be: where it will sit under this trail's heading, the heading's share is kept free for it.
+  roomForOutcome(mood: Mood): number {
+    if (!this.hasNotes() || !this.currentIsEmpty()) return DISCORD_MESSAGE_LIMIT;
+    const head = headWith(this.say, this.now() - this.startedAt, this.steps, mood, this.extra());
+    return DISCORD_MESSAGE_LIMIT - forDiscord(head).length - HEADING_SLACK;
   }
 
   // Whatever is queued against Discord has gone out; a turn ends only once that is true.
