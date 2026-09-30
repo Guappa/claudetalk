@@ -5,11 +5,19 @@
 ```bash
 npm test            # unit tests, fast, no Claude Code required
 npm run typecheck
-npm run lint        # Biome: lint rules and formatting, changes nothing
+npm run lint        # Biome: lint rules, import cycles and formatting, changes nothing
 npm run format      # the same, and writes what it can fix
 npm run check:boot  # every source file loads under Node's type stripper
 npm run knip        # files, exports and dependencies nothing reaches
+npm run dupes       # jscpd: copy-paste across src and scripts
+npm run coverage    # the unit tests again, with what they reach
 ```
+
+`dupes` fails above 1% duplicated lines. The tests are left out of it, since a
+test repeats its setup on purpose. `coverage` is a measurement and gates
+nothing: read it by folder, not as one number, because a handler that only
+passes options along and the logic that decides a turn do not deserve the same
+figure. The total is printed; `coverage/coverage-summary.json` has each file.
 
 ```bash
 npm run test:integration
@@ -19,10 +27,25 @@ Integration tests spawn the real `claude` binary and consume your plan's usage,
 so they are excluded from `npm test` and from CI. Run them when you change
 anything in `src/claude/`.
 
-CI runs `lint`, `typecheck`, `test`, `check:boot`, `knip` and `check:private`
-on Linux across Node 22, 24 and 26, and on Windows on Node 24. The Linux jobs catch wrong-case imports, which
-are fatal there and invisible elsewhere; the Windows job is there for path and
-process semantics, which do not vary by Node version.
+CI runs `lint`, `typecheck`, `test`, `check:boot`, `knip`, `dupes` and
+`check:private` on Linux across Node 22, 24 and 26, and on Windows on Node 24.
+The Linux jobs catch wrong-case imports, which are fatal there and invisible
+elsewhere; the Windows job is there for path and process semantics, which do
+not vary by Node version.
+
+One of the Linux jobs also reads what none of those do: `shellcheck` over the
+shell scripts, `PSScriptAnalyzer` over the PowerShell ones, and `actionlint`
+over the workflows. To run them before pushing, install the three and run:
+
+```bash
+shellcheck scripts/*.sh
+actionlint
+pwsh -c "Invoke-ScriptAnalyzer -Path scripts -Recurse -EnableExitCode"
+```
+
+Secrets, vulnerable dependencies and unsafe patterns are watched on GitHub's
+side, by secret scanning with push protection, Dependabot and CodeQL, so no
+step here repeats them.
 
 macOS runs in its own workflow, `macos.yml`, only on a pull request that changes
 the launchd installer or that workflow. It installs, reports and removes the
