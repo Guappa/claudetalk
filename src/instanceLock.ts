@@ -15,6 +15,10 @@ export interface LockInfo {
   draining?: DrainState;
 }
 
+export function lockPathBeside(bindingsPath: string): string {
+  return path.join(path.dirname(bindingsPath), "bridge.lock");
+}
+
 const HEARTBEAT_MS = 30_000;
 export const STALE_AFTER_MS = 90_000;
 

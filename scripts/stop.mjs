@@ -1,10 +1,12 @@
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { isProcessAlive } from "../src/instanceLock.ts";
+import { bindingsPathFrom } from "../src/config.ts";
+import { isProcessAlive, lockPathBeside } from "../src/instanceLock.ts";
 import { requestStop, stopRequestPath } from "../src/stopSignal.ts";
 
-const lockPath = resolve(process.env.BRIDGE_LOCK ?? "data/bridge.lock");
+// Found the way the bridge finds it, from the same setting, or a BINDINGS_PATH elsewhere would have this looking in an empty folder.
+const lockPath = resolve(lockPathBeside(bindingsPathFrom(process.env)));
 const mode = process.argv.includes("--now") ? "now" : "drain";
 // The bridge has this long to either exit or report that it is waiting on a turn.
 const ACK_MS = 15_000;

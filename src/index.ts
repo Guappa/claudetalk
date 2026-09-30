@@ -1,7 +1,6 @@
 import { Client, Events, GatewayIntentBits, Options } from "discord.js";
-import path from "node:path";
 import { loadConfig } from "./config.ts";
-import { acquireInstanceLock } from "./instanceLock.ts";
+import { acquireInstanceLock, lockPathBeside } from "./instanceLock.ts";
 import { takeStopRequest, watchForStop, type StopMode } from "./stopSignal.ts";
 import { createBridge } from "./bridge.ts";
 import { sweepAttachments } from "./attachments.ts";
@@ -14,7 +13,7 @@ import { count } from "./text.ts";
 import { bridgeVersion } from "./version.ts";
 
 const config = loadConfig();
-const lockPath = path.join(path.dirname(config.bindingsPath), "bridge.lock");
+const lockPath = lockPathBeside(config.bindingsPath);
 const lock = await acquireInstanceLock(lockPath);
 // A request left over from a previous run would stop this one on its first tick; cleared only once the lock is ours, or a start that is refused would eat the running bridge's.
 await takeStopRequest(lockPath);
