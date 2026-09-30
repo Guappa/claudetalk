@@ -119,7 +119,8 @@ what you replied to. A reply to your own message or to the bot still counts.
 replied to, with or without the ping. The first time, it starts a conversation
 there in mention-only mode, so later messages keep their context while ordinary
 chatter is still ignored. If the channel's name matches an existing conversation
-it binds to that one instead, so `#deploy-scripts` finds "deploy scripts".
+it binds to that one instead, so `#deploy-scripts` finds "deploy scripts". The
+whole name has to match: `#deploy` does not find it.
 
 A conversation started this way, from a tag, stays a tag-only one for good. It
 is titled after the channel, so tagging the bot there again after `/unbind`

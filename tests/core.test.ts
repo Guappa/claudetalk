@@ -64,7 +64,7 @@ import {
   withoutScratch,
 } from "../src/discord/commands/sessionList.ts";
 import { displayName } from "../src/sessions/displayName.ts";
-import { toChannelName, fromChannelName } from "../src/discord/channelName.ts";
+import { toChannelName } from "../src/discord/channelName.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import {
@@ -3293,10 +3293,6 @@ describe("toChannelName", () => {
   it("falls back rather than producing an empty channel name", () => {
     expect(toChannelName("!!!")).toBe("conversation");
   });
-
-  it("round-trips back to a resolvable conversation name", () => {
-    expect(fromChannelName(toChannelName("Release Notes"))).toBe("release notes");
-  });
 });
 
 describe("killTree", () => {
@@ -4996,9 +4992,17 @@ describe("a channel named after a hyphenated conversation still binds to it", ()
     expect(resolveByChannelName([untitled], "claude-discord").match?.sessionId).toBe("s");
   });
 
-  it("falls back to name resolution for a channel that is not a slug of a folder", () => {
+  it("finds a titled conversation by the slug of its title", () => {
     const titled = record({ sessionId: "t", name: "Deploy Scripts" });
     expect(resolveByChannelName([titled], "deploy-scripts").match?.sessionId).toBe("t");
+  });
+
+  // Binding hands the channel that conversation's folder and history, and every later message there becomes a turn in it.
+  it("does not bind a channel whose name is only the start of a conversation's name", () => {
+    const ledger = { ...record({ sessionId: "l", name: "x", cwd: "/srv/general-ledger" }), name: null };
+    for (const channel of ["general", "gen", "general-"])
+      expect(resolveByChannelName([ledger], channel).match, channel).toBeNull();
+    expect(resolveByChannelName([ledger], "general-ledger").match?.sessionId).toBe("l");
   });
 });
 

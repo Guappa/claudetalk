@@ -8,7 +8,3 @@ export function toChannelName(conversationName: string): string {
     .slice(0, MAX_CHANNEL_NAME);
   return slug || "conversation";
 }
-
-export function fromChannelName(channelName: string): string {
-  return channelName.replace(/-/g, " ");
-}
