@@ -14,7 +14,7 @@ export const OTHER_VALUE = "other";
 const STALE = "Those questions are already answered, expired, or from before a restart.";
 const NO_MENUS = "This conversation cannot show questions, so Claude has to continue without an answer.";
 const EXPIRED = `No answer in ${QUESTION_TIMEOUT_MS / 60_000} minutes, so Claude continues without one.`;
-const SKIPPED = "Skipped: Claude continues without answers and says what it assumed.";
+const SKIPPED = "Skipped: Claude is told to continue on its own judgement and to say what it assumed.";
 const ENDED = "The turn ended before this was answered.";
 
 type Settled = { kind: "answered"; answers: QuestionAnswers } | { kind: "skipped" | "expired" | "ended" };

@@ -19,7 +19,7 @@ interface Lane {
 
 export function describeQueued(ahead: number): string {
   return ahead === 1
-    ? "Queued behind the message still running."
+    ? "Queued behind the turn still running."
     : `Queued behind ${ahead} messages.`;
 }
 
@@ -55,8 +55,8 @@ export class TurnQueue {
         kind: "full",
         message:
           `This conversation already holds ${MAX_QUEUE_DEPTH} messages: one running and ` +
-          `${MAX_QUEUE_DEPTH - 1} queued behind it. Let it catch up, or run \`/stop\` to drop the one ` +
-          `in flight and everything queued behind it.`,
+          `${MAX_QUEUE_DEPTH - 1} queued behind it. Let it catch up, run \`/stop\` to end the one in flight and ` +
+          `let the next start, or \`/stop all:true\` to drop the queue with it.`,
       };
     }
     return { kind: "queued", ahead: waiting };

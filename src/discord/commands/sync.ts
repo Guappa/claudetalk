@@ -29,7 +29,7 @@ export async function handleSync(
   const drift = await pendingDrift(conversation, record);
 
   if (drift.length === 0) {
-    await respond(interaction, "Nothing new. This channel already shows everything in the conversation.");
+    await respond(interaction, "Nothing new: nothing has happened in this conversation outside Discord since you were last here.");
     return;
   }
 

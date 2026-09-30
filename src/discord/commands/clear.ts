@@ -21,8 +21,9 @@ const RUNNING = "A turn is running here. Let it finish or `/stop` it, then `/cle
 export function describeClear(cwd: string): string {
   return (
     `This starts this channel over with a fresh conversation in \`${displayPath(cwd)}\`: the same folder, ` +
-    "model, effort and members, but nothing remembered. The current conversation stays on the host, listed by " +
-    "`/sessions`, and `/resume` with its session id reopens it. The channel's messages stay; `/purge` removes them."
+    "model, effort and members, but with none of what was said in this one. The current conversation stays on the " +
+    "host, listed by `/sessions`, and `/resume` with its session id opens it in a channel of its own. The channel's " +
+    "messages stay; `/purge` removes them."
   );
 }
 

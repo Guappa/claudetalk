@@ -167,11 +167,11 @@ export async function confirmRun(bridge: Bridge, interaction: ButtonInteraction)
   if (!conversation || !interaction.channel?.isSendable()) {
     await settleMenu(
       interaction,
-      "This channel is no longer bound to a conversation. Run `/resume` to bind it again, then `/run`.",
+      "This channel is no longer bound to a conversation, so there is nothing to run this in. `/resume` opens a conversation in a channel of its own.",
     );
     return;
   }
-  await settleMenu(interaction, `Running \`${truncate(pending.prompt, 200)}\``);
+  await settleMenu(interaction, `Sent \`${truncate(pending.prompt, 200)}\` to the conversation.`);
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,
     prompt: pending.prompt,

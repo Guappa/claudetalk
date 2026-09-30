@@ -5,7 +5,7 @@ export function bridgeCommandDefinitions() {
   return [
     new SlashCommandBuilder()
       .setName("create")
-      .setDescription("Start a new conversation bound to this channel")
+      .setDescription("Start a new conversation in a channel of its own")
       .addStringOption((option) =>
         option.setName("name").setDescription("Conversation name").setRequired(true),
       )
@@ -18,7 +18,7 @@ export function bridgeCommandDefinitions() {
 
     new SlashCommandBuilder()
       .setName("resume")
-      .setDescription("Bind this channel to an existing conversation")
+      .setDescription("Open an existing conversation in a channel of its own")
       .addStringOption((option) =>
         option
           .setName("name")
@@ -41,7 +41,7 @@ export function bridgeCommandDefinitions() {
 
     new SlashCommandBuilder().setName("whoami").setDescription("Show what this channel is bound to"),
 
-    new SlashCommandBuilder().setName("spend").setDescription("Show turns, tokens and cost since the bridge started"),
+    new SlashCommandBuilder().setName("spend").setDescription("Show plan usage, and turns and tokens since the bridge started"),
 
     new SlashCommandBuilder()
       .setName("model")
@@ -76,7 +76,7 @@ export function bridgeCommandDefinitions() {
 
     new SlashCommandBuilder()
       .setName("invite")
-      .setDescription("Give someone access to this conversation (sandboxes it)")
+      .setDescription("Let someone see this conversation's channel; it does not let them use the bot")
       .addUserOption((option) => option.setName("user").setDescription("Who to invite").setRequired(true)),
 
     new SlashCommandBuilder()
@@ -98,12 +98,12 @@ export function bridgeCommandDefinitions() {
 
     new SlashCommandBuilder()
       .setName("uninvite")
-      .setDescription("Remove someone's access to this conversation")
+      .setDescription("Stop someone seeing this conversation's channel")
       .addUserOption((option) => option.setName("user").setDescription("Who to remove").setRequired(true)),
 
     new SlashCommandBuilder()
       .setName("members")
-      .setDescription("Who can access this conversation, and how it is sandboxed"),
+      .setDescription("Who owns this conversation, who can see it, and where it runs"),
 
     new SlashCommandBuilder()
       .setName("ask")

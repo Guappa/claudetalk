@@ -20,7 +20,7 @@ const AMBIGUOUS = new Map([
       "the channel's messages.",
   ],
 ]);
-const BILLED_REVIEW = "It starts a cloud review, which is billed.";
+const BILLED_REVIEW = "It starts a cloud review, which can be billed on top of your plan.";
 // In a terminal these ask before they act; typed here they would act on their flags alone.
 const ASKS_FIRST: ReadonlyArray<{ commands: string[]; when: RegExp; caution: string }> = [
   { commands: ["code-review", "review"], when: /(?:^|\s)ultra(?:\s|$)/i, caution: BILLED_REVIEW },
@@ -47,7 +47,7 @@ export function classifyPrompt(content: string, terminalOnly: string[]): PromptK
     return {
       kind: "bridge-owned",
       message:
-        `\`/${command}\` applies to one process, and every message here runs a new one, so it would ` +
+        `\`/${command}\` applies to one process, and every turn here runs a new one, so it would ` +
         `report success and then revert. Use this bot's own \`/${command}\` command instead, which ` +
         `stores the value for this conversation and applies it on every turn.`,
     };
@@ -73,7 +73,7 @@ function describeAsksFirst(command: string, args: string, caution: string): stri
   const viaRun = args ? `/run command:${command} args:${args}` : `/run command:${command}`;
   return (
     `\`${typed}\` was not run. ${caution} In a terminal Claude Code asks before it starts, but a command typed ` +
-    `as a message here would start at once. Use \`${viaRun}\` instead: it shows exactly what will run and ` +
+    `as a message here would start without asking. Use \`${viaRun}\` instead: it shows exactly what will run and ` +
     "waits for you to press Run."
   );
 }
@@ -123,5 +123,8 @@ export async function handleSetting(
   }
 
   await bridge.store.updateSettings(conversation.sessionId, { [key]: value });
-  await respond(interaction, `${key} set to \`${value}\`. It applies from your next message onward.`);
+  await respond(
+    interaction,
+    `${key} set to \`${value}\`. It applies from the next turn onward; a turn already running keeps what it started with.`,
+  );
 }

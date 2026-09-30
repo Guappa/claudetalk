@@ -52,7 +52,8 @@ const OWNERS_ONLY = describeOwnersOnly("plugins");
 const NOT_DELETABLE =
   "`/purge` only works in a server text channel where the bot can manage messages. " +
   "Run it in the conversation's channel, or give the bot Manage Messages here.";
-const STALE = "That control is from before a restart, so it no longer works. Run the command again for a fresh one.";
+const STALE =
+  "This bridge does not recognise that control; it is most likely left from an older version. Run the command again for a fresh one.";
 
 export async function handlePluginsCommand(
   _bridge: Bridge,
@@ -129,7 +130,7 @@ export async function handlePurgeCommand(
 
   const lines = ["This deletes every message in this channel, including yours. It cannot be undone."];
   if (isConversationChannel(bridge, interaction.channelId)) {
-    lines.push("", "The conversation on the host is not touched, and `/sync` repopulates the channel afterwards.");
+    lines.push("", "The conversation on the host is not touched, and your next message carries on from it. The channel does not get its history back.");
   }
 
   await respond(interaction, { content: lines.join("\n"), components: [row] });
@@ -152,11 +153,11 @@ async function runSkill(bridge: Bridge, interaction: StringSelectMenuInteraction
   if (!conversation || !interaction.channel?.isSendable()) {
     await settleMenu(
       interaction,
-      "This channel is no longer bound to a conversation. Run `/resume` to bind it again, then `/skills`.",
+      "This channel is no longer bound to a conversation, so there is nothing to run this in. `/resume` opens a conversation in a channel of its own.",
     );
     return;
   }
-  await settleMenu(interaction, `Running \`/${action.skill}\``);
+  await settleMenu(interaction, `Sent \`/${action.skill}\` to the conversation.`);
   await runConversationTurn(bridge, conversation, {
     actorId: interaction.user.id,
     prompt: `/${action.skill}`,

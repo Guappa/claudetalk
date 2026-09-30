@@ -257,7 +257,7 @@ export async function handleFork(
     await reportBack(
       interaction,
       `Created ${channel}, but Claude Code did not report a new session id, so it is not bound. ` +
-        `Use \`/resume\` there once the branch appears in \`/sessions\`.`,
+        `Once the branch appears in \`/sessions\`, \`/resume\` opens it in a channel of its own, and ${channel} can be deleted.`,
     );
     return;
   }

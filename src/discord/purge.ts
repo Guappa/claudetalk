@@ -29,7 +29,7 @@ export function describePurge(result: PurgeResult, isConversationChannel: boolea
   if (result.failed > 0) parts.push(`${result.failed} could not be deleted`);
 
   const tail = isConversationChannel
-    ? " The conversation itself is untouched; `/sync` repopulates the channel."
+    ? " The conversation itself is untouched, and your next message carries on from it."
     : "";
   return `${parts.join(", ")}.${tail}`;
 }

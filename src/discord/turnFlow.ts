@@ -37,9 +37,10 @@ import type { Mood } from "./statusMessage.ts";
 import type { ActiveTurns } from "./activeTurns.ts";
 
 const DRAINING =
-  "The bridge is shutting down and takes nothing new until it is back. Send this again in a minute.";
+  "The bridge is shutting down and takes nothing new. It lets running turns finish first, which can take a while; send this again once it is back.";
 const DRAIN_POLL_MS = 250;
-const HANDED_OVER = "Handed to the running turn. Claude takes it up at its next step.";
+const HANDED_OVER =
+  "Handed to the running turn. Claude takes it up at its next step, or right after this turn's answer if no step is left.";
 const TAKEN_UP = "Taken up by the running turn.";
 const NEVER_TAKEN = "The turn ended before this was taken up. Send it again.";
 
@@ -98,7 +99,10 @@ export type SendNowOutcome = "sent" | "nothing-waiting" | "not-running";
 
 export function describeSendNow(outcome: SendNowOutcome): string {
   if (outcome === "sent") {
-    return "Sent now. The step Claude was on was cut short so it could read your message; it carries on from there.";
+    return (
+      "Sent now. The step Claude was on was cut short so it could read your message, and it carries on from there. " +
+      "Agents and background commands it had running were left running."
+    );
   }
   if (outcome === "nothing-waiting") return "Nothing is waiting: the running turn has already taken your message up.";
   return "No turn is running here any more, so there is nothing to interrupt.";
@@ -113,6 +117,11 @@ export interface StopTurnOutcome {
   stopped: boolean;
   queued: number;
 }
+
+// The same for every stop, since each one kills the turn the same way.
+const OUTLIVES =
+  "The turn's whole process tree is killed; on Windows a command that had detached itself from that tree can outlive it, " +
+  "so check the host if it was something long.";
 
 export function describeStopAgents(stopped: number): string {
   if (stopped === 0) return "No agent or cloud task is running here, so there was nothing to stop.";
@@ -132,7 +141,7 @@ export function describeStopTurn(outcome: StopTurnOutcome): string {
     outcome.queued === 0
       ? "Nothing was queued, so Claude takes no further action here until your next message."
       : `The ${count(outcome.queued, "message")} queued behind it ${outcome.queued === 1 ? "runs" : "run"} next.`;
-  return `Stopped this turn. ${next}`;
+  return `Stopped this turn. ${next} ${OUTLIVES}`;
 }
 
 function droppedWithIt(dropped: number): string {
@@ -148,8 +157,7 @@ export function describeStop(outcome: StopOutcome): string {
     return `Nothing was running, but the ${queued} queued here ${outcome.dropped === 1 ? "was" : "were"} dropped.`;
   }
   return (
-    `Stopped.${droppedWithIt(outcome.dropped)} Claude takes no further action here until your next message. ` +
-    "A shell command it had already started can outlive it on Windows, so check the host if it was something long."
+    `Stopped.${droppedWithIt(outcome.dropped)} Claude takes no further action here until your next message. ${OUTLIVES}`
   );
 }
 
