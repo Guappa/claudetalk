@@ -212,6 +212,8 @@ describe("TurnFlow", () => {
     expect(trail).toContain("Waiting on the agent.");
     expect(trail).not.toContain("fixture.txt");
     expect(trail).not.toContain("Wrote the fixture.");
+    // The agent's own tool call is its step, counted in the roster, not in the session's heading.
+    expect(trail).not.toContain("step");
     expect(sink.details).toEqual(["**1 · general-purpose** · Write the fixture\ndone in 2s · 1 tool · 1 tokens"]);
     expect(sink.detailTitles).toEqual(["Agents: fan out"]);
   });

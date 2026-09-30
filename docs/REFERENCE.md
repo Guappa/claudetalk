@@ -405,7 +405,8 @@ message sent in the thread is ignored: it is a view, not a conversation. If the
 bridge dies mid-turn, the progress message is marked interrupted but the thread
 is left reading as it last did.
 
-Tool calls are counted, and the ones the terminal draws are drawn here too, from
+The session's own tool calls are counted as steps, an agent's are counted
+against the agent in its roster, and the ones the terminal draws are drawn here too, from
 the call's own input, so they cost the model nothing: an edit shows as a `diff`
 block under its file's path, written as code so no character in a file name
 turns into formatting, with the removed and added lines capped at two dozen, since that is the
