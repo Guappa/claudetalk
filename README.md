@@ -25,8 +25,8 @@ When Claude stops to ask you something, the questions arrive as select menus
 with the choices it offered, an "Other..." for your own words, and a Submit
 button, the same exchange the terminal shows as a wizard.
 
-What the bridge itself says comes in English or Swedish, picked with `/language`
-or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write to it, as it
+What the bridge itself says comes in English, German, Spanish, French, Swedish
+or Simplified Chinese, picked with `/language` or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write to it, as it
 does in the terminal.
 
 ## Requirements
@@ -119,7 +119,7 @@ cp .env.example .env
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
 | `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |
 | `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
-| `BRIDGE_LANGUAGE` | Optional, `en` by default. The language the bridge itself speaks: `en` or `sv`. `/language` changes it from Discord. Claude's answers are not affected |
+| `BRIDGE_LANGUAGE` | Optional, `en` by default. The language the bridge itself speaks: `en`, `de`, `es`, `fr`, `sv` or `zh`. `/language` changes it from Discord. Claude's answers are not affected |
 | `BINDINGS_PATH` | Optional, defaults to `data/conversations.json`. Its folder is where every other state file lives too: the lock, the language, the command cache, the active turns and, unless set apart, the operators |
 | `OPERATORS_PATH` | Optional, defaults to `operators.json` beside the bindings |
 

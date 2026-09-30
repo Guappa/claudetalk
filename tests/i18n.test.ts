@@ -110,6 +110,12 @@ describe("the catalog", () => {
     expect(sayIn("sv")("queue.runningWith", { count: 3 })).toBe("En omgång körs, med 3 meddelanden i kö efter den.");
   });
 
+  // French has a plural form English lacks, for exact millions, and Chinese has none; neither may fall back to English.
+  it("counts in a language whose plural forms differ from English's", () => {
+    expect(sayIn("fr")("queue.behind", { count: 1_000_000 })).toBe("En file derrière 1000000 messages.");
+    expect(sayIn("zh")("queue.behind", { count: 1 })).toBe("已排队，前面还有 1 条。");
+  });
+
   // A value is shown as given: a path or a name must not be able to pull another sentence or another value in.
   it("never reads a placeholder or a nested sentence out of a value", () => {
     const smuggled = sayIn("en")("common.sent", { prompt: "{{count}} $t(stop.outlives)" });
@@ -202,6 +208,6 @@ describe("the language the bridge speaks", () => {
   });
 
   it("refuses to start on a language it does not have, and lists the ones it does", () => {
-    expect(() => loadConfig({ ...env, BRIDGE_LANGUAGE: "klingon" })).toThrow(/BRIDGE_LANGUAGE.*en, sv/s);
+    expect(() => loadConfig({ ...env, BRIDGE_LANGUAGE: "klingon" })).toThrow(/BRIDGE_LANGUAGE.*en, de, es, fr, sv, zh/s);
   });
 });
