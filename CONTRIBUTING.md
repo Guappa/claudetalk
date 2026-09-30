@@ -247,10 +247,12 @@ A key holds one whole sentence. Code chooses which sentence; it never builds
 one out of halves, because a half that reads well in English has nowhere to go
 in a language that orders the sentence differently. A sentence that counts has
 a `_one` and an `_other` form and is called with `count`, and the language's
-own plural rule picks between them. `{{placeholders}}`, commands in backticks
-and `**bold**` carry over to every language unchanged; `tests/i18n.test.ts`
-fails a translation that renames, drops or rewrites one, and one that outgrows
-what Discord allows a button or a title.
+own plural rule picks between them. `{{placeholders}}`, with their format, and
+commands in backticks carry over to every language unchanged, and what is bold
+in English is bold in each. `tests/i18n.test.ts` fails a translation that
+renames, drops or rewrites one, one that leaves a sentence in English, and one
+that outgrows what Discord allows a button or a title. Only a `_one` form may
+leave `{{count}}` out, since it speaks of exactly one thing.
 
 Three kinds of text stay out of the catalog on purpose. What is written for
 Claude to read is in `src/claude/prompts.ts`, the system note and the channel
