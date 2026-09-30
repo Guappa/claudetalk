@@ -11,6 +11,7 @@
   <a href="https://github.com/Guappa/claudetalk/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/Guappa/claudetalk/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A522.12-brightgreen">
   <img alt="platforms" src="https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos-lightgrey">
+  <a href="https://github.com/Guappa/claudetalk/pkgs/container/claudetalk"><img alt="image" src="https://img.shields.io/badge/image-ghcr.io%2Fguappa%2Fclaudetalk-blue"></a>
 </p>
 
 Talk to Claude Code sessions running on your own machine from Discord, on any device.
@@ -28,6 +29,9 @@ button, the same exchange the terminal shows as a wizard.
 What the bridge itself says comes in English, German, Spanish, French, Swedish
 or Simplified Chinese, picked with `/language` or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write to it, as it
 does in the terminal.
+
+It runs as a clone on the machine your projects are on, Windows, Linux or
+macOS, or as a [container image](#in-a-container) on an always-on Linux box.
 
 ## Requirements
 
