@@ -1,7 +1,7 @@
 import type { SessionRecord } from "./index.ts";
 import { displayName } from "./displayName.ts";
 import { samePath } from "../platform.ts";
-import { fromChannelName, toChannelName } from "../discord/channelName.ts";
+import { toChannelName } from "../discord/channelName.ts";
 
 export type Resolution = { match: SessionRecord; shadowed: SessionRecord[] } | { match: null; candidates: SessionRecord[] };
 
@@ -37,12 +37,11 @@ export function resolveByName(records: SessionRecord[], query: string): Resoluti
   return { match: null, candidates: prefixed };
 }
 
-// A channel name is a slug, and un-slugging loses hyphens, so the names are compared as slugs first.
+// A channel name is a slug, and un-slugging loses hyphens, so the names are compared as slugs. Only a whole name binds: the start of one would hand #general the conversation called "general ledger".
 export function resolveByChannelName(records: SessionRecord[], channelName: string): Resolution {
   const wanted = channelName.toLowerCase();
   const slugged = records.filter((record) => toChannelName(displayName(record)) === wanted).sort(byRecencyDesc);
-  if (slugged[0]) return { match: slugged[0], shadowed: slugged.slice(1) };
-  return resolveByName(records, fromChannelName(channelName));
+  return slugged[0] ? { match: slugged[0], shadowed: slugged.slice(1) } : { match: null, candidates: [] };
 }
 
 export function resolveByFolder(records: SessionRecord[], cwd: string): SessionRecord[] {

@@ -74,9 +74,9 @@ async function bindExisting(
 
   const say = bridge.language.say;
   const open = bridge.store.bySession(match.sessionId);
-  // A conversation the bridge started from a tag belongs to the channel it was tagged in: only that channel's own name finds it again, never a prefix of it and never while it is open elsewhere.
+  // A conversation the bridge started from a tag belongs to the channel it was tagged in, and is not found from another while it is open there.
   const startedByTag = bridge.store.startedByTag(match.sessionId);
-  if (startedByTag && (open || toChannelName(displayName(match)) !== toChannelName(channelNameOf(message)))) return null;
+  if (startedByTag && open) return null;
   if (open) {
     await sendNotice(channel, say("binding.alreadyOpen", { name: displayName(match), channelId: open.channels.text }));
     return "already-open";
