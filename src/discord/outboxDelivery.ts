@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { collectOutbox, describeSkipped, outboxPath } from "./outbox.ts";
+import { collectOutbox, describeSkipped, outboxPath, type OutboxResult } from "./outbox.ts";
 import type { MessageSink } from "./messageSink.ts";
 import type { Say } from "../i18n/index.ts";
 
@@ -27,13 +27,24 @@ export class OutboxDelivery {
   }
 
   private async run(say: Say, cwd: string, sessionId: string, sink: MessageSink, minAgeMs: number): Promise<number> {
-    const { files, skipped, discard } = await collectOutbox(cwd, sessionId, minAgeMs);
-    if (files.length > 0) {
+    const sent = new Set<string>();
+    let batch = await collectOutbox(cwd, sessionId, minAgeMs);
+    // What one message could not hold goes in the next one now: left for a later sweep, it is stranded if the conversation is cleared or unbound first.
+    while (await this.sendBatch(say, batch, sent, sink)) batch = await collectOutbox(cwd, sessionId, minAgeMs);
+    await this.report(say, sessionId, batch.skipped, sink);
+    return sent.size;
+  }
+
+  // Whether another message is owed. A file that could not be removed comes round again, and ends the delivery instead of being sent twice.
+  private async sendBatch(say: Say, batch: OutboxResult, sent: Set<string>, sink: MessageSink): Promise<boolean> {
+    const { files, deferred, discard } = batch;
+    const repeated = files.some((file) => sent.has(file.name));
+    if (files.length > 0 && !repeated) {
       await sink.sendFiles(files.length === 1 ? files[0]!.name : say("outbox.files", { count: files.length }), files);
+      for (const file of files) sent.add(file.name);
     }
     await discard();
-    await this.report(say, sessionId, skipped, sink);
-    return files.length;
+    return deferred > 0 && !repeated;
   }
 
   // A file left behind is named once, not on every sweep until somebody deletes it.

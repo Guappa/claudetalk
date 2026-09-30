@@ -5006,6 +5006,20 @@ describe("outbox delivery", () => {
     expect(sink.written.filter((line) => line.includes("huge.bin"))).toHaveLength(2);
   });
 
+  // Files left for a later sweep are lost to the channel if the conversation is cleared or unbound before it comes.
+  it("sends what one message cannot hold in the next, in the same delivery", async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outbox-many-"));
+    await fs.mkdir(outboxPath(cwd, "s1"), { recursive: true });
+    const names = Array.from({ length: MAX_FILES_PER_MESSAGE + 2 }, (_, index) => `chart${String(index).padStart(2, "0")}.png`);
+    for (const name of names) await fs.writeFile(path.join(outboxPath(cwd, "s1"), name), "x");
+    const sink = recordingSink();
+
+    expect(await new OutboxDelivery().deliver(say, cwd, "s1", sink)).toBe(names.length);
+    expect(sink.files).toEqual(names);
+    expect(sink.messages).toEqual([`${MAX_FILES_PER_MESSAGE} files`, "2 files"]);
+    await expect(fs.stat(path.join(cwd, OUTBOX_DIR))).rejects.toThrow();
+  });
+
   it("never sends one file twice when a sweep and the turn's delivery overlap", async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outbox-race-"));
     await fs.mkdir(outboxPath(cwd, "s1"), { recursive: true });
