@@ -1818,6 +1818,33 @@ describe("agents in a turn", () => {
     expect(describeStopAgents(2)).toContain("Asked 2 tasks to stop");
   });
 
+  // Two agents each left a sleep running and were reported done; nothing looked stoppable, and the roster said done.
+  it("treats an agent that left a command running as waiting, and reaches that command when stopping", async () => {
+    const sink = recordingSink();
+    const stopped: string[] = [];
+    const agents = new AgentBoard(sink, "Agents: tidy the ledger", () => 0, 0, (taskId) => void stopped.push(taskId));
+    const shell = { type: "system", subtype: "task_started", task_id: "b1", tool_use_id: "call1", description: "sleep", task_type: "local_bash", owned_by_subagent: true } as ClaudeEvent;
+    expect(agentEvent(shell)).toEqual({ kind: "background", taskId: "b1", toolUseId: "call1" });
+
+    feed(agents, started("t1", "use1", "Build and wait"));
+    agents.noteCall("use1", "call1");
+    feed(agents, shell, notified("t1", "completed", 3));
+    await agents.flush();
+    expect(sink.details[0]).toBe("**1 · general-purpose** · Build and wait\nwaiting on a background command · 3 tools · 38.1k tokens");
+    expect(agents.stopLabel()).toBe("Stop agents");
+    expect(agents.running()).toEqual(["b1"]);
+
+    expect(agents.claim()).toEqual(["b1"]);
+    feed(agents, notified("b1", "stopped"));
+    await agents.flush();
+    expect(sink.details[0]).toContain("stopped after");
+    expect(agents.stopLabel()).toBeNull();
+
+    // The session may send a stopped agent back to work; it is stopped again, not left to run.
+    feed(agents, started("t1", "use9", "Build and wait"));
+    expect(stopped).toEqual(["t1"]);
+  });
+
   it("opens no side room for a turn without agents, and still tallies where there is none to open", async () => {
     const idle = recordingSink();
     await board(idle).flush();
