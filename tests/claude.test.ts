@@ -1,0 +1,793 @@
+import { describe, it, expect } from "vitest";
+import { usage, wait } from "./helpers/records.ts";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { attachmentsRoot } from "../src/platform.ts";
+import { detectClaudeError } from "../src/claude/errors.ts";
+import { buildOptions, bridgeSystemNote, foldResult, resultError } from "../src/claude/runner.ts";
+import { parseAgentsJson, readListing } from "../src/sessions/activeSessions.ts";
+import { randomUUID } from "node:crypto";
+import { UsageLedger } from "../src/claude/usageLedger.ts";
+import { PlanUsage, describePlanUsage, parsePlanUsage } from "../src/claude/planUsage.ts";
+import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
+import { HeldPrompt } from "../src/claude/heldPrompt.ts";
+import { takenUp, type ClaudeEvent } from "../src/claude/events.ts";
+import { ContextTracker } from "../src/claude/contextTracker.ts";
+import { DISCORD_MESSAGE_LIMIT, MAX_FILE_BYTES } from "../src/discord/limits.ts";
+import { describeDefault, parseHostDefaults, readHostDefaults } from "../src/claude/hostSettings.ts";
+import { downloadAttachments, keepAttachmentsAwhile, sweepAttachments } from "../src/attachments.ts";
+import { sayIn } from "../src/i18n/index.ts";
+import { lastCompactionCeiling } from "../src/sessions/exchanges.ts";
+
+const say = sayIn("en");
+
+describe("detectClaudeError", () => {
+  const busy =
+    "Error: Session 11111111-2222-4333-8444-555555555555 is running as a background session (11111111). " +
+    "Run `claude attach 11111111` to open it, or `claude stop 11111111` first to resume it here.";
+
+  it("detects a busy session and extracts the short id", () => {
+    const error = detectClaudeError(busy);
+    expect(error?.kind).toBe("session-busy");
+    expect(error?.kind === "session-busy" && error.shortId).toBe("11111111");
+  });
+
+  it("returns null for ordinary output", () => {
+    expect(detectClaudeError("Done. The file was written.")).toBeNull();
+  });
+
+  it("returns null for output that merely mentions an error", () => {
+    expect(detectClaudeError("I fixed the error in your test.")).toBeNull();
+  });
+
+  // Claude Code words a resume of an id it holds no transcript for this way, as the errors of a failed result.
+  it("recognises a resume of a session Claude Code does not have", () => {
+    const refused = ["No conversation found with session ID: 11111111-2222-4333-8444-555555555555"];
+    expect(resultError("error_during_execution", refused)).toEqual({ kind: "unknown-session" });
+  });
+});
+
+describe("buildOptions", () => {
+  const base = { sessionId: "abc-123", cwd: "/tmp/x", prompt: "hello", settings: {} };
+
+  it("resumes an existing session", () => {
+    const options = buildOptions({ ...base, resume: true });
+    expect(options.resume).toBe("abc-123");
+    expect(options.sessionId).toBeUndefined();
+  });
+
+  it("creates a new session under the id the bridge already bound, with a title", () => {
+    const options = buildOptions({ ...base, resume: false, name: "Deploy Scripts" });
+    expect(options.sessionId).toBe("abc-123");
+    expect(options.title).toBe("Deploy Scripts");
+    expect(options.resume).toBeUndefined();
+  });
+
+  it("forks only when asked, leaving the source session untouched", () => {
+    expect(buildOptions({ ...base, resume: true }).forkSession).toBeUndefined();
+    expect(buildOptions({ ...base, resume: true, fork: true }).forkSession).toBe(true);
+  });
+
+  it("bypasses permission prompts, since a hook is what gates a turn", () => {
+    expect(buildOptions({ ...base, resume: true }).permissionMode).toBe("bypassPermissions");
+  });
+
+  it("omits the model when no override is set, preserving the session's own", () => {
+    expect(buildOptions({ ...base, resume: true }).model).toBeUndefined();
+  });
+
+  it("passes bridge-owned settings as typed options", () => {
+    const options = buildOptions({ ...base, resume: true, settings: { model: "opus", effort: "high" } });
+    expect(options.model).toBe("opus");
+    expect(options.effort).toBe("high");
+  });
+
+  // No typed option covers autocompact, so it travels as a flag of its own.
+  it("still reaches autocompact through the escape hatch", () => {
+    const options = buildOptions({ ...base, resume: true, settings: { autocompact: "false" } });
+    expect(options.extraArgs).toEqual({ "replay-user-messages": null, autocompact: "false" });
+  });
+
+  it("gates nothing unless the turn was given an approver", () => {
+    expect(buildOptions({ ...base, resume: true }).hooks).toBeUndefined();
+  });
+
+  // Claude Code offers the question tool only to a client that can prompt, so a turn that can answer declares one.
+  it("declares a prompt surface only when the turn can answer questions", () => {
+    expect(buildOptions({ ...base, resume: true }).permissionPromptToolName).toBeUndefined();
+    const options = buildOptions({ ...base, resume: true, askQuestions: async () => ({ answered: false, reason: "" }) });
+    expect(options.permissionPromptToolName).toBe("stdio");
+  });
+});
+
+describe("parseAgentsJson", () => {
+  const raw = JSON.stringify([
+    { pid: 1, cwd: "/a", kind: "interactive", sessionId: "s-a", name: "Release Notes", status: "idle" },
+    { pid: 2, cwd: "/b", kind: "background", sessionId: "s-b", id: "11111111" },
+  ]);
+
+  it("keeps the background short id used by attach and stop", () => {
+    expect(parseAgentsJson(raw).find((session) => session.kind === "background")?.id).toBe("11111111");
+  });
+
+  it("tolerates a background entry with no status yet", () => {
+    expect(parseAgentsJson(raw).find((session) => session.kind === "background")?.status).toBeUndefined();
+  });
+
+  it("returns an empty list for unparseable output rather than throwing", () => {
+    expect(parseAgentsJson("requires an interactive terminal")).toEqual([]);
+  });
+});
+
+describe("HeldPrompt", () => {
+  const result: ClaudeEvent = { type: "result", subtype: "success", is_error: false, total_cost_usd: 0, usage: usage(10) };
+  const init = { type: "system", subtype: "init" } as ClaudeEvent;
+  const tasks = (live: number, ambient = 0): ClaudeEvent => ({
+    type: "system",
+    subtype: "background_tasks_changed",
+    tasks: [
+      ...Array.from({ length: live }, (_, index) => ({ task_id: `t${index}` })),
+      ...Array.from({ length: ambient }, (_, index) => ({ task_id: `w${index}`, ambient: true })),
+    ],
+  });
+
+  const orphan = { type: "system", subtype: "task_notification", status: "stopped" } as ClaudeEvent;
+
+  const spoke = { type: "assistant", message: { content: [{ type: "text", text: "on it" }] } } as ClaudeEvent;
+
+  // The prompt goes out once the handshake is done; whether the input then closes is what each case checks.
+  async function settled(held: HeldPrompt, ms = 15): Promise<boolean> {
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    const ended = stream.next().then(() => true);
+    return await Promise.race([ended, wait(ms).then(() => false)]);
+  }
+
+  // A captured shape: replay echoes a handed-over message, at take-up mid-step and with the model's first output otherwise.
+  const replay = (uuid: string) => ({ type: "user", message: { content: [] }, uuid, isReplay: true }) as ClaudeEvent;
+
+  it("passes on a message handed over mid-turn, and refuses one before the turn is under way or after it has let go", async () => {
+    const held = new HeldPrompt("hello", 5);
+    expect(held.handOver("too early")).toBeNull();
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+
+    const uuid = held.handOver("also this");
+    expect(uuid).toEqual(expect.any(String));
+    expect((await stream.next()).value).toMatchObject({ uuid, priority: "next", message: { content: "also this" } });
+
+    held.observe(replay(uuid!));
+    held.observe(result);
+    expect((await stream.next()).done).toBe(true);
+    expect(held.handOver("too late")).toBeNull();
+  });
+
+  // A turn that ends with a message still waiting is about to run it as the next turn, in the same process.
+  it("stays open past an answer while a handed-over message is still to be taken up", async () => {
+    const held = new HeldPrompt("hello", 5, 1000);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    const uuid = held.handOver("also this")!;
+    await stream.next();
+
+    held.observe(result);
+    expect(held.awaitsUntaken).toBe(true);
+    const ended = stream.next().then(() => true);
+    expect(await Promise.race([ended, wait(20).then(() => false)])).toBe(false);
+
+    held.observe(init);
+    held.observe(replay(uuid));
+    held.observe(result);
+    expect(await ended).toBe(true);
+  });
+
+  // Captured from a session with nothing in hand: it reports starting on the message 1.5s before it echoes it, and longer when it thinks first.
+  it("counts a message as taken up when the session says it started on it, without waiting for the echo", async () => {
+    const lifecycle = (uuid: string, state: string) => ({ type: "command_lifecycle", command_uuid: uuid, state }) as ClaudeEvent;
+    const held = new HeldPrompt("hello", 5, 1000);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    const uuid = held.handOver("also this")!;
+
+    held.observe(lifecycle(uuid, "queued"));
+    expect(held.awaitsUntaken).toBe(true);
+    held.observe(lifecycle(uuid, "started"));
+    expect(held.awaitsUntaken).toBe(false);
+
+    expect(takenUp(lifecycle("u1", "started"))).toBe("u1");
+    expect(takenUp(lifecycle("u1", "queued"))).toBeNull();
+    expect(takenUp(lifecycle("u1", "completed"))).toBeNull();
+    expect(takenUp(replay("u2"))).toBe("u2");
+    expect(takenUp(spoke)).toBeNull();
+  });
+
+  // The reason a result failed is its own errors; the answer an earlier turn left in the same process is not one.
+  it("words a failed result from its own errors", () => {
+    expect(resultError("error_during_execution", [])).toEqual({ kind: "ended", subtype: "error_during_execution", text: "" });
+    expect(resultError("error_max_turns", ["hit the limit", "twice"])).toEqual({
+      kind: "ended",
+      subtype: "error_max_turns",
+      text: "hit the limit\ntwice",
+    });
+  });
+
+  it("sends nothing when it is closed before the handshake, since that is a turn stopped before it began", async () => {
+    const held = new HeldPrompt("hello");
+    const stream = held.stream();
+    held.close();
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  describe("results from one process that answers several turns", () => {
+    const tokens = (input: number, output: number) => ({
+      input_tokens: input,
+      output_tokens: output,
+      cache_read_input_tokens: 10,
+      cache_creation_input_tokens: 1,
+    });
+
+    it("lets the latest answer stand, an empty one included, and adds the tokens up", () => {
+      const outcome = { text: "" };
+      expect(
+        foldResult(outcome, {
+          subtype: "success",
+          is_error: false,
+          result: "first",
+          usage: tokens(1000, 200),
+          total_cost_usd: 0.1,
+        }),
+      ).toBeNull();
+      expect(
+        foldResult(outcome, { subtype: "success", is_error: false, result: "", usage: tokens(50, 5), total_cost_usd: 0.12 }),
+      ).toBeNull();
+
+      expect(outcome).toEqual({
+        text: "",
+        usage: { input_tokens: 1050, output_tokens: 205, cache_read_input_tokens: 20, cache_creation_input_tokens: 2 },
+        sessionCostUsd: 0.12,
+      });
+    });
+
+    // A plan limit or an API error arrives as a success that is an error, with the reason as its text.
+    it("takes Claude Code's own reason when the result is a success that is an error", () => {
+      const outcome = { text: "earlier answer" };
+      const limit = { subtype: "success", is_error: true, result: "You've hit your session limit" };
+      expect(foldResult(outcome, limit)).toEqual({ kind: "reported", text: "You've hit your session limit" });
+      expect(outcome.text).toBe("earlier answer");
+    });
+
+    it("words a failure subtype from the errors it carries", () => {
+      const failed = { subtype: "error_max_turns", is_error: true, errors: ["hit the limit"] };
+      expect(foldResult({ text: "" }, failed)).toEqual({ kind: "ended", subtype: "error_max_turns", text: "hit the limit" });
+    });
+  });
+
+  it("does not hold the input open for good when a handed-over message is never taken up", async () => {
+    const held = new HeldPrompt("hello", 5, 10);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    held.handOver("also this");
+    await stream.next();
+    held.observe(result);
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  // A background command keeps the input open past the answer, and no further result comes to start the clock on a message handed over then.
+  it("does not hold the input open for a message handed over after the answer and never taken up", async () => {
+    const held = new HeldPrompt("hello", 5, 10);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    held.observe(tasks(1));
+    held.observe(result);
+    expect(held.handOver("one more thing")).not.toBeNull();
+    await stream.next();
+    held.observe(tasks(0));
+    expect(await Promise.race([stream.next().then((step) => step.done), wait(200).then(() => "still open")])).toBe(true);
+  });
+
+  it("holds the prompt until the handshake is done, then yields it once", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    const first = stream.next();
+    held.observe(init);
+    expect(await Promise.race([first.then(() => true), wait(15).then(() => false)])).toBe(false);
+    held.ready();
+    expect((await first).value).toMatchObject({ type: "user", message: { role: "user", content: "hello" } });
+    held.observe(result);
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  it("stays open while a background command is still running", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(1));
+    held.observe(result);
+    expect(await settled(held)).toBe(false);
+  });
+
+  it("lets go a moment after the last command finishes with no follow-up", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(1));
+    held.observe(result);
+    held.observe(tasks(0));
+    expect(await settled(held, 40)).toBe(true);
+  });
+
+  // The follow-up turn a finished task triggers is the whole reason the input was held.
+  it("keeps holding when a follow-up turn starts, until that turn answers", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(1));
+    held.observe(result);
+    held.observe(tasks(0));
+    held.observe(init);
+    expect(await settled(held, 40)).toBe(false);
+    held.observe(result);
+    expect(await settled(held)).toBe(true);
+  });
+
+  it("does not count a watcher as work", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(0, 2));
+    held.observe(result);
+    expect(await settled(held)).toBe(true);
+  });
+
+  it("lets go at once when closed, whatever is running", async () => {
+    const held = new HeldPrompt("hello", 5);
+    held.observe(tasks(3));
+    held.close();
+    expect(await settled(held)).toBe(true);
+  });
+
+  // A process that opens by reporting an orphaned task cancels every tool call, so the prompt must never reach it.
+  it("asks for a restart the moment the CLI opens with an orphaned task, and sends nothing", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    const first = stream.next();
+    held.observe(orphan);
+    expect(held.needsRestart).toBe(true);
+    expect((await first).done).toBe(true);
+    held.ready();
+    expect((await stream.next()).done).toBe(true);
+  });
+
+  // The report can land a moment after the handshake let the prompt go; only a model reply makes it too late.
+  it("still restarts when the report lands after the prompt but before the model has spoken", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(orphan);
+    expect(held.needsRestart).toBe(true);
+  });
+
+  it("treats an orphan reported once the model has spoken as an ordinary notification", async () => {
+    const held = new HeldPrompt("hello", 5);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    held.observe(orphan);
+    held.observe(result);
+    expect(held.needsRestart).toBe(false);
+    expect((await stream.next()).done).toBe(true);
+  });
+});
+
+describe("UsageLedger", () => {
+  const result = (sessionCostUsd: number, startedHere = false, input = 100, output = 10) => ({
+    sessionCostUsd,
+    startedHere,
+    usage: { input_tokens: input, output_tokens: output, cache_read_input_tokens: 5, cache_creation_input_tokens: 2 },
+  });
+
+  it("reads cost as the running total Claude Code reports, so two results do not add up", () => {
+    const ledger = new UsageLedger();
+    ledger.record("s1", result(0.5, true));
+    ledger.record("s1", result(0.75));
+
+    expect(ledger.forSession("s1")).toMatchObject({
+      turns: 2,
+      costUsd: 0.75,
+      inputTokens: 200,
+      outputTokens: 20,
+      cachedTokens: 14,
+      lastCostUsd: 0.25,
+    });
+  });
+
+  it("prices the first turn of a conversation the bridge started as the whole total", () => {
+    const ledger = new UsageLedger();
+    ledger.record("s1", result(0.5, true));
+    expect(ledger.forSession("s1").lastCostUsd).toBe(0.5);
+  });
+
+  // A resumed conversation's first result already carries the turns run before the bridge saw it.
+  it("has no last-turn cost until a resumed conversation has reported twice", () => {
+    const ledger = new UsageLedger();
+    ledger.record("s1", result(105.03));
+    expect(ledger.forSession("s1")).toMatchObject({ costUsd: 105.03, lastCostUsd: null });
+    ledger.record("s1", result(105.5));
+    expect(ledger.forSession("s1").lastCostUsd).toBeCloseTo(0.47);
+  });
+
+  it("never lets a crashed result that reports zero pull the total backwards", () => {
+    const ledger = new UsageLedger();
+    ledger.record("s1", result(1, true));
+    ledger.record("s1", result(0));
+    expect(ledger.forSession("s1")).toMatchObject({ turns: 2, costUsd: 1, lastCostUsd: null });
+  });
+
+  it("reports nothing rather than failing for a conversation it has not seen", () => {
+    expect(new UsageLedger().forSession("unknown")).toMatchObject({ turns: 0, costUsd: 0, lastCostUsd: null });
+  });
+
+  it("counts a turn whose cost Claude Code did not report", () => {
+    const ledger = new UsageLedger();
+    ledger.record("s1", {});
+    expect(ledger.forSession("s1")).toMatchObject({ turns: 1, costUsd: 0 });
+  });
+
+  // Resuming can mint a new id, and the spend belongs to the conversation rather than to the id.
+  it("carries spend across a session id change", () => {
+    const ledger = new UsageLedger();
+    ledger.record("old", result(1, true));
+    ledger.migrate("old", "new");
+    ledger.record("new", result(2));
+
+    expect(ledger.forSession("old").turns).toBe(0);
+    expect(ledger.forSession("new")).toMatchObject({ turns: 2, costUsd: 2, lastCostUsd: 1 });
+  });
+
+  it("totals every conversation the bridge has touched", () => {
+    const ledger = new UsageLedger();
+    ledger.record("s1", result(1, true));
+    ledger.record("s2", result(2, true));
+    expect(ledger.total()).toMatchObject({ turns: 2, costUsd: 3 });
+  });
+});
+
+describe("ContextTracker", () => {
+  it("stays quiet well below the threshold", () => {
+    expect(new ContextTracker(200_000).observe(usage(50_000))).toBeNull();
+  });
+
+  it("warns once at 75 percent", () => {
+    const tracker = new ContextTracker(200_000);
+    expect(tracker.observe(usage(150_000))?.level).toBe("approaching");
+    expect(tracker.observe(usage(151_000))).toBeNull();
+  });
+
+  it("escalates at 90 percent and names the remedy", () => {
+    const tracker = new ContextTracker(200_000);
+    tracker.observe(usage(150_000));
+    const warning = tracker.observe(usage(185_000));
+    expect(warning?.level).toBe("critical");
+    expect(say("context.critical", { percent: warning!.percent })).toContain("/compact");
+  });
+
+  it("rearms after a compaction", () => {
+    const tracker = new ContextTracker(200_000);
+    tracker.observe(usage(150_000));
+    tracker.reset();
+    expect(tracker.observe(usage(150_000))?.level).toBe("approaching");
+  });
+
+  it("sums cached tokens into the total", () => {
+    const warning = new ContextTracker(200_000).observe({
+      input_tokens: 1000,
+      output_tokens: 0,
+      cache_read_input_tokens: 140_000,
+      cache_creation_input_tokens: 10_000,
+    });
+    expect(warning?.level).toBe("approaching");
+  });
+});
+
+describe("auth status", () => {
+  it("reads a signed-in account and its plan", () => {
+    const status = parseAuthStatus(JSON.stringify({ loggedIn: true, subscriptionType: "max", email: "x@example.test" }));
+    expect(status).toEqual({ loggedIn: true, subscriptionType: "max" });
+  });
+
+  it("reads a signed-out account", () => {
+    expect(parseAuthStatus(JSON.stringify({ loggedIn: false }))).toEqual({ loggedIn: false, subscriptionType: undefined });
+  });
+
+  // Refusing to start on output nobody recognises would turn a changed CLI into an outage.
+  it("treats anything it cannot read as unknown rather than as signed out", () => {
+    expect(parseAuthStatus("")).toBeNull();
+    expect(parseAuthStatus("not json at all")).toBeNull();
+    expect(parseAuthStatus(JSON.stringify({ status: "ok" }))).toBeNull();
+    expect(parseAuthStatus(JSON.stringify({ loggedIn: "yes" }))).toBeNull();
+  });
+
+  it("says what to run when it is signed out", () => {
+    expect(SIGNED_OUT).toContain("claude auth login");
+  });
+});
+
+describe("ContextTracker ceiling", () => {
+  it("stays silent until it knows where this session compacts", () => {
+    expect(new ContextTracker().observe(usage(500_000))).toBeNull();
+  });
+
+  it("learns the ceiling from a compaction", () => {
+    const tracker = new ContextTracker();
+    tracker.learnCeiling(951_650);
+    expect(tracker.knownCeiling()).toBe(951_650);
+  });
+
+  // Only automatic compactions are ever reported to it, and a session moved to a model with a smaller window compacts sooner from then on.
+  it("follows the latest automatic compaction, down as well as up", () => {
+    const tracker = new ContextTracker();
+    tracker.learnCeiling(951_650);
+    tracker.learnCeiling(158_784);
+    expect(tracker.knownCeiling()).toBe(158_784);
+    tracker.learnCeiling(0);
+    expect(tracker.knownCeiling()).toBe(158_784);
+  });
+
+  it("does not call 558k tokens 279 percent full on a one-million window", () => {
+    const tracker = new ContextTracker(951_650);
+    expect(tracker.observe(usage(558_784))).toBeNull();
+  });
+
+  it("warns against the real ceiling rather than a guessed one", () => {
+    const tracker = new ContextTracker(951_650);
+    const warning = tracker.observe(usage(800_000));
+    expect(warning?.level).toBe("approaching");
+    expect(warning?.percent).toBe(84);
+  });
+
+  it("never reports more than 99 percent", () => {
+    const tracker = new ContextTracker(200_000);
+    expect(tracker.observe(usage(10_000_000))?.percent).toBe(99);
+  });
+});
+
+describe("bridge system note", () => {
+  const base = { sessionId: "s1", cwd: "/tmp", prompt: "hi", settings: {}, resume: true };
+
+  it("tells the session it is on Discord", () => {
+    const prompt = buildOptions(base).systemPrompt;
+    expect(prompt).toMatchObject({ type: "preset", preset: "claude_code" });
+    expect((prompt as { append?: string }).append).toContain("Discord");
+  });
+
+  it("appends rather than replacing, so the session keeps its own instructions", () => {
+    expect((buildOptions(base).systemPrompt as { type?: string }).type).toBe("preset");
+  });
+
+  it("stays focused, since a long note dilutes the instructions inside it", () => {
+    expect(bridgeSystemNote(randomUUID()).length).toBeLessThan(800);
+  });
+
+  it("asks for the progress remarks the activity log is built to show", () => {
+    expect(bridgeSystemNote("s1")).toMatch(/think out loud/i);
+  });
+});
+
+describe("the message limit reaches the model", () => {
+  it("states the Discord cap so replies are written to fit", () => {
+    expect(bridgeSystemNote("s1")).toContain(String(DISCORD_MESSAGE_LIMIT));
+  });
+
+  it("does not drift from the limit the renderer actually enforces", () => {
+    const quoted = bridgeSystemNote("s1").match(/(\d{3,5}) characters/);
+    expect(quoted).not.toBeNull();
+    expect(Number(quoted![1])).toBe(DISCORD_MESSAGE_LIMIT);
+  });
+
+  it("points at the outbox as the better answer for long output", () => {
+    expect(bridgeSystemNote("s1")).toContain(".discord-outbox");
+  });
+});
+
+describe("the file limit reaches the model", () => {
+  it("states a size cap so it does not write a file that will be refused", () => {
+    expect(bridgeSystemNote("s1")).toMatch(/\d+ MB/);
+  });
+
+  it("does not drift from the limit the outbox actually enforces", () => {
+    const quoted = bridgeSystemNote("s1").match(/(\d+) MB/);
+    expect(quoted).not.toBeNull();
+    expect(Number(quoted![1]) * 1024 * 1024).toBe(MAX_FILE_BYTES);
+  });
+
+  it("says what happens to something larger, rather than leaving it to be discovered", () => {
+    expect(bridgeSystemNote("s1")).toMatch(/refused|too large/i);
+  });
+});
+
+describe("plan usage", () => {
+  const event = {
+    status: "allowed",
+    resetsAt: 1790109600,
+    rateLimitType: "five_hour",
+    unifiedWindows: {
+      five_hour: { utilization: 0.17, resetsAt: 1790109600 },
+      seven_day: { utilization: 0.04, resetsAt: 1790589600 },
+    },
+  };
+
+  it("reads every window the CLI sends", () => {
+    const windows = parsePlanUsage(event);
+    expect(windows.get("five_hour")).toEqual({ utilization: 0.17, resetsAt: 1790109600 });
+    expect(windows.get("seven_day")?.utilization).toBe(0.04);
+  });
+
+  it("falls back to the single-window shape the SDK documents", () => {
+    const windows = parsePlanUsage({ rateLimitType: "five_hour", utilization: 0.5, resetsAt: 1 });
+    expect(windows.get("five_hour")).toEqual({ utilization: 0.5, resetsAt: 1 });
+  });
+
+  it("ignores an event with nothing usable in it", () => {
+    expect(parsePlanUsage({ status: "allowed" }).size).toBe(0);
+    expect(parsePlanUsage(null).size).toBe(0);
+  });
+
+  it("renders percentages and Discord timestamps, and says when it was seen", () => {
+    const usage = new PlanUsage();
+    usage.record(event, new Date("2026-09-22T18:00:00Z"));
+    const text = describePlanUsage(say, usage.latest(), new Date("2026-09-22T18:05:00Z"));
+    expect(text).toContain("5-hour window 17% used, resets <t:1790109600:R>");
+    expect(text).toContain("week, all models 4% used");
+    expect(text).toContain("as of <t:");
+  });
+
+  // The figure last seen for a window belongs to the one before, once its reset has passed.
+  it("shows a window past its reset as reset, not as the share last seen for it", () => {
+    const usage = new PlanUsage();
+    usage.record(event, new Date("2026-09-22T18:00:00Z"));
+    const text = describePlanUsage(say, usage.latest(), new Date(1790109600 * 1000 + 60_000));
+    expect(text).toContain("5-hour window reset <t:1790109600:R>, with no figure reported since");
+    expect(text).not.toContain("17%");
+    expect(text).toContain("week, all models 4% used");
+  });
+
+  it("says so before any turn has reported", () => {
+    expect(describePlanUsage(say, new PlanUsage().latest(), new Date())).toContain("not reported yet");
+  });
+
+  it("keeps the latest value per window across turns", () => {
+    const usage = new PlanUsage();
+    usage.record(event);
+    usage.record({ unifiedWindows: { five_hour: { utilization: 0.2, resetsAt: 1790109600 } } });
+    expect(usage.latest()?.windows.get("five_hour")?.utilization).toBe(0.2);
+    expect(usage.latest()?.windows.get("seven_day")?.utilization).toBe(0.04);
+  });
+});
+
+describe("host defaults", () => {
+  it("reads the model and effort Claude Code falls back to", () => {
+    expect(parseHostDefaults(JSON.stringify({ model: "opus", effortLevel: "high" }))).toEqual({
+      model: "opus",
+      effort: "high",
+    });
+  });
+
+  // Claude Code lays a folder's settings over the account's, so the account's file alone can name a model no turn there runs with.
+  it("lays the folder's own settings over the account's, the local file last", async () => {
+    const folder = await fs.mkdtemp(path.join(os.tmpdir(), "host-defaults-"));
+    const account = path.join(folder, "account.json");
+    await fs.writeFile(account, JSON.stringify({ model: "opus", effortLevel: "high" }));
+    expect(await readHostDefaults(folder, account)).toEqual({ model: "opus", effort: "high" });
+
+    await fs.mkdir(path.join(folder, ".claude"));
+    await fs.writeFile(path.join(folder, ".claude", "settings.json"), JSON.stringify({ model: "sonnet" }));
+    expect(await readHostDefaults(folder, account)).toEqual({ model: "sonnet", effort: "high" });
+
+    await fs.writeFile(
+      path.join(folder, ".claude", "settings.local.json"),
+      JSON.stringify({ model: "haiku", effortLevel: "low" }),
+    );
+    expect(await readHostDefaults(folder, account)).toEqual({ model: "haiku", effort: "low" });
+  });
+
+  it("treats a missing key as no host default, not as an error", () => {
+    expect(parseHostDefaults("{}")).toEqual({ model: null, effort: null });
+    expect(parseHostDefaults("not json")).toEqual({ model: null, effort: null });
+  });
+
+  it("says where a value comes from, so 'session default' never has to be asked about", () => {
+    expect(describeDefault(say, "low", "high")).toBe("`low`");
+    expect(describeDefault(say, undefined, "high")).toBe("`high` (host default)");
+    expect(describeDefault(say, undefined, null)).toBe("Claude Code's default");
+  });
+});
+
+describe("the ceiling comes only from automatic compactions", () => {
+  const transcriptWith = async (records: object[]): Promise<string> => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ceiling-"));
+    const file = path.join(dir, "session.jsonl");
+    await fs.writeFile(file, records.map((record) => JSON.stringify(record)).join("\n"), "utf8");
+    return file;
+  };
+
+  it("ignores a manual compaction, which marks where someone asked rather than where the session fills", async () => {
+    const file = await transcriptWith([{ type: "system", compactMetadata: { trigger: "manual", preTokens: 42_012 } }]);
+    expect(await lastCompactionCeiling(file)).toBeNull();
+  });
+
+  it("learns from an automatic one", async () => {
+    const file = await transcriptWith([
+      { type: "system", compactMetadata: { trigger: "manual", preTokens: 42_012 } },
+      { type: "system", compactMetadata: { trigger: "auto", preTokens: 951_650 } },
+    ]);
+    expect(await lastCompactionCeiling(file)).toBe(951_650);
+  });
+});
+
+describe("what a turn was handed is kept for it", () => {
+  const folder = async (turnId: string, ageMinutes: number): Promise<string> => {
+    const dir = path.join(attachmentsRoot(), turnId);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "att_0.pdf"), "x");
+    const then = new Date(Date.now() - ageMinutes * 60_000);
+    await fs.utimes(dir, then, then);
+    return dir;
+  };
+  const exists = (dir: string) =>
+    fs.stat(dir).then(
+      () => true,
+      () => false,
+    );
+
+  // A turn can wait in a queue and then run for longer than the hour its files are kept.
+  it("leaves alone the files of a turn still waiting or running, however old, and counts the hour from its end", async () => {
+    const waiting = await folder(randomUUID(), 90);
+    const finished = await folder(randomUUID(), 90);
+    const justEnded = await folder(randomUUID(), 90);
+    await keepAttachmentsAwhile(path.basename(justEnded));
+
+    await sweepAttachments(Date.now(), new Set([path.basename(waiting)]));
+    expect(await Promise.all([waiting, finished, justEnded].map(exists))).toEqual([true, false, true]);
+  });
+
+  // Anyone can make an entry under a shared temp folder, and a link there passes for a directory of whoever owns what it points at.
+  it.skipIf(process.platform === "win32")(
+    "refuses a root that is a link, which a stat that follows links takes for a directory of its own",
+    async () => {
+      const shared = await fs.mkdtemp(path.join(os.tmpdir(), "shared-tmp-"));
+      const elsewhere = await fs.mkdtemp(path.join(os.tmpdir(), "elsewhere-"));
+      const before = process.env.TMPDIR;
+      process.env.TMPDIR = shared;
+      try {
+        await fs.symlink(elsewhere, attachmentsRoot());
+        const remote = [{ url: "http://127.0.0.1:1/nothing", name: "shot.png", contentType: "image/png", size: 10 }];
+        await expect(downloadAttachments(remote, randomUUID())).rejects.toThrow("is a link or belongs to another user");
+      } finally {
+        process.env.TMPDIR = before;
+      }
+    },
+  );
+});
+
+describe("the listing of what is live on the host", () => {
+  // Whatever answered, it was not the listing, and nothing can be read out of it about what is running.
+  it("is not had from output that is no listing, which is not the same as a listing of nothing", () => {
+    const one = JSON.stringify([{ pid: 4321, sessionId: "s1", cwd: "/srv/app", kind: "interactive" }]);
+    expect(readListing(one)).toHaveLength(1);
+    expect(readListing("[]")).toEqual([]);
+    for (const output of [
+      "",
+      "requires an interactive terminal",
+      `A newer version is available.\n${one}`,
+      `{"sessions":${one}}`,
+    ]) {
+      expect(readListing(output), output).toBeNull();
+    }
+  });
+});
