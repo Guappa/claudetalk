@@ -5060,6 +5060,38 @@ describe("outbox delivery", () => {
     await expect(fs.stat(path.join(cwd, OUTBOX_DIR))).rejects.toThrow();
   });
 
+  // Something else holding a file open keeps it from being removed once it is sent, on Windows for as long as it is held.
+  it("sends a file it cannot remove once, and still sends every file beside it", async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outbox-held-"));
+    const folder = outboxPath(cwd, "s1");
+    await fs.mkdir(folder, { recursive: true });
+    const names = Array.from({ length: MAX_FILES_PER_MESSAGE + 5 }, (_, index) => `chart${String(index).padStart(2, "0")}.png`);
+    for (const name of names) await fs.writeFile(path.join(folder, name), "x");
+    const held = path.join(folder, "chart02.png");
+    const remove = fs.rm;
+    const refusing = vi.spyOn(fs, "rm").mockImplementation(async (target, options) => {
+      if (String(target) === held) throw Object.assign(new Error("resource busy or locked"), { code: "EBUSY" });
+      await remove(target, options);
+    });
+
+    try {
+      const delivery = new OutboxDelivery();
+      const sink = recordingSink();
+      expect(await delivery.deliver(say, cwd, "s1", sink)).toBe(names.length);
+      expect(sink.files).toEqual(names);
+      expect(await fs.readdir(folder)).toEqual(["chart02.png"]);
+
+      expect(await delivery.deliver(say, cwd, "s1", sink)).toBe(0);
+      expect(sink.files).toEqual(names);
+
+      await fs.writeFile(held, "written again, and longer");
+      expect(await delivery.deliver(say, cwd, "s1", sink)).toBe(1);
+      expect(sink.files.at(-1)).toBe("chart02.png");
+    } finally {
+      refusing.mockRestore();
+    }
+  });
+
   it("never sends one file twice when a sweep and the turn's delivery overlap", async () => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "outbox-race-"));
     await fs.mkdir(outboxPath(cwd, "s1"), { recursive: true });

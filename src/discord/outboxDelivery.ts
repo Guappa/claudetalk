@@ -5,6 +5,8 @@ import type { Say } from "../i18n/index.ts";
 
 export class OutboxDelivery {
   private readonly reported = new Set<string>();
+  // Files that were sent and then could not be removed, by conversation and name, with the mark each was sent at.
+  private readonly unremoved = new Map<string, string>();
   private readonly inFlight = new Map<string, Promise<number>>();
 
   async hasFiles(cwd: string, sessionId: string): Promise<boolean> {
@@ -27,24 +29,33 @@ export class OutboxDelivery {
   }
 
   private async run(say: Say, cwd: string, sessionId: string, sink: MessageSink, minAgeMs: number): Promise<number> {
-    const sent = new Set<string>();
-    let batch = await collectOutbox(cwd, sessionId, minAgeMs);
+    const prefix = `${sessionId}/`;
+    const sentAlready = (name: string, mark: string): boolean => this.unremoved.get(prefix + name) === mark;
+    let delivered = 0;
+    let batch: OutboxResult;
     // What one message could not hold goes in the next one now: left for a later sweep, it is stranded if the conversation is cleared or unbound first.
-    while (await this.sendBatch(say, batch, sent, sink)) batch = await collectOutbox(cwd, sessionId, minAgeMs);
+    do {
+      batch = await collectOutbox(cwd, sessionId, minAgeMs, sentAlready);
+      delivered += await this.sendBatch(say, prefix, batch, sink);
+    } while (batch.files.length > 0 && batch.deferred > 0);
     await this.report(say, sessionId, batch.skipped, sink);
-    return sent.size;
+    return delivered;
   }
 
-  // Whether another message is owed. A file that could not be removed comes round again, and ends the delivery instead of being sent twice.
-  private async sendBatch(say: Say, batch: OutboxResult, sent: Set<string>, sink: MessageSink): Promise<boolean> {
-    const { files, deferred, discard } = batch;
-    const repeated = files.some((file) => sent.has(file.name));
-    if (files.length > 0 && !repeated) {
+  // A file held open by something else cannot be removed once it is sent. It is remembered as sent, so that it is not sent again at every sweep and takes no file's place in a later message.
+  private async sendBatch(say: Say, prefix: string, batch: OutboxResult, sink: MessageSink): Promise<number> {
+    const { files, marks, discard } = batch;
+    if (files.length > 0) {
       await sink.sendFiles(files.length === 1 ? files[0]!.name : say("outbox.files", { count: files.length }), files);
-      for (const file of files) sent.add(file.name);
     }
-    await discard();
-    return deferred > 0 && !repeated;
+    const kept = new Set(await discard());
+    for (const held of this.unremoved.keys()) {
+      if (held.startsWith(prefix) && !kept.has(held.slice(prefix.length))) this.unremoved.delete(held);
+    }
+    for (const file of files) {
+      if (kept.has(file.name)) this.unremoved.set(prefix + file.name, marks.get(file.name)!);
+    }
+    return files.length;
   }
 
   // A file left behind is named once, not on every sweep until somebody deletes it.
