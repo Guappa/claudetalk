@@ -38,7 +38,10 @@ does in the terminal.
 - A Discord server you administer
 
 Turns run through `@anthropic-ai/claude-agent-sdk`, which `npm ci` installs and
-which starts the same `claude` binary you already have. This bridge is MIT; that
+which brings its own build of Claude Code to run them on. The `claude` you
+installed is what the bridge asks for the side jobs: which sessions are open on
+the host, stopping a background one, and listing plugins. The two share your
+sign-in and your conversations, and can be different versions. This bridge is MIT; that
 package is not, so using it means accepting
 [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). That
 is the same agreement Claude Code itself is under, so it asks nothing new of
