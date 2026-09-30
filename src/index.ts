@@ -22,9 +22,7 @@ const lock = await acquireInstanceLock(lockPath);
 console.log(`Owners: ${config.ownerIds.join(", ")}.`);
 
 const bridge = await createBridge(config);
-console.log(
-  `Language: ${bridge.language.current()}, ${bridge.language.wasPicked() ? "picked with /language" : "from BRIDGE_LANGUAGE"}.`,
-);
+console.log(`Language: ${bridge.language.current()} (${bridge.language.wasPicked() ? "picked with /language" : "host default"}).`);
 await sweepAttachments();
 
 const client = new Client({
