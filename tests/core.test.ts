@@ -1054,15 +1054,27 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
     for (const [text, expected] of cases) expect(redactPaths(text, ownHome)).toBe(expected);
   });
 
-  it("does not take a URL, a nested folder or a flag for a POSIX home", () => {
+  it("does not take a web address or a flag for a POSIX home", () => {
     const rootHome = homePatterns(["/root"]);
-    expect(redactPaths("see https://example.org/root and /var/root/x and --root", rootHome)).toBe(
-      "see https://example.org/root and /var/root/x and --root",
-    );
+    expect(redactPaths("see https://example.org/root and --root", rootHome)).toBe("see https://example.org/root and --root");
     expect(redactPaths("cd /root/x && ls -root-projects", rootHome)).toBe("cd ~/x && ls ~-projects");
 
     const named = homePatterns(["/home/" + "pat"]);
-    expect(redactPaths("/srv/home/" + "pat/x and /home/" + "pat/x", named)).toBe("/srv/home/" + "pat/x and ~/x");
+    const address = "https://example.org/home/" + "pat/about";
+    expect(redactPaths(address, named)).toBe(address);
+  });
+
+  // A path is written straight after a compiler flag, behind a UNC host and under a volume, with no space before its first slash.
+  it("knows a POSIX home whatever is written right before it", () => {
+    const named = homePatterns(["/home/" + "pat"]);
+    const cases: Array<[string, string]> = [
+      ["gcc -I/home/" + "pat/include -L/home/" + "pat/lib main.c", "gcc -I~/include -L~/lib main.c"],
+      ["\\\\wsl$\\Ubuntu\\home\\" + "pat\\proj", "\\\\wsl$\\Ubuntu~\\proj"],
+      ["/System/Volumes/Data/home/" + "pat/notes.md", "/System/Volumes/Data~/notes.md"],
+      ["file://localhost/home/" + "pat/report.html", "file://localhost~/report.html"],
+      ["../../home/" + "pat/x and /home/" + "pat/x", "../..~/x and ~/x"],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, named)).toBe(expected);
   });
 
   it("finds the short spelling of the home folder from the temp folder, and nothing when there is none", () => {
