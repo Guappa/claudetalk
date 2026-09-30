@@ -78,7 +78,8 @@ export async function collectOutbox(cwd: string, sessionId: string, minAgeMs = 0
   }
 
   const discard = async (): Promise<void> => {
-    for (const full of collected) await fs.rm(full, { force: true }).catch(() => undefined);
+    // A file still held for a moment, by a scanner for one, is tried again: one left behind is sent again on the next sweep.
+    for (const full of collected) await fs.rm(full, { force: true, maxRetries: 5, retryDelay: 200 }).catch(() => undefined);
     // Leaving empty folders behind litters whatever project the conversation works in.
     if (skipped.length === 0 && deferred === 0) {
       await fs.rmdir(dir).catch(() => undefined);
