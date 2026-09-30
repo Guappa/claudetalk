@@ -54,6 +54,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
   const sessions = {
     build: async () => records,
     find: async (sessionId: string) => records.find((record) => record.sessionId === sessionId) ?? null,
+    forgetLive: () => undefined,
   } as unknown as SessionIndex;
 
   return {

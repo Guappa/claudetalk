@@ -148,7 +148,9 @@ import {
   OUTBOX_DIR,
   SETTLE_MS,
 } from "../src/discord/outbox.ts";
-import { readExchanges, lastExchanges, lastCompactionCeiling } from "../src/sessions/exchanges.ts";
+import { readExchanges, readExchangesSince, lastExchanges, lastCompactionCeiling } from "../src/sessions/exchanges.ts";
+import { SessionIndex } from "../src/sessions/index.ts";
+import { readTail } from "../src/sessions/transcriptTail.ts";
 import { formatExchanges, describeDrift, latestThatFit } from "../src/discord/transcriptView.ts";
 import { attributionOnly, buildContext, composePrompt, noContext, stripBotMention } from "../src/discord/context.ts";
 import { bridgeCommandDefinitions } from "../src/discord/commands/registry.ts";
@@ -3431,14 +3433,106 @@ describe("transcript view", () => {
   });
 
   it("describes drift with a count, how long ago the last was, and its date", () => {
-    const notice = describeDrift(say, exchanges);
+    const notice = describeDrift(say, { exchanges, reachesBack: true });
     expect(notice).toContain("2 messages");
     expect(notice).toContain(`The last was <t:${Math.floor(exchanges[1]!.at.getTime() / 1000)}:R>, ${stamp(exchanges[1]!.at)}.`);
     expect(notice).toContain("/sync");
+    expect(notice).not.toContain("only the most recent");
   });
 
   it("uses the singular for one message", () => {
-    expect(describeDrift(say, exchanges.slice(0, 1))).toContain("1 message happened");
+    expect(describeDrift(say, { exchanges: exchanges.slice(0, 1), reachesBack: true })).toContain("1 message happened");
+  });
+
+  // Only the end of a transcript is read, so a count of what happened since can fall short of what did.
+  it("says the count is only the most recent when the transcript was not read back far enough", () => {
+    expect(describeDrift(say, { exchanges, reachesBack: false })).toContain(
+      "That counts only the most recent: the bridge reads back the last 3 MB of a transcript",
+    );
+  });
+});
+
+describe("a transcript larger than the window read from its end", () => {
+  const line = (record: Record<string, unknown>): string => `${JSON.stringify(record)}\n`;
+  const said = (minute: number, text: string) =>
+    line({ type: "user", timestamp: `2026-09-13T10:${String(minute).padStart(2, "0")}:00.000Z`, message: { content: text } });
+  const bulk = (megabytes: number): string =>
+    line({
+      type: "assistant",
+      timestamp: "2026-09-13T10:30:00.000Z",
+      message: { content: [{ type: "tool_use", name: "x".repeat(megabytes * 1024 * 1024) }] },
+    });
+  const written = async (content: string): Promise<string> => {
+    const file = path.join(await fs.mkdtemp(path.join(os.tmpdir(), "long-transcript-")), "session.jsonl");
+    await fs.writeFile(file, content);
+    return file;
+  };
+
+  it("widens the window until it holds a whole record, so one huge last line is not an empty transcript", async () => {
+    const file = await written(said(1, "first") + line({ type: "user", cwd: "/srv/app", pasted: "y".repeat(400) }));
+    expect((await readTail(file, 64))?.text).toContain('"cwd":"/srv/app"');
+
+    const heavy = await written(said(1, "first") + bulk(4));
+    expect((await scanTranscript(heavy)).hasContent).toBe(true);
+  });
+
+  it("says whether what it read reaches back to the moment asked about", async () => {
+    const file = await written(said(1, "before the gap") + bulk(2) + bulk(2) + said(40, "after the gap"));
+    const sinceStart = await readExchangesSince(file, new Date("2026-09-13T10:00:00Z"));
+    expect(sinceStart.exchanges.map((exchange) => exchange.text)).toEqual(["after the gap"]);
+    expect(sinceStart.reachesBack).toBe(false);
+
+    const sinceLate = await readExchangesSince(file, new Date("2026-09-13T10:35:00Z"));
+    expect(sinceLate.exchanges.map((exchange) => exchange.text)).toEqual(["after the gap"]);
+    expect(sinceLate.reachesBack).toBe(true);
+
+    const small = await written(said(1, "one") + said(2, "two"));
+    expect((await readExchangesSince(small)).reachesBack).toBe(true);
+  });
+});
+
+describe("the session index", () => {
+  const indexed = async (copies: Array<{ folder: string; minute: number }>) => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "projects-"));
+    for (const copy of copies) {
+      await fs.mkdir(path.join(root, copy.folder), { recursive: true });
+      const stamped = {
+        type: "user",
+        cwd: "/srv/app",
+        timestamp: `2026-09-13T10:${String(copy.minute).padStart(2, "0")}:00.000Z`,
+      };
+      await fs.writeFile(path.join(root, copy.folder, "s1.jsonl"), `${JSON.stringify(stamped)}\n`);
+    }
+    return root;
+  };
+  const live = { pid: 4321, cwd: "/srv/app", kind: "interactive" as const, sessionId: "s1" };
+
+  // A listing that timed out is not word that nothing is live, and a turn let through on it would collide with an open terminal.
+  it("does not take a listing that failed for nothing being live", async () => {
+    const listings: Array<(typeof live)[] | null> = [null, [live]];
+    const index = new SessionIndex(async () => listings.shift() ?? null, await indexed([{ folder: "-srv-app", minute: 1 }]));
+
+    expect((await index.find("s1"))?.live).toBeNull();
+    expect((await index.find("s1"))?.live).toEqual(live);
+  });
+
+  it("asks again at once after being told to forget what was live", async () => {
+    const listings: Array<(typeof live)[] | null> = [[live], []];
+    const index = new SessionIndex(async () => listings.shift() ?? null, await indexed([{ folder: "-srv-app", minute: 1 }]));
+
+    expect((await index.find("s1"))?.live).toEqual(live);
+    expect((await index.find("s1"))?.live).toEqual(live);
+    index.forgetLive();
+    expect((await index.find("s1"))?.live).toBeNull();
+  });
+
+  it("takes the copy written to last when one session has a transcript under two folders", async () => {
+    const root = await indexed([
+      { folder: "-srv-app", minute: 50 },
+      { folder: "-srv-other", minute: 5 },
+    ]);
+    const found = await new SessionIndex(async () => [], root).find("s1");
+    expect(found?.transcriptPath).toBe(path.join(root, "-srv-app", "s1.jsonl"));
   });
 });
 

@@ -36,7 +36,7 @@ export async function scanTranscript(filePath: string): Promise<TranscriptInfo> 
   if (tail === null) return info;
 
   const stamped: string[] = [];
-  for (const record of jsonLines(tail)) {
+  for (const record of jsonLines(tail.text)) {
     if (record.type === "custom-title" && typeof record.customTitle === "string") info.name = record.customTitle;
     if (typeof record.cwd === "string" && record.cwd !== stamped.at(-1)) stamped.push(record.cwd);
     if (typeof record.timestamp === "string") info.lastActivity = new Date(record.timestamp);

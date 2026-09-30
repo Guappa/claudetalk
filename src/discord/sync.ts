@@ -1,12 +1,12 @@
 import type { Bridge } from "../bridge.ts";
 import type { Conversation } from "../conversations.ts";
 import type { SessionRecord } from "../sessions/index.ts";
-import { readExchanges, type Exchange } from "../sessions/exchanges.ts";
+import { readExchanges, readExchangesSince, type ExchangesRead } from "../sessions/exchanges.ts";
 
-export async function pendingDrift(conversation: Conversation, record: SessionRecord | null): Promise<Exchange[]> {
-  if (!record) return [];
+export async function pendingDrift(conversation: Conversation, record: SessionRecord | null): Promise<ExchangesRead> {
+  if (!record) return { exchanges: [], reachesBack: true };
   const since = conversation.syncedThrough ? new Date(conversation.syncedThrough) : undefined;
-  return await readExchanges(record.transcriptPath, since);
+  return await readExchangesSince(record.transcriptPath, since);
 }
 
 // The index is rebuilt rather than reused: a turn has just written to the transcript being read.

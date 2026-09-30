@@ -19,11 +19,12 @@ export function parseAgentsJson(raw: string): ActiveSession[] {
   return parseJsonArray(raw, isActiveSession);
 }
 
-export async function listActiveSessions(): Promise<ActiveSession[]> {
+// Null when the listing could not be had, which is not the same as nothing being live.
+export async function listActiveSessions(): Promise<ActiveSession[] | null> {
   try {
     return parseAgentsJson((await claudeCli(["agents", "--json"])).stdout);
   } catch {
-    return [];
+    return null;
   }
 }
 

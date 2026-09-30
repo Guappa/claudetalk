@@ -2,7 +2,7 @@ import { AttachmentBuilder, type ChatInputCommandInteraction } from "discord.js"
 import type { Bridge } from "../../bridge.ts";
 import { requireConversation } from "../binding.ts";
 import { markCaughtUp, pendingDrift } from "../sync.ts";
-import { formatExchanges, latestThatFit } from "../transcriptView.ts";
+import { describeUnread, formatExchanges, latestThatFit } from "../transcriptView.ts";
 import { DISCORD_MESSAGE_LIMIT } from "../renderer.ts";
 import { respond } from "../respond.ts";
 
@@ -20,7 +20,10 @@ export async function handleSync(bridge: Bridge, interaction: ChatInputCommandIn
   }
 
   const record = await bridge.sessions.find(conversation.sessionId);
-  const drift = await pendingDrift(conversation, record);
+  const read = await pendingDrift(conversation, record);
+  const drift = read.exchanges;
+  const counted = (key: "sync.all" | "sync.latest"): string =>
+    [say(key, { count: drift.length }), describeUnread(say, read)].filter(Boolean).join(" ");
 
   if (drift.length === 0) {
     await respond(interaction, say("sync.nothingNew"));
@@ -30,12 +33,12 @@ export async function handleSync(bridge: Bridge, interaction: ChatInputCommandIn
   const recent = latestThatFit(say, drift, DISCORD_MESSAGE_LIMIT - HEADER_ROOM);
   const view = formatExchanges(say, recent);
   if (recent.length === drift.length) {
-    await respond(interaction, `${say("sync.all", { count: drift.length })}\n\n${view}`);
+    await respond(interaction, `${counted("sync.all")}\n\n${view}`);
   } else {
     const file = new AttachmentBuilder(Buffer.from(formatExchanges(say, drift, "plain"), "utf8"), {
       name: `catch-up-${drift.length}-messages.md`,
     });
-    await respond(interaction, { content: `${say("sync.latest", { count: drift.length })}\n\n${view}`, files: [file] });
+    await respond(interaction, { content: `${counted("sync.latest")}\n\n${view}`, files: [file] });
   }
 
   await markCaughtUp(bridge, conversation);
