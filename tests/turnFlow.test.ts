@@ -120,6 +120,25 @@ describe("TurnFlow", () => {
     expect(order).toEqual(["before one", "after one", "before two", "after two"]);
   });
 
+  // What fails before a turn is a lookup, a store write or a notice; the person sent a message and has to hear why nothing came of it.
+  it("tells the person when the check before a turn fails, and does not leave the message reading as queued", async () => {
+    const flow = makeFlow();
+    const sink = recordingSink();
+    const states: string[] = [];
+    const ran = await flow.run("s42", cwd, "never checked", {}, sink, {
+      resume: true,
+      beforeTurn: async () => {
+        throw new Error("the index could not be read");
+      },
+      onState: async (state) => void states.push(state),
+    });
+
+    expect(ran).toBe(false);
+    expect(started).not.toContain("never checked");
+    expect(sink.written.join("\n")).toContain("the check before the turn failed with the index could not be read");
+    expect(states).toEqual(["stopped"]);
+  });
+
   it("runs the after hook even when the turn throws", async () => {
     const flow = makeFlow();
     const order: string[] = [];

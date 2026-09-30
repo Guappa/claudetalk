@@ -23,6 +23,21 @@ export function splitForDiscord(text: string, room: number = DISCORD_MESSAGE_LIM
   return chunkForDiscord(whole, alwaysFits);
 }
 
+// The start of a text, cut where one message ends and no further: code blocks are closed, so what follows the cut is not drawn as code, and the gate's escapes are counted.
+export function fitForDiscord(text: string, room: number): string {
+  const whole = redactHome(text);
+  const alwaysFits = Math.floor(room / 2);
+  let first = whole;
+  let cut = false;
+  for (let limit = room; limit > alwaysFits; limit -= TIGHTEN_BY) {
+    const pieces = chunkForDiscord(whole, limit);
+    first = pieces[0] ?? "";
+    cut = pieces.length > 1;
+    if (forDiscord(first).length <= room) break;
+  }
+  return cut ? `${first}\n…` : first;
+}
+
 // A name is not drawn as Markdown, so only the path redaction applies to it.
 export function nameForDiscord(text: string): string {
   return redactHome(text);

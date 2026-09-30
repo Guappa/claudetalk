@@ -173,10 +173,16 @@ describe("platform", () => {
     expect(resolveClaudeBin({ CLAUDE_BIN: "/opt/claude" })).toBe("/opt/claude");
   });
 
-  it("finds a real executable rather than guessing a name", () => {
-    const bin = resolveClaudeBin({});
-    expect(bin.length).toBeGreaterThan(0);
-    if (process.platform === "win32") expect(bin.toLowerCase()).not.toMatch(/\.(cmd|bat)$/);
+  // A .cmd shim is what npm installs on Windows, and Node cannot start one without a shell.
+  it("finds a real executable on the PATH ahead of a script shim, and guesses only when there is none", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "on-path-"));
+    const real = path.join(dir, process.platform === "win32" ? "claude.exe" : "claude");
+    await fs.writeFile(path.join(dir, "claude.cmd"), "@echo off");
+    await fs.writeFile(real, "");
+    await fs.chmod(real, 0o755);
+
+    expect(resolveClaudeBin({ PATH: dir })).toBe(real);
+    expect(resolveClaudeBin({ PATH: await fs.mkdtemp(path.join(os.tmpdir(), "empty-path-")) })).toBe("claude");
   });
 
   it("rejects a script shim on Windows with an actionable message", () => {
@@ -830,13 +836,17 @@ describe("StatusMessage", () => {
     expect(sink.written.at(-1)).toBe("Done.");
   });
 
-  it("does not keep the answer in the trail it is about to be posted under", () => {
+  it("does not keep the answer in the trail it is about to be posted under", async () => {
     const sink = recordingSink();
     const status = new StatusMessage(say, sink, () => 0);
+    await status.start();
     status.note("Weighing whether the field is optional.");
     status.note("It is optional, so the validator warns rather than fails.");
     status.dropEcho("It is optional, so the validator warns rather than fails.");
-    expect(status.hasNotes()).toBe(true);
+    await status.settle();
+
+    expect(sink.messages.at(-1)).toContain("Weighing whether the field is optional.");
+    expect(sink.messages.at(-1)).not.toContain("validator warns");
   });
 
   it("leaves no trail at all when the only thing said was the answer", () => {
@@ -1794,6 +1804,34 @@ describe("ApprovalPrompts", () => {
     const sink = { ...quietSink(), ask: async () => Promise.reject(new Error("Missing Permissions")) };
     const decision = await prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "rm -rf /" });
     expect(decision).toEqual({ allow: false, reason: expect.stringContaining("could not be shown") });
+  });
+
+  // What the hook answers is what Claude Code acts on: allowed, allowed with the answers written in, refused with a reason, or nothing at all.
+  it("answers Claude Code with the decision made in Discord, and with none for a tool that is only reading", async () => {
+    const asked: string[] = [];
+    const hooks = gate({
+      approve: async (toolName) => {
+        asked.push(toolName);
+        return toolName === "Bash" ? { allow: true } : { allow: false, reason: "Denied from Discord." };
+      },
+      askQuestions: async () => ({ answered: true, answers: { "Which?": "One" } }),
+    });
+    const hook = hooks.PreToolUse![0]!.hooks[0]!;
+    const decide = (tool_name: string, tool_input: Record<string, unknown> = {}) =>
+      hook({ tool_name, tool_input } as never, undefined, { signal: new AbortController().signal });
+
+    expect(await decide("Read", { file_path: "a.ts" })).toEqual({ continue: true });
+    expect(asked).toEqual([]);
+    expect(await decide("Bash", { command: "ls" })).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow" } });
+    expect(await decide("Edit", { file_path: "a.ts" })).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny", permissionDecisionReason: "Denied from Discord." },
+    });
+    const questions = {
+      questions: [{ question: "Which?", header: "Pick", multiSelect: false, options: [{ label: "One", description: "" }] }],
+    };
+    expect(await decide("AskUserQuestion", questions)).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "allow", updatedInput: { ...questions, answers: { "Which?": "One" } } },
+    });
   });
 
   it("refuses a tool when the gate itself fails, whatever failed inside it", async () => {
@@ -2925,9 +2963,20 @@ describe("/run finds a conversation's commands", () => {
     await cache.load();
     expect(cache.commands("/srv/app")).toEqual([]);
     await cache.recordCommands("/srv/app", known);
-    const written = (await fs.stat(file)).mtimeMs;
+    // A rewrite inside one clock tick leaves the same time on the file, so the write itself is counted, at the rename that lands it.
+    const landed = vi.spyOn(fs, "rename");
+    try {
+      await cache.recordCommands("/srv/app", known);
+      expect(landed).not.toHaveBeenCalled();
+      await cache.recordCommands("/srv/app", [
+        ...known,
+        { name: "extra", description: "", argumentHint: "", aliases: [], builtin: false },
+      ]);
+      expect(landed).toHaveBeenCalledOnce();
+    } finally {
+      landed.mockRestore();
+    }
     await cache.recordCommands("/srv/app", known);
-    expect((await fs.stat(file)).mtimeMs).toBe(written);
 
     const reloaded = new CapabilityCache(file);
     await reloaded.load();
@@ -3530,6 +3579,7 @@ describe("toChannelName", () => {
   });
 
   it("collapses punctuation such as dots", () => {
+    expect(toChannelName("project.notes v2")).toBe("project-notes-v2");
     expect(toChannelName("project-notes")).toBe("project-notes");
   });
 
@@ -3539,6 +3589,32 @@ describe("toChannelName", () => {
 
   it("falls back rather than producing an empty channel name", () => {
     expect(toChannelName("!!!")).toBe("conversation");
+  });
+});
+
+describe("a stop takes the whole tree", () => {
+  const alive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // A build or a dev server a turn started through Bash would otherwise outlive the turn that was stopped.
+  it("ends the process a turn started and the one that started under it", async () => {
+    const grandchildScript = "setInterval(() => undefined, 1000)";
+    const childScript = `const { spawn } = require("node:child_process"); const grandchild = spawn(process.execPath, ["-e", ${JSON.stringify(grandchildScript)}], { stdio: "ignore" }); console.log(grandchild.pid); setInterval(() => undefined, 1000);`;
+    const child = spawn(process.execPath, ["-e", childScript], turnSpawnOptions(os.tmpdir()));
+    const grandchildPid = Number(
+      await new Promise<string>((resolve) => child.stdout!.once("data", (chunk: Buffer) => resolve(chunk.toString()))),
+    );
+    expect(alive(child.pid!)).toBe(true);
+    expect(alive(grandchildPid)).toBe(true);
+
+    killTree(child.pid!);
+    await vi.waitFor(() => expect([alive(child.pid!), alive(grandchildPid)]).toEqual([false, false]), { timeout: 5000 });
   });
 });
 
@@ -3820,6 +3896,20 @@ describe("transcript view", () => {
     const out = formatExchanges(say, exchanges, "plain");
     expect(out).toContain("**You** · terminal · 2026-09-13 14:32 UTC");
     expect(out).not.toContain("<t:");
+  });
+
+  // Cut inside a code block, the closing fence goes with the cut, and everything after the opening one is drawn as prose with its markers escaped.
+  it("cuts a long exchange where a message ends, with its code block closed", () => {
+    const fence = "```";
+    const code = Array.from({ length: 80 }, (_, index) => `rate_per_unit[${index}] = *scaled* + __init__`).join("\n");
+    const text = ["Here it is:", `${fence}python`, code, fence, "Done."].join("\n");
+    const long = [{ at: new Date("2026-09-13T14:32:00Z"), role: "assistant" as const, text }];
+    const shown = formatExchanges(say, long);
+    expect(shown.length).toBeLessThan(1400);
+    expect(shown).toContain(`${fence}python`);
+    expect(shown.split(fence)).toHaveLength(3);
+    expect(shown).toContain("rate_per_unit[0]");
+    expect(shown).not.toContain("rate\\_per");
   });
 
   it("truncates a very long exchange", () => {
@@ -4497,7 +4587,7 @@ describe("bridge system note", () => {
   });
 
   it("stays focused, since a long note dilutes the instructions inside it", () => {
-    expect(bridgeSystemNote("s1").length).toBeLessThan(700);
+    expect(bridgeSystemNote(randomUUID()).length).toBeLessThan(800);
   });
 
   it("asks for the progress remarks the activity log is built to show", () => {

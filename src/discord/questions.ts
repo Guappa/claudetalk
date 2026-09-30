@@ -3,6 +3,7 @@ import { QUESTIONS_UNANSWERED } from "../claude/prompts.ts";
 import type { Question, QuestionAnswers, QuestionOutcome } from "../claude/questions.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
+import { fitForDiscord } from "./outgoing.ts";
 import { questionPickId, questionSkipId, questionSubmitId } from "./menus.ts";
 import type { MessageSink, SinkAction, SinkMenu } from "./messageSink.ts";
 
@@ -39,7 +40,7 @@ function describeQuestion(say: Say, question: Question, index: number): string {
 export function describeQuestions(say: Say, questions: Question[]): string {
   const heading = say("questions.heading", { count: questions.length });
   const asked = questions.map((question, index) => describeQuestion(say, question, index));
-  return truncate([heading, ...asked].join("\n"), MESSAGE_LIMIT);
+  return fitForDiscord([heading, ...asked].join("\n"), MESSAGE_LIMIT);
 }
 
 // Option values are positions, so a label that repeats or runs long never collides with another.

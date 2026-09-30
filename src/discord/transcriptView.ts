@@ -1,7 +1,8 @@
 import type { Say } from "../i18n/index.ts";
 import type { Exchange, ExchangesRead } from "../sessions/exchanges.ts";
 import { TAIL_BYTES } from "../sessions/transcriptTail.ts";
-import { truncate, utcDateAndTime } from "../text.ts";
+import { utcDateAndTime } from "../text.ts";
+import { fitForDiscord } from "./outgoing.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 import { dateAndTime, howLongAgo } from "./timestamps.ts";
 
@@ -19,7 +20,7 @@ function clock(at: Date, style: ClockStyle): string {
 function formatExchange(say: Say, exchange: Exchange, style: ClockStyle): string {
   const heading = say(exchange.role === "user" ? "sync.fromYou" : "sync.fromClaude", { clock: clock(exchange.at, style) });
   // Several exchanges share one message, so each is sealed on its own.
-  return `${heading}\n${defuseStrayMarkup(truncate(exchange.text, MAX_EXCHANGE_CHARS))}`;
+  return `${heading}\n${defuseStrayMarkup(fitForDiscord(exchange.text, MAX_EXCHANGE_CHARS))}`;
 }
 
 export function formatExchanges(say: Say, exchanges: Exchange[], style: ClockStyle = "discord"): string {
