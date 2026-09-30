@@ -5,6 +5,7 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     exclude: ["tests/integration/**"],
     environment: "node",
+    globalSetup: ["tests/helpers/tempRoot.ts"],
     coverage: {
       provider: "v8",
       // Every source file counts, loaded by a test or not: a file no test imports is the one most worth seeing at zero.
