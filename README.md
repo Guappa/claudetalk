@@ -31,7 +31,7 @@ or Simplified Chinese, picked with `/language` or `BRIDGE_LANGUAGE`. Claude answ
 does in the terminal.
 
 It runs as a clone on the machine your projects are on, Windows, Linux or
-macOS, or as a [container image](#in-a-container) on an always-on Linux box.
+macOS, or as a [container image](#in-a-container) wherever Docker runs.
 
 ## Requirements
 
@@ -200,11 +200,12 @@ there is no build step.
 
 ### In a container
 
-For an always-on Linux box, a Raspberry Pi or a NAS, there is an image instead
-of a clone: `ghcr.io/guappa/claudetalk`, tagged by version and `latest`, built
-for amd64 and arm64 on every tag. It holds the bridge, Node, git and the build
-of Claude Code the Agent SDK ships, and nothing else; the `claude` on its PATH
-is that same build.
+For a machine that is always on, a server, a NAS, a Raspberry Pi, or a desktop
+with Docker Desktop, there is an image instead of a clone:
+`ghcr.io/guappa/claudetalk`, tagged by version and `latest`, built for amd64
+and arm64 on every tag. It holds the bridge, Node, git and the build of Claude
+Code the Agent SDK ships, and nothing else; the `claude` on its PATH is that
+same build.
 
 ```bash
 docker volume create claudetalk-data claudetalk-claude
