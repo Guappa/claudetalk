@@ -121,18 +121,18 @@ there in mention-only mode, so later messages keep their context while ordinary
 chatter is still ignored. If the channel's name matches an existing conversation
 it binds to that one instead, so `#deploy-scripts` finds "deploy scripts".
 
-**Plain messages are scoped by `DISCORD_CATEGORY_ID`.** Inside the category,
-every conversation channel is a turn. Outside it, a message is only acted on if
-the channel is already bound, which is what stops one bridge auto-binding inside
-a channel that belongs to another. Commands work from anywhere in the server;
-they are gated by who you are, not where you type. With no category set, the
-bridge acts on every channel, which is fine when it is the only bridge there.
+**Where a channel sits changes nothing about this.** `DISCORD_CATEGORY_ID` is
+a way to file conversation channels, the default place a new one is created,
+and carries no other meaning: a channel is a conversation's because it is
+bound, in whatever category it sits, and a tag starts or finds one the same way
+everywhere in the server. Commands work from anywhere too; they are gated by
+who you are, not where you type.
 
 ```
 Text Channels
   # general                run /create and /resume from here, or anywhere
-CONVERSATIONS              <- DISCORD_CATEGORY_ID
-  # deploy-scripts         every message here is a turn
+CONVERSATIONS              <- DISCORD_CATEGORY_ID, where new channels land
+  # deploy-scripts         bound, so every message here is a turn
   # release-notes
 ```
 
@@ -677,8 +677,9 @@ runs their own bridge with their own bot application, token, host and
 subscription. Isolation comes from the tier check: a bridge ignores anyone who
 is neither one of its owners nor one of its operators, so two bridges do not
 answer each other's people even in a shared channel. Give each its own
-`DISCORD_CATEGORY_ID` so conversation channels stay apart and neither auto-binds
-inside the other's.
+`DISCORD_CATEGORY_ID` so their conversation channels are filed apart; that is
+tidiness, not separation, which the tier check alone provides. Somebody who is
+an operator of two bridges is answered by whichever bot they tag.
 
 ## Why not the built-in options
 

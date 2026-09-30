@@ -1,3 +1,4 @@
+import os from "node:os";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
@@ -6,6 +7,7 @@ import { handleMessage } from "../src/discord/handlers/message.ts";
 import { UNBIND_DELETE, UNBIND_KEEP } from "../src/discord/menus.ts";
 import { OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
 import { fakeChannel, fakeCommand, fakeMessage, fakePress } from "./helpers/discord.ts";
+import { record } from "./helpers/records.ts";
 import { quietSink } from "./helpers/sinks.ts";
 
 interface Asked {
@@ -70,6 +72,17 @@ describe("a message in a channel that holds no conversation", () => {
     expect(asked).toHaveLength(1);
     expect(asked[0]!.resume).toBe(false);
     expect(asked[0]!.sessionId).toBe(bridge.store.byChannel("m1")?.sessionId);
+  });
+
+  // The category files new channels and means nothing else, so a channel outside it is found by its name like any other.
+  it("binds to the conversation the channel is named after, whatever category the channel sits in", async () => {
+    const known = record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() });
+    const bridge = await testBridge([known], { categoryId: "400000000000000001" });
+    const place = fakeChannel("m3", "ledger-notes");
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "where were we?", mentionsBot: true }).message);
+
+    expect(bridge.store.byChannel("m3")?.sessionId).toBe(SESSION);
+    expect(asked.map((turn) => [turn.sessionId, turn.resume])).toEqual([[SESSION, true]]);
   });
 
   it("stays silent for someone who may not use the bridge", async () => {
