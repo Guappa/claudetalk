@@ -1,4 +1,4 @@
-import { claudeCli, parseJsonArray } from "../claude/cli.ts";
+import { claudeCli, isJsonArray, parseJsonArray } from "../claude/cli.ts";
 
 export interface ActiveSession {
   pid: number;
@@ -19,10 +19,15 @@ export function parseAgentsJson(raw: string): ActiveSession[] {
   return parseJsonArray(raw, isActiveSession);
 }
 
+// Null when what came back is not a listing at all: a notice, an error in words, nothing. That is not the same as a listing with nothing in it.
+export function readListing(stdout: string): ActiveSession[] | null {
+  return isJsonArray(stdout) ? parseAgentsJson(stdout) : null;
+}
+
 // Null when the listing could not be had, which is not the same as nothing being live.
 export async function listActiveSessions(): Promise<ActiveSession[] | null> {
   try {
-    return parseAgentsJson((await claudeCli(["agents", "--json"])).stdout);
+    return readListing((await claudeCli(["agents", "--json"])).stdout);
   } catch {
     return null;
   }

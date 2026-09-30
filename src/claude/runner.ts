@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { query, type Options, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { killTree, turnSpawnOptions } from "../platform.ts";
+import { errorMessage } from "../text.ts";
 import { outboxRelative } from "../discord/outbox.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
@@ -142,11 +143,17 @@ async function decide(
   return decision.allow ? allowed("Approved from Discord.") : denied(decision.reason);
 }
 
+const GATE_TIMEOUT_SECONDS = 15 * 60;
+// Enough of what the process wrote to stderr to hold the line on which it says why it gave up.
+const STDERR_TAIL_CHARS = 2000;
+
 // A permission mode cannot hold the gate: the host's own allow rules are consulted first, a hook is not.
 export function gate(gates: Gates): NonNullable<Options["hooks"]> {
   return {
     PreToolUse: [
       {
+        // Claude Code gives a hook ten minutes by default, which is what the bridge gives a question; its own clock would run out first and the reason the bridge returns would reach nobody.
+        timeout: GATE_TIMEOUT_SECONDS,
         hooks: [
           async (input) => {
             const toolName = String((input as { tool_name?: unknown }).tool_name ?? "");
@@ -185,6 +192,7 @@ async function consumeStream(
   abort: AbortController,
   live: Live,
   onEvent: (event: ClaudeEvent) => void,
+  complained: () => string,
 ): Promise<TurnResult | typeof RESTART> {
   const outcome: TurnOutcome = { text: "" };
   // What the last result failed with while a message was still waiting to run; it is the outcome after all if nothing follows.
@@ -230,7 +238,7 @@ async function consumeStream(
     if (abort.signal.aborted) {
       return { ...outcome, ok: false, error: { kind: "stopped" } };
     }
-    return { ...outcome, ok: false, error: failure(error) };
+    return { ...outcome, ok: false, error: failure(error, complained()) };
   }
 
   return unanswered ? { ...outcome, ok: false, error: unanswered } : { ...outcome, ok: true };
@@ -299,6 +307,7 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
 
   // Spawning it ourselves is the only way to learn the pid, and stopping a turn means its whole tree.
   let pid: number | undefined;
+  const complaints = { tail: "" };
   options.spawnClaudeCodeProcess = (spawnOptions) => {
     const child = spawn(spawnOptions.command, spawnOptions.args, {
       ...turnSpawnOptions(spawnOptions.cwd ?? request.cwd),
@@ -306,6 +315,11 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
       signal: spawnOptions.signal,
     });
     pid = child.pid;
+    complaints.tail = "";
+    // Read, or the pipe fills and the process stalls on its next line; kept, because a process that will not start says why only there.
+    child.stderr?.on("data", (chunk: Buffer) => {
+      complaints.tail = `${complaints.tail}${chunk.toString("utf8")}`.slice(-STDERR_TAIL_CHARS);
+    });
     return child;
   };
 
@@ -313,7 +327,7 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     const held = new HeldPrompt(request.prompt);
     const abort = new AbortController();
     const live: Live = { query: null };
-    return { held, abort, live, done: consumeStream(held, options, abort, live, onEvent) };
+    return { held, abort, live, done: consumeStream(held, options, abort, live, onEvent, () => complaints.tail) };
   };
 
   let attempt = start();
@@ -368,7 +382,8 @@ export function resultError(subtype: string, errors: string[]): ClaudeError {
   return detectClaudeError(text) ?? { kind: "ended", subtype, text };
 }
 
-function failure(error: unknown): ClaudeError {
-  const message = error instanceof Error ? error.message : String(error);
+function failure(error: unknown, stderr: string): ClaudeError {
+  const said = stderr.trim();
+  const message = said ? `${errorMessage(error)}. stderr: ${said}` : errorMessage(error);
   return detectClaudeError(message) ?? { kind: "could-not-run", message };
 }

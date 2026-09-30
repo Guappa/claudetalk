@@ -82,9 +82,12 @@ export function remoteWebUrl(remote: string): string | null {
     .replace(/\/$/, "");
   const scp = /^(?:[\w.-]+@)?([\w.-]+):([\w.-]+\/[\w.-]+)$/.exec(trimmed);
   if (scp?.[1] && scp[2]) return `https://${scp[1]}/${scp[2]}`;
-  const url = /^(?:ssh|https?|git):\/\/(?:[\w.-]+@)?([\w.-]+)(?::\d+)?\/([\w.-]+\/[\w.-]+)$/.exec(trimmed);
-  if (url?.[1] && url[2]) return `https://${url[1]}/${url[2]}`;
-  return null;
+  const url = /^(ssh|https?|git):\/\/(?:[\w.-]+@)?([\w.-]+)(?::(\d+))?\/([\w.-]+\/[\w.-]+)$/.exec(trimmed);
+  if (!url) return null;
+  const [, scheme, host, port, repository] = url;
+  // A port on an ssh or git remote is that protocol's; on an http one it is where the site itself is served.
+  const served = scheme!.startsWith("http") && port ? `${host}:${port}` : host;
+  return `${scheme === "http" ? "http" : "https"}://${served}/${repository}`;
 }
 
 // A folder name can hold a space, a hash or a question mark, each of which means something else in a URL.

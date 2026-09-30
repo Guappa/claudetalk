@@ -51,7 +51,8 @@ describe("comment rules", () => {
 
   it("branches on the operating system only in platform.ts", () => {
     const offenders = files.filter(
-      (file) => path.basename(file) !== "platform.ts" && fs.readFileSync(file, "utf8").includes("process.platform"),
+      (file) =>
+        path.basename(file) !== "platform.ts" && /process\.(?:platform|getuid|geteuid)\b/.test(fs.readFileSync(file, "utf8")),
     );
     expect(basenames(offenders)).toEqual([]);
   });

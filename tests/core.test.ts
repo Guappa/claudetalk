@@ -20,7 +20,7 @@ import {
 import { detectClaudeError } from "../src/claude/errors.ts";
 import { buildOptions, bridgeSystemNote, foldResult, gate, resultError } from "../src/claude/runner.ts";
 import { scanTranscript } from "../src/sessions/transcriptScanner.ts";
-import { parseAgentsJson } from "../src/sessions/activeSessions.ts";
+import { parseAgentsJson, readListing } from "../src/sessions/activeSessions.ts";
 import { resolveByChannelName, resolveByFolder, resolveByName } from "../src/sessions/resolve.ts";
 import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
 import { randomUUID } from "node:crypto";
@@ -32,7 +32,7 @@ import { UsageLedger } from "../src/claude/usageLedger.ts";
 import { PlanUsage, describePlanUsage, parsePlanUsage } from "../src/claude/planUsage.ts";
 import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
 import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
-import { OTHER_VALUE, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
+import { OTHER_VALUE, QUESTION_TIMEOUT_MS, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
 import {
@@ -137,7 +137,9 @@ import {
   downloadAttachments,
   extensionFor,
   isExpired,
+  keepAttachmentsAwhile,
   screenAttachments,
+  sweepAttachments,
 } from "../src/attachments.ts";
 import { nothingToSend } from "../src/discord/handlers/message.ts";
 import { sayIn } from "../src/i18n/index.ts";
@@ -1217,11 +1219,42 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
   it("does not take a web address or a flag for a POSIX home", () => {
     const rootHome = homePatterns(["/root"]);
     expect(redactPaths("see https://example.org/root and --root", rootHome)).toBe("see https://example.org/root and --root");
-    expect(redactPaths("cd /root/x && ls -root-projects", rootHome)).toBe("cd ~/x && ls ~-projects");
+    expect(redactPaths("cd /root/x && ls /root/.claude/projects/-root-projects", rootHome)).toBe(
+      "cd ~/x && ls ~/.claude/projects/~-projects",
+    );
 
     const named = homePatterns(["/home/" + "pat"]);
     const address = "https://example.org/home/" + "pat/about";
     expect(redactPaths(address, named)).toBe(address);
+  });
+
+  // A home one folder below the root is called root, app or data, which are ordinary folder names and flags as well.
+  it("takes a home one folder below the root for the home only where a path starts", () => {
+    const rootHome = homePatterns(["/root"]);
+    const untouched = [
+      "edit packages/root/index.ts",
+      "cd /app/root/src",
+      "github.com/acme/root is the repository",
+      "pass -root to the tool",
+      ["C:", "work", "root", "file.txt"].join("\\"),
+    ];
+    for (const text of untouched) expect(redactPaths(text, rootHome), text).toBe(text);
+    expect(redactPaths('run "/root/bin/tool" in /root', rootHome)).toBe('run "~/bin/tool" in ~');
+  });
+
+  // A sentence goes on after a path that ends at the account's name, and its words are not part of the name.
+  it("hides another account's name without taking the words after it", () => {
+    const sam = [users, "sam"].join("\\");
+    const hidden = [users, "…"].join("\\");
+    const cases: Array<[string, string]> = [
+      [`open ${sam} then read the file in docs/readme.md please`, `open ${hidden} then read the file in docs/readme.md please`],
+      [`${sam} holds it and/or the other one`, `${hidden} holds it and/or the other one`],
+      [`cd ${sam} && ls src/x`, `cd ${hidden} && ls src/x`],
+      [`He said "look in ${sam} and tell me now" twice`, `He said "look in ${hidden} and tell me now" twice`],
+      [`${[users, "Jo Ann", "notes"].join("\\")} is hers`, `${[users, "…", "notes"].join("\\")} is hers`],
+      [`${slashed(users)}/sam\\x`, `${slashed(users)}/…\\x`],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, ownHome), text).toBe(expected);
   });
 
   // A path is written straight after a compiler flag, behind a UNC host and under a volume, with no space before its first slash.
@@ -2154,6 +2187,21 @@ describe("HeldPrompt", () => {
     expect((await stream.next()).done).toBe(true);
   });
 
+  // A background command keeps the input open past the answer, and no further result comes to start the clock on a message handed over then.
+  it("does not hold the input open for a message handed over after the answer and never taken up", async () => {
+    const held = new HeldPrompt("hello", 5, 10);
+    const stream = held.stream();
+    held.ready();
+    await stream.next();
+    held.observe(spoke);
+    held.observe(tasks(1));
+    held.observe(result);
+    expect(held.handOver("one more thing")).not.toBeNull();
+    await stream.next();
+    held.observe(tasks(0));
+    expect(await Promise.race([stream.next().then((step) => step.done), wait(200).then(() => "still open")])).toBe(true);
+  });
+
   it("holds the prompt until the handshake is done, then yields it once", async () => {
     const held = new HeldPrompt("hello", 5);
     const stream = held.stream();
@@ -2343,6 +2391,15 @@ describe("describeToolUse", () => {
       "`/srv/app/memory/project_backup_notes.md`",
     );
     expect(describeToolUse(say, "Write", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md` (1 line)");
+  });
+
+  it("counts the lines a written file has, not the line break that ends it", () => {
+    const written = (content: string) =>
+      describeToolUse(say, "Write", { file_path: "/srv/app/notes.md", content })?.split("\n")[0];
+    expect(written("one\ntwo\n")).toContain("(2 lines)");
+    expect(written("one\ntwo")).toContain("(2 lines)");
+    expect(written("one\r\n")).toContain("(1 line)");
+    expect(written("")).toContain("(0 lines)");
   });
 
   it("shows a written file in a block tagged with its language, capped, saying how much is left", () => {
@@ -3073,6 +3130,9 @@ describe("repo links", () => {
     expect(remoteWebUrl("https://github.com/someone/project.git")).toBe(base);
     expect(remoteWebUrl("https://github.com/someone/project")).toBe(base);
     expect(remoteWebUrl("ssh://git@gitlab.example.com:2222/team/thing.git")).toBe("https://gitlab.example.com/team/thing");
+    // The port of an http remote is where the forge's pages are served too; an ssh one's is only ssh's.
+    expect(remoteWebUrl("https://forge.example.com:8443/team/thing.git")).toBe("https://forge.example.com:8443/team/thing");
+    expect(remoteWebUrl("http://forge.lan:3000/team/thing")).toBe("http://forge.lan:3000/team/thing");
     expect(remoteWebUrl("/srv/git/bare-repo.git")).toBeNull();
   });
 
@@ -3831,6 +3891,22 @@ describe("a transcript larger than the window read from its end", () => {
     expect((await scanTranscript(heavy)).hasContent).toBe(true);
   });
 
+  // Claude Code closes nearly every transcript with a line of its own, a title or a cost, after the last thing anyone said.
+  it("widens past a line of bookkeeping to the message before it, however large that message is", async () => {
+    const titled = line({ type: "custom-title", customTitle: "Heavy" });
+    const pasted = line({
+      type: "user",
+      cwd: "/srv/app",
+      timestamp: "2026-09-13T10:31:00.000Z",
+      message: { content: "y".repeat(4 * 1024 * 1024) },
+    });
+    const file = await written(said(1, "first") + pasted + titled);
+
+    const info = await scanTranscript(file);
+    expect(info).toMatchObject({ name: "Heavy", cwd: "/srv/app", hasContent: true });
+    expect((await readExchangesSince(file)).exchanges.length).toBeGreaterThan(0);
+  });
+
   it("says whether what it read reaches back to the moment asked about", async () => {
     const file = await written(said(1, "before the gap") + bulk(2) + bulk(2) + said(40, "after the gap"));
     const sinceStart = await readExchangesSince(file, new Date("2026-09-13T10:00:00Z"));
@@ -4308,11 +4384,14 @@ describe("ContextTracker ceiling", () => {
     expect(tracker.knownCeiling()).toBe(951_650);
   });
 
-  it("never lowers a learned ceiling when a manual compaction happens early", () => {
+  // Only automatic compactions are ever reported to it, and a session moved to a model with a smaller window compacts sooner from then on.
+  it("follows the latest automatic compaction, down as well as up", () => {
     const tracker = new ContextTracker();
     tracker.learnCeiling(951_650);
-    tracker.learnCeiling(558_784);
-    expect(tracker.knownCeiling()).toBe(951_650);
+    tracker.learnCeiling(158_784);
+    expect(tracker.knownCeiling()).toBe(158_784);
+    tracker.learnCeiling(0);
+    expect(tracker.knownCeiling()).toBe(158_784);
   });
 
   it("does not call 558k tokens 279 percent full on a one-million window", () => {
@@ -5230,6 +5309,76 @@ describe("a channel named after a hyphenated conversation still binds to it", ()
     for (const channel of ["general", "gen", "general-"])
       expect(resolveByChannelName([ledger], channel).match, channel).toBeNull();
     expect(resolveByChannelName([ledger], "general-ledger").match?.sessionId).toBe("l");
+  });
+});
+
+describe("what a turn was handed is kept for it", () => {
+  const folder = async (turnId: string, ageMinutes: number): Promise<string> => {
+    const dir = path.join(attachmentsRoot(), turnId);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "att_0.pdf"), "x");
+    const then = new Date(Date.now() - ageMinutes * 60_000);
+    await fs.utimes(dir, then, then);
+    return dir;
+  };
+  const exists = (dir: string) =>
+    fs.stat(dir).then(
+      () => true,
+      () => false,
+    );
+
+  // A turn can wait in a queue and then run for longer than the hour its files are kept.
+  it("leaves alone the files of a turn still waiting or running, however old, and counts the hour from its end", async () => {
+    const waiting = await folder(randomUUID(), 90);
+    const finished = await folder(randomUUID(), 90);
+    const justEnded = await folder(randomUUID(), 90);
+    await keepAttachmentsAwhile(path.basename(justEnded));
+
+    await sweepAttachments(Date.now(), new Set([path.basename(waiting)]));
+    expect(await Promise.all([waiting, finished, justEnded].map(exists))).toEqual([true, false, true]);
+  });
+
+  // Anyone can make an entry under a shared temp folder, and a link there passes for a directory of whoever owns what it points at.
+  it.skipIf(process.platform === "win32")(
+    "refuses a root that is a link, which a stat that follows links takes for a directory of its own",
+    async () => {
+      const shared = await fs.mkdtemp(path.join(os.tmpdir(), "shared-tmp-"));
+      const elsewhere = await fs.mkdtemp(path.join(os.tmpdir(), "elsewhere-"));
+      const before = process.env.TMPDIR;
+      process.env.TMPDIR = shared;
+      try {
+        await fs.symlink(elsewhere, attachmentsRoot());
+        const remote = [{ url: "http://127.0.0.1:1/nothing", name: "shot.png", contentType: "image/png", size: 10 }];
+        await expect(downloadAttachments(remote, randomUUID())).rejects.toThrow("is a link or belongs to another user");
+      } finally {
+        process.env.TMPDIR = before;
+      }
+    },
+  );
+});
+
+describe("the listing of what is live on the host", () => {
+  // Whatever answered, it was not the listing, and nothing can be read out of it about what is running.
+  it("is not had from output that is no listing, which is not the same as a listing of nothing", () => {
+    const one = JSON.stringify([{ pid: 4321, sessionId: "s1", cwd: "/srv/app", kind: "interactive" }]);
+    expect(readListing(one)).toHaveLength(1);
+    expect(readListing("[]")).toEqual([]);
+    for (const output of [
+      "",
+      "requires an interactive terminal",
+      `A newer version is available.\n${one}`,
+      `{"sessions":${one}}`,
+    ]) {
+      expect(readListing(output), output).toBeNull();
+    }
+  });
+});
+
+describe("the gate's own clock", () => {
+  // Claude Code stops waiting for a hook after ten minutes unless told otherwise, which is as long as a question waits.
+  it("gives a hook longer than the bridge waits for an answer, so the bridge's reason is the one that arrives", () => {
+    const hooks = gate({ approve: async () => ({ allow: true }) });
+    expect(hooks.PreToolUse![0]!.timeout! * 1000).toBeGreaterThan(QUESTION_TIMEOUT_MS + 60_000);
   });
 });
 

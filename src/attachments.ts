@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Say } from "./i18n/index.ts";
-import { attachmentsRoot } from "./platform.ts";
+import { attachmentsRoot, ownUid } from "./platform.ts";
 
 export interface RemoteAttachment {
   url: string;
@@ -118,13 +118,15 @@ export function describeRefused(say: Say, refused: RefusedAttachment[]): string 
 async function ownedRoot(): Promise<string> {
   const root = attachmentsRoot();
   await fs.mkdir(root, { recursive: true, mode: OWNER_ONLY_DIR });
-  if (!process.getuid) return root;
+  const uid = ownUid();
+  if (uid === null) return root;
 
-  const stat = await fs.stat(root);
-  if (stat.uid !== process.getuid()) {
+  // Not followed: a link planted under a shared temp folder passes for this account's directory and points wherever its maker chose.
+  const stat = await fs.lstat(root);
+  if (stat.isSymbolicLink() || stat.uid !== uid) {
     throw new Error(
-      `${root} belongs to another user, so attachments cannot be stored there safely. ` +
-        "Remove that directory, or point TMPDIR at one you own.",
+      `${root} is a link or belongs to another user, so attachments cannot be stored there safely. ` +
+        "Remove it, or point TMPDIR at a directory you own.",
     );
   }
   if ((stat.mode & 0o077) !== 0) await fs.chmod(root, OWNER_ONLY_DIR);
@@ -168,7 +170,14 @@ export async function downloadAttachments(attachments: RemoteAttachment[], turnI
   return { saved, failed };
 }
 
-export async function sweepAttachments(now = Date.now()): Promise<number> {
+// The hour a turn's files are kept for starts when the turn is over, not when they were fetched.
+export async function keepAttachmentsAwhile(turnId: string): Promise<void> {
+  const now = new Date();
+  await fs.utimes(path.join(attachmentsRoot(), turnId), now, now).catch(() => undefined);
+}
+
+// A turn can wait in a queue and then run for longer than the files are kept, so what a turn still holds is left alone whatever its age.
+export async function sweepAttachments(now = Date.now(), held: ReadonlySet<string> = new Set()): Promise<number> {
   const root = attachmentsRoot();
 
   let entries: string[];
@@ -180,6 +189,7 @@ export async function sweepAttachments(now = Date.now()): Promise<number> {
 
   let removed = 0;
   for (const entry of entries) {
+    if (held.has(entry)) continue;
     const dir = path.join(root, entry);
     try {
       const stat = await fs.stat(dir);

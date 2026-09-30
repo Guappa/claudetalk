@@ -30,6 +30,8 @@ export interface Bridge {
   activeTurns: ActiveTurns;
   // The newest message posted per channel, shared by every sink so the trail knows what sits beneath it.
   latestPosts: Map<string, string>;
+  // Attachment folders of turns that are still waiting or running, which the sweep leaves alone.
+  heldAttachments: Set<string>;
   outbox: OutboxDelivery;
   flow: TurnFlow;
   sessions: SessionIndex;
@@ -83,6 +85,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
     questions,
     activeTurns,
     latestPosts: new Map<string, string>(),
+    heldAttachments: new Set<string>(),
     outbox,
     flow: new TurnFlow(
       capabilities,

@@ -85,9 +85,7 @@ export async function lastCompactionCeiling(transcriptPath: string): Promise<num
     const metadata = record.compactMetadata as { trigger?: string; preTokens?: number } | undefined;
     // Only an automatic compaction marks where the session fills up; a manual one marks where someone asked.
     if (metadata?.trigger !== "auto") continue;
-    if (typeof metadata.preTokens === "number" && metadata.preTokens > 0) {
-      ceiling = Math.max(ceiling ?? 0, metadata.preTokens);
-    }
+    if (typeof metadata.preTokens === "number" && metadata.preTokens > 0) ceiling = metadata.preTokens;
   }
   return ceiling;
 }
