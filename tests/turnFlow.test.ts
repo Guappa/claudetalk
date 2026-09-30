@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import os from "node:os";
 import { CapabilityCache } from "../src/claude/capabilities.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
@@ -33,6 +33,16 @@ const asks = vi.hoisted(() => new Map<string, unknown[]>());
 const uninterruptible = vi.hoisted(() => new Set<string>());
 // Events a mocked turn sends a moment after it starts, keyed by its prompt.
 const later = vi.hoisted(() => new Map<string, unknown>());
+// Mocked turns that run until the test lets them end or stops them, keyed by prompt: one that ends on a timer races whatever a test does while it runs.
+const keptRunning = vi.hoisted(() => new Map<string, Promise<void>>());
+
+function keepRunning(prompt: string): () => void {
+  const end = Promise.withResolvers<void>();
+  keptRunning.set(prompt, end.promise);
+  return end.resolve;
+}
+
+afterEach(() => keptRunning.clear());
 
 // A real turn spawns Claude Code; these tests are about what surrounds one, not the turn itself.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
@@ -49,8 +59,15 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
       if (later.has(request.prompt)) setTimeout(() => onEvent(later.get(request.prompt)), 10);
       const questions = asks.get(request.prompt);
       if (questions) void request.askQuestions?.(questions);
+      const over = Promise.withResolvers<void>();
+      const kept = keptRunning.get(request.prompt);
+      if (kept) void kept.then(over.resolve);
+      else setTimeout(over.resolve, 20);
       return {
-        stop: () => void asked.push(`stop ${request.prompt}`),
+        stop: () => {
+          asked.push(`stop ${request.prompt}`);
+          if (kept) over.resolve();
+        },
         stopTasks: async (taskIds: string[]) => void asked.push(`stopTasks ${taskIds.join(",")}`),
         handOver: (text: string) => {
           asked.push(`handOver ${text}`);
@@ -61,9 +78,7 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
           asked.push(`interrupt ${request.prompt}`);
           return !uninterruptible.has(request.prompt);
         },
-        done: new Promise((resolve) =>
-          setTimeout(() => resolve(endings.get(request.prompt) ?? { ok: true, text: `echo ${request.prompt}` }), 20),
-        ),
+        done: over.promise.then(() => endings.get(request.prompt) ?? { ok: true, text: `echo ${request.prompt}` }),
       };
     },
   };
@@ -125,6 +140,7 @@ describe("TurnFlow", () => {
     const order: string[] = [];
     const hooks = (tag: string) => ({ resume: true, beforeTurn: async () => void order.push(`before ${tag}`) });
 
+    keepRunning("one");
     const first = flow.run("s3", cwd, "one", {}, quietSink(), hooks("one"));
     const second = flow.run("s3", cwd, "two", {}, quietSink(), hooks("two"));
     const third = flow.run("s3", cwd, "three", {}, quietSink(), hooks("three"));
@@ -147,6 +163,7 @@ describe("TurnFlow", () => {
     const order: string[] = [];
     const hooks = (tag: string) => ({ resume: true, beforeTurn: async () => void order.push(tag) });
     const states: string[] = [];
+    keepRunning("wrong");
     const first = flow.run("s8", cwd, "wrong", {}, quietSink(), {
       ...hooks("wrong"),
       onState: async (state) => void states.push(state),
@@ -164,6 +181,7 @@ describe("TurnFlow", () => {
   // A shutdown waits for what was accepted, queued messages included, and admits nothing new meanwhile.
   it("drains: finishes the running and queued turns, refuses new ones, then reports empty", async () => {
     const flow = makeFlow();
+    const letEnd = keepRunning("one");
     const first = flow.run("s5", cwd, "one", {}, quietSink(), { resume: true });
     const second = flow.run("s5", cwd, "two", {}, quietSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
@@ -175,6 +193,7 @@ describe("TurnFlow", () => {
     expect(await flow.run("s6", cwd, "three", {}, refused, { resume: true })).toBe(false);
     expect(refused.written[0]).toContain("shutting down");
 
+    letEnd();
     await drained;
     expect(await Promise.all([first, second])).toEqual([true, true]);
     expect(seen[0]).toBe(2);
@@ -239,12 +258,14 @@ describe("TurnFlow", () => {
   it("stops a turn's agents and leaves the turn running", async () => {
     scripted.set("spread out", [agentStart("t1", "local_agent"), agentStart("t2", "local_agent")]);
     const flow = makeFlow();
+    const letEnd = keepRunning("spread out");
     const running = flow.run("s11", cwd, "spread out", {}, recordingSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     expect(await flow.stopAgents("s11")).toBe(2);
     expect(asked).toContain("stopTasks t1,t2");
     expect(asked).not.toContain("stop spread out");
+    letEnd();
     expect(await running).toBe(true);
     expect(await flow.stopAgents("s11")).toBe(0);
   });
@@ -253,6 +274,7 @@ describe("TurnFlow", () => {
   it("tells a cloud task to stop before it kills the turn, and only a cloud one", async () => {
     scripted.set("review it", [agentStart("t3", "local_agent"), agentStart("t4", "remote_agent")]);
     const flow = makeFlow();
+    keepRunning("review it");
     const running = flow.run("s12", cwd, "review it", {}, recordingSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -266,6 +288,7 @@ describe("TurnFlow", () => {
   // The terminal takes a message typed mid-turn at the next step, and so does the bridge.
   it("hands a plain message to the turn already running, and marks it taken up and then done with the turn", async () => {
     const flow = makeFlow();
+    const letEnd = keepRunning("long job");
     const running = flow.run("s13", cwd, "long job", {}, recordingSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -295,6 +318,7 @@ describe("TurnFlow", () => {
     expect(await flow.sendNow("s13")).toBe("sent");
     expect(asked).toContain("interrupt long job");
     taken.get("long job")?.("uuid-and this too");
+    letEnd();
     await running;
     expect(states).toEqual(["queued", "running", "done"]);
     expect(closed).toEqual(["Taken up by the running turn."]);
@@ -304,6 +328,7 @@ describe("TurnFlow", () => {
   // A session with nothing in hand starts on a message at once, long before its first words, and Send now would then cut the answer to that very message.
   it("does not interrupt a message the session has already started on", async () => {
     const flow = makeFlow();
+    const letEnd = keepRunning("idle with a watcher");
     const running = flow.run("s17", cwd, "idle with a watcher", {}, recordingSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -316,16 +341,19 @@ describe("TurnFlow", () => {
     expect(closed).toEqual(["Taken up by the running turn."]);
     expect(await flow.sendNow("s17")).toBe("nothing-waiting");
     expect(asked).not.toContain("interrupt idle with a watcher");
+    letEnd();
     await running;
   });
 
   it("queues as before what is not a plain message, or what arrives with no turn to join", async () => {
     const flow = makeFlow();
+    const letEnd = keepRunning("long job two");
     const first = flow.run("s14", cwd, "long job two", {}, quietSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
     const command = flow.run("s14", cwd, "/compact", {}, quietSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
     expect(flow.queueDepth("s14")).toBe(2);
+    letEnd();
     expect(await Promise.all([first, command])).toEqual([true, true]);
     expect(started).toContain("/compact");
 
@@ -369,12 +397,14 @@ describe("TurnFlow", () => {
       await edit(text, actions);
     };
 
+    const letEnd = keepRunning("purged under it");
     const running = flow.run("s18", cwd, "purged under it", {}, sink, {
       resume: true,
       onState: async (state) => void states.push(state),
     });
     await new Promise((resolve) => setTimeout(resolve, 5));
     deleted.yes = true;
+    letEnd();
 
     expect(await running).toBe(true);
     expect(sink.messages.at(-1)).toBe("echo purged under it");
@@ -552,10 +582,12 @@ describe("TurnFlow", () => {
   it("asks whether to resume only when the turn's place in the lane comes up", async () => {
     const flow = makeFlow();
     const exists = { yet: false };
+    const letEnd = keepRunning("creates it");
     const first = flow.run("s34", cwd, "creates it", {}, quietSink(), { resume: () => exists.yet });
     const second = flow.run("s34", cwd, "finds it there", {}, quietSink(), { resume: () => exists.yet });
     await new Promise((resolve) => setTimeout(resolve, 5));
     exists.yet = true;
+    letEnd();
     await Promise.all([first, second]);
 
     expect(resumed.get("creates it")).toBe(false);
@@ -647,6 +679,7 @@ describe("TurnFlow", () => {
     // A queued message's place is taken before its notice is posted, so a drop in between reaches it.
     it("drops a message that is still being told it is queued", async () => {
       const flow = makeFlow();
+      keepRunning("in flight");
       const first = flow.run("s23", cwd, "in flight", {}, quietSink(), { resume: true });
       await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -678,17 +711,20 @@ describe("TurnFlow", () => {
     it("says so when the running turn would not be interrupted", async () => {
       uninterruptible.add("deaf to it");
       const flow = makeFlow();
+      const letEnd = keepRunning("deaf to it");
       const running = flow.run("s25", cwd, "deaf to it", {}, quietSink(), { resume: true });
       await new Promise((resolve) => setTimeout(resolve, 5));
       const sink = { ...quietSink(), ask: async () => ({ close: async () => undefined }) };
       await flow.run("s25", cwd, "hurry this", {}, sink, { resume: true, foldable: true });
 
       expect(await flow.sendNow("s25")).toBe("not-interrupted");
+      letEnd();
       await running;
     });
 
     it("closes a Send now notice that arrives after the turn it was for has ended", async () => {
       const flow = makeFlow();
+      const letEnd = keepRunning("ends first");
       const running = flow.run("s26", cwd, "ends first", {}, quietSink(), { resume: true });
       await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -702,6 +738,8 @@ describe("TurnFlow", () => {
         },
       };
       const folded = flow.run("s26", cwd, "posted late", {}, sink, { resume: true, foldable: true });
+      await vi.waitFor(() => expect(asked).toContain("handOver posted late"));
+      letEnd();
       await running;
       posted.release();
       await folded;
@@ -712,6 +750,7 @@ describe("TurnFlow", () => {
 
   it("stops everything at once when told to, dropping what was queued", async () => {
     const flow = makeFlow();
+    keepRunning("one");
     const first = flow.run("s7", cwd, "one", {}, quietSink(), { resume: true });
     const second = flow.run("s7", cwd, "two", {}, quietSink(), { resume: true });
     await new Promise((resolve) => setTimeout(resolve, 5));
