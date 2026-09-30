@@ -35,6 +35,8 @@ export const en = {
     noHandler:
       "`/{{command}}` is registered with Discord but this bridge has no handler for it. Restart the bridge to re-register its commands.",
     failed: "`/{{command}}` failed: {{error}}. Try it again; if it keeps failing, the bridge log on the host has the details.",
+    pressFailed:
+      "That press failed: {{error}}. What it was for may be half done, so look before pressing again; the bridge log on the host has the details.",
   },
   binding: {
     unbound: "This channel isn't bound to a conversation yet.",
@@ -311,6 +313,7 @@ export const en = {
   },
   resume: {
     ambiguous: '"{{name}}" is ambiguous. Did you mean: {{candidates}}?',
+    andMore: "{{candidates}}, and {{count}} more",
     notFound: 'No conversation named "{{name}}". Use `/sessions` to see what exists.',
     noFolder: 'Found "{{name}}" but could not read its working directory from the transcript, so it cannot be resumed.',
     opened: "Opened {{channel}} for **{{name}}** in `{{cwd}}`.",

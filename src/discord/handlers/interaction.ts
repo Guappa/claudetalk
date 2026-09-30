@@ -1,8 +1,17 @@
-import { MessageFlags, type AutocompleteInteraction, type ChatInputCommandInteraction, type Interaction } from "discord.js";
+import {
+  MessageFlags,
+  type AutocompleteInteraction,
+  type ButtonInteraction,
+  type ChatInputCommandInteraction,
+  type Interaction,
+  type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
+} from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import { canRunCommand } from "../../access.ts";
-import { errorMessage } from "../../text.ts";
+import { errorMessage, truncate } from "../../text.ts";
 import { forDiscord } from "../outgoing.ts";
+import { respondQuietly } from "../respond.ts";
 import { isFromGuild } from "../gate.ts";
 import { tierOf } from "../policy.ts";
 import { handleAsk } from "../commands/ask.ts";
@@ -28,6 +37,8 @@ import {
 } from "./components.ts";
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral } as const;
+// An error's own text can be as long as what caused it, and a reply that does not fit is refused, leaving no reply at all.
+const SHOWN_ERROR_CHARS = 1200;
 
 // An acknowledgement is for whoever asked; only what a conversation produces belongs to the channel.
 function replyIsContent(commandName: string): boolean {
@@ -91,19 +102,25 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
     const suggest = SUGGESTERS[interaction.commandName];
     return suggest ? await suggest(bridge, interaction) : await interaction.respond([]);
   }
-  if (interaction.isStringSelectMenu()) return await handleSelect(bridge, interaction);
-  if (interaction.isModalSubmit()) return await handleModal(bridge, interaction);
-  if (interaction.isButton()) return await handleButton(bridge, interaction);
+  if (interaction.isStringSelectMenu() || interaction.isModalSubmit() || interaction.isButton()) {
+    return await pressed(bridge, interaction);
+  }
   if (!interaction.isChatInputCommand()) return;
 
   if (!canRunCommand(tier, interaction.commandName)) {
-    await interaction.reply(forDiscord(say("access.ownersOnly", { command: interaction.commandName })));
+    await interaction.reply({
+      content: forDiscord(say("access.ownersOnly", { command: interaction.commandName })),
+      ...EPHEMERAL,
+    });
     return;
   }
 
   const handler = COMMANDS[interaction.commandName];
   if (!handler) {
-    await interaction.reply(forDiscord(say("command.noHandler", { command: interaction.commandName })));
+    await interaction.reply({
+      content: forDiscord(say("command.noHandler", { command: interaction.commandName })),
+      ...EPHEMERAL,
+    });
     return;
   }
   // Discord voids an interaction unanswered for three seconds; reading the index can take longer.
@@ -113,8 +130,24 @@ export async function handleInteraction(bridge: Bridge, interaction: Interaction
   } catch (error) {
     // Once deferred, an unanswered command sits on "thinking" until Discord gives up on it.
     console.error(`/${interaction.commandName} failed`, error);
+    const reason = truncate(errorMessage(error), SHOWN_ERROR_CHARS);
     await interaction
-      .editReply(forDiscord(say("command.failed", { command: interaction.commandName, error: errorMessage(error) })))
+      .editReply(forDiscord(say("command.failed", { command: interaction.commandName, error: reason })))
       .catch(() => undefined);
+  }
+}
+
+type Press = StringSelectMenuInteraction | ModalSubmitInteraction | ButtonInteraction;
+
+// A press that fails is answered as a command that fails is: left to reject, its control stays live over work half done and nobody is told.
+async function pressed(bridge: Bridge, interaction: Press): Promise<void> {
+  try {
+    if (interaction.isStringSelectMenu()) await handleSelect(bridge, interaction);
+    else if (interaction.isModalSubmit()) await handleModal(bridge, interaction);
+    else await handleButton(bridge, interaction);
+  } catch (error) {
+    console.error(`the press on ${interaction.customId} failed`, error);
+    const reason = truncate(errorMessage(error), SHOWN_ERROR_CHARS);
+    await respondQuietly(interaction, bridge.language.say("command.pressFailed", { error: reason })).catch(() => undefined);
   }
 }

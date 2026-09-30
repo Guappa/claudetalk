@@ -37,6 +37,8 @@ import { respond } from "../respond.ts";
 import { nameForDiscord, postText, splitForDiscord } from "../outgoing.ts";
 
 const RECAP_EXCHANGES = 2;
+// Enough to pick from, and few enough that the question fits in the reply however many conversations share the start of a name.
+const MAX_NAMED = 10;
 
 async function createConversationChannel(
   bridge: Bridge,
@@ -51,6 +53,11 @@ async function createConversationChannel(
   const say = bridge.language.say;
   const parent = interaction.channel && "parentId" in interaction.channel ? interaction.channel.parentId : null;
   const target = categoryId ?? bridge.config.categoryId ?? parent;
+  // Discord refuses a fifty-first channel in words that read as a permissions problem, so the count is looked at first.
+  if (target && categoryIsFull(guild, target)) {
+    await respond(interaction, describeCategoryFull(say, guild.channels.cache.get(target)?.name ?? target));
+    return null;
+  }
 
   try {
     return await guild.channels.create({
@@ -260,7 +267,10 @@ export async function handleResume(bridge: Bridge, interaction: ChatInputCommand
   const resolution: Resolution = picked ? { match: picked, shadowed: [] } : resolveByName(index, name);
 
   if (!resolution.match) {
-    const candidates = resolution.candidates.map(displayName).join(", ");
+    const names = resolution.candidates.map(displayName);
+    const shown = names.slice(0, MAX_NAMED).join(", ");
+    const candidates =
+      names.length > MAX_NAMED ? say("resume.andMore", { candidates: shown, count: names.length - MAX_NAMED }) : shown;
     await respond(interaction, candidates ? say("resume.ambiguous", { name, candidates }) : say("resume.notFound", { name }));
     return;
   }

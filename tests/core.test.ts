@@ -114,6 +114,7 @@ import {
 import { describeDefault, parseHostDefaults, readHostDefaults } from "../src/claude/hostSettings.ts";
 import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/purge.ts";
 import { channelSink } from "../src/discord/sink.ts";
+import { sweepOutboxes } from "../src/discord/outboxWatcher.ts";
 import { truncate } from "../src/text.ts";
 import { displayPath, homePatterns, redactHome, redactPaths } from "../src/displayPath.ts";
 import { shortPrefix } from "../src/platform.ts";
@@ -691,6 +692,74 @@ describe("an answer with a very long line that starts a fence", () => {
   it("leaves the room it is asked to, for a heading that goes above the first piece", () => {
     const answer = Array.from({ length: 60 }, (_, index) => `Point ${index + 1}: `.padEnd(99, "y")).join("\n");
     expect(splitForDiscord(answer, 1900).every((piece) => forDiscord(piece).length <= 1900)).toBe(true);
+  });
+});
+
+describe("a command typed as a message", () => {
+  it("is known by a name holding an underscore or a dot, as plugins name theirs", () => {
+    for (const typed of ["/my_plugin:do_it now", "/tools.v2 x", "/ledger:audit 2026"]) {
+      expect(classifyPrompt(typed, [], []).kind, typed).toBe("passthrough");
+    }
+    expect(classifyPrompt("/1st", [], []).kind).toBe("turn");
+  });
+
+  // The refusal points at a command of the bridge's own, which has to exist.
+  it("refuses only the settings the bridge has a command of its own for", () => {
+    for (const owned of ["/model opus", "/effort high"]) expect(classifyPrompt(owned, [], []).kind, owned).toBe("bridge-owned");
+    for (const passed of ["/autocompact", "/agent reviewer", "/fallback-model sonnet"]) {
+      expect(classifyPrompt(passed, [], []).kind, passed).toBe("passthrough");
+    }
+  });
+});
+
+describe("the conversation store", () => {
+  it("forgets the conversation a channel held when another is bound to it", async () => {
+    const store = new ConversationStore(path.join(await fs.mkdtemp(path.join(os.tmpdir(), "conv-")), "conversations.json"));
+    await store.load();
+    await store.bindNew({ sessionId: "first", cwd: "/srv/app", channelId: "c1", ownerId: "o" });
+    await store.bindNew({ sessionId: "second", cwd: "/srv/app", channelId: "c1", ownerId: "o" });
+
+    expect(store.all().map((conversation) => conversation.sessionId)).toEqual(["second"]);
+    expect(store.bySession("first")).toBeUndefined();
+  });
+});
+
+describe("the outbox sweep", () => {
+  it("delivers for the conversations after one whose delivery fails, and says the failure once", async () => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "sweep-"));
+    for (const session of ["broken", "fine"]) {
+      await fs.mkdir(outboxPath(cwd, session), { recursive: true });
+      await fs.writeFile(path.join(outboxPath(cwd, session), "report.md"), "done");
+      await fs.utimes(path.join(outboxPath(cwd, session), "report.md"), new Date(0), new Date(0));
+    }
+    const sent: string[] = [];
+    const channel = (id: string) => ({
+      id,
+      isSendable: () => true,
+      send: async () => {
+        if (id === "c-broken") throw new Error("Missing Permissions");
+        sent.push(id);
+        return { id: `${id}-1` };
+      },
+    });
+    const bridge = {
+      store: { all: () => ["broken", "fine"].map((sessionId) => ({ sessionId, cwd, channels: { text: `c-${sessionId}` } })) },
+      outbox: new OutboxDelivery(),
+      language: { say },
+      latestPosts: new Map<string, string>(),
+    };
+    const client = { channels: { fetch: async (id: string) => channel(id) } };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const failing = new Set<string>();
+      await sweepOutboxes(bridge as never, client as never, failing);
+      await sweepOutboxes(bridge as never, client as never, failing);
+      expect(sent).toEqual(["c-fine"]);
+      expect(logged).toHaveBeenCalledOnce();
+    } finally {
+      logged.mockRestore();
+    }
   });
 });
 

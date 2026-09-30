@@ -10,10 +10,12 @@ import { handleSetting } from "../src/discord/commands/settings.ts";
 import { handleInvite, handleUninvite } from "../src/discord/commands/membership.ts";
 import { handleSync } from "../src/discord/commands/sync.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
+import { handleInteraction } from "../src/discord/handlers/interaction.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
+import { startUp } from "../src/discord/startup.ts";
 import { UNBIND_DELETE, UNBIND_KEEP, createResumeId } from "../src/discord/menus.ts";
 import type { SessionRecord } from "../src/sessions/index.ts";
-import { OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
+import { GUILD, OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
 import { fakeChannel, fakeCommand, fakeGuild, fakeMessage, fakePress } from "./helpers/discord.ts";
 import { record } from "./helpers/records.ts";
 import { quietSink } from "./helpers/sinks.ts";
@@ -257,6 +259,160 @@ describe("/ask", () => {
     const none = fakeCommand(place, OWNER, { prompt: "and now?", context: 1 });
     await handleAsk(bridge, none.interaction);
     expect(none.replies).toEqual(["Asking with no extra context."]);
+  });
+});
+
+describe("a message that is for the bot", () => {
+  // Reading the index takes a moment, and a second tag can arrive inside it.
+  it("ends up in one conversation when two tags overlap in a channel that held none", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("o1");
+    const first = fakeMessage(place, { authorId: OWNER, content: "one", mentionsBot: true });
+    const second = fakeMessage(place, { authorId: OWNER, content: "two!", mentionsBot: true });
+    await Promise.all([handleMessage(bridge, first.message), handleMessage(bridge, second.message)]);
+
+    expect(bridge.store.all()).toHaveLength(1);
+    expect(new Set(asked.map((turn) => turn.sessionId))).toEqual(new Set([bridge.store.byChannel("o1")?.sessionId]));
+  });
+
+  it("makes the folder a tagged conversation runs in, which nothing else has made", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "workspaces-"));
+    const bridge = await testBridge([], { workspacesRoot: root });
+    await handleMessage(
+      bridge,
+      fakeMessage(fakeChannel("o2"), { authorId: OPERATOR, content: "hello", mentionsBot: true }).message,
+    );
+
+    const cwd = bridge.store.byChannel("o2")!.cwd;
+    expect(cwd.startsWith(root)).toBe(true);
+    expect((await fs.stat(cwd)).isDirectory()).toBe(true);
+  });
+
+  it("does not take what Discord wrote in a person's name for something that person asked", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("o3");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId: "o3", ownerId: OWNER });
+    await handleMessage(
+      bridge,
+      fakeMessage(place, { authorId: OWNER, content: "started a thread: ideas", system: true }).message,
+    );
+    expect(asked).toEqual([]);
+  });
+
+  // Claude Code reads a command only as the first thing in a prompt.
+  it("passes a command on with nothing in front of it, tagged or not", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("o4");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId: "o4", ownerId: OWNER });
+    await handleMessage(
+      bridge,
+      fakeMessage(place, { authorId: OWNER, content: "/compact keep the plan", mentionsBot: true }).message,
+    );
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "and now carry on", mentionsBot: true }).message);
+
+    expect(asked[0]!.prompt).toBe("/compact keep the plan");
+    expect(asked[1]!.prompt).toContain("is speaking to you in Discord");
+  });
+
+  it("binds nothing for a tag that was only a refused file, in a channel named after a conversation too", async () => {
+    const bridge = await testBridge([
+      record({ sessionId: SESSION, name: "deploy scripts", cwd: os.tmpdir(), lastActivity: new Date() }),
+    ]);
+    const place = fakeChannel("o5", "deploy-scripts");
+    const upload = fakeMessage(place, {
+      authorId: OWNER,
+      content: "",
+      mentionsBot: true,
+      uploads: [{ name: "setup.exe", size: 10 }],
+    });
+    await handleMessage(bridge, upload.message);
+
+    expect(upload.replies.join("\n")).toContain("Not saved for this turn");
+    expect(bridge.store.byChannel("o5")).toBeUndefined();
+    expect(place.posted.join("\n")).not.toContain("Bound to");
+  });
+});
+
+describe("the interaction door", () => {
+  const press = (userId: string, customId: string) => {
+    const said: Array<{ content: string; hidden: boolean }> = [];
+    const answer = async (payload: { content: string; flags?: number }) =>
+      void said.push({ content: payload.content, hidden: payload.flags === 64 });
+    const interaction = {
+      guildId: GUILD,
+      channelId: "d1",
+      customId,
+      user: { id: userId, bot: false },
+      deferred: false,
+      replied: false,
+      isRepliable: () => true,
+      isAutocomplete: () => false,
+      isStringSelectMenu: () => false,
+      isModalSubmit: () => false,
+      isButton: () => customId !== "",
+      isChatInputCommand: () => customId === "",
+      commandName: "operator",
+      reply: answer,
+      followUp: answer,
+    };
+    return { interaction: interaction as never, said };
+  };
+
+  it("turns a stranger away before anything is handled, and says so to them alone", async () => {
+    const bridge = await testBridge();
+    const stranger = press(STRANGER, "turn:stop:whatever");
+    await handleInteraction(bridge, stranger.interaction);
+    expect(stranger.said).toEqual([{ content: expect.stringContaining("do not have access"), hidden: true }]);
+  });
+
+  it("refuses an owner's command to an operator, where only the operator sees it", async () => {
+    const bridge = await testBridge();
+    const operator = press(OPERATOR, "");
+    await handleInteraction(bridge, operator.interaction);
+    expect(operator.said).toEqual([{ content: expect.stringContaining("`/operator`"), hidden: true }]);
+  });
+
+  // A press is not a command, so nothing reports for it unless the door does.
+  it("tells whoever pressed when the handler behind a control fails", async () => {
+    const bridge = await testBridge();
+    bridge.flow.stopTurn = () => {
+      throw new Error("the lane could not be read");
+    };
+    const owner = press(OWNER, `turn:stop:${SESSION}`);
+    Object.assign(owner.interaction, { deferReply: async () => Object.assign(owner.interaction, { deferred: true }) });
+    await handleInteraction(bridge, owner.interaction);
+    expect(owner.said.at(-1)).toEqual({
+      content: expect.stringContaining("That press failed: the lane could not be read"),
+      hidden: true,
+    });
+  });
+});
+
+describe("starting up", () => {
+  const client = (register: () => Promise<void>, fetch: (id: string) => Promise<unknown>) =>
+    ({ application: { commands: { set: register } }, channels: { fetch }, user: { tag: "bridge#0001" } }) as never;
+
+  // Registering commands is the first thing done, and the likeliest to fail: a bot invited without the scope for them.
+  it("still marks interrupted turns, forgets deleted channels and watches the outboxes when commands cannot be registered", async () => {
+    const bridge = await testBridge();
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId: "gone", ownerId: OWNER });
+    await bridge.store.bindNew({ sessionId: "still-here", cwd: os.tmpdir(), channelId: "kept", ownerId: OWNER });
+    const leftovers = vi.spyOn(bridge.activeTurns, "takeLeftovers");
+    const refused = async (): Promise<void> => {
+      throw Object.assign(new Error("Missing Access"), { code: 50001 });
+    };
+    const fetch = async (id: string): Promise<unknown> => {
+      if (id === "gone") throw Object.assign(new Error("Unknown Channel"), { code: 10003 });
+      if (id === "kept") throw new Error("the gateway timed out");
+      return { id };
+    };
+
+    const watching = await startUp(bridge, client(refused, fetch));
+    clearInterval(watching);
+
+    expect(leftovers).toHaveBeenCalledOnce();
+    expect(bridge.store.bySession(SESSION)).toBeUndefined();
+    expect(bridge.store.bySession("still-here")).toBeDefined();
   });
 });
 
@@ -512,6 +668,42 @@ describe("/resume", () => {
     await handleResume(bridge, command.interaction);
 
     expect(bridge.store.bySession(SESSION)?.cwd).toBe(moved);
+  });
+
+  // Discord's own error for a fifty-first channel reads as a permissions problem.
+  it("says the category is full before it tries to make a channel in it", async () => {
+    const known = record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() });
+    const bridge = await testBridge([known], { categoryId: "cat-1" });
+    const server = fakeGuild();
+    server.standing.set("cat-1", { id: "cat-1", name: "Projects", parentId: null });
+    for (let held = 0; held < 50; held += 1)
+      server.standing.set(`c${held}`, { id: `c${held}`, name: `c${held}`, parentId: "cat-1" });
+    const command = fakeCommand(fakeChannel("r5"), OWNER, { name: SESSION }, server.guild);
+    await handleResume(bridge, command.interaction);
+
+    expect(command.replies.at(-1)).toContain("Projects");
+    expect(command.replies.at(-1)).toContain("50");
+    expect(server.made).toEqual([]);
+  });
+
+  it("names a few of the conversations a short name could mean, once each, and counts the rest", async () => {
+    const many = Array.from({ length: 14 }, (_, index) =>
+      record({
+        sessionId: `s${index}`,
+        name: `ledger ${String(index).padStart(2, "0")}`,
+        cwd: os.tmpdir(),
+        lastActivity: new Date(2026, 0, index + 1),
+      }),
+    );
+    const copy = record({ sessionId: "copy", name: "ledger 13", cwd: os.tmpdir(), lastActivity: new Date(2025, 0, 1) });
+    const bridge = await testBridge([...many, copy]);
+    const command = fakeCommand(fakeChannel("r6"), OWNER, { name: "ledger" }, fakeGuild().guild);
+    await handleResume(bridge, command.interaction);
+
+    const reply = command.replies.at(-1)!;
+    expect(reply).toContain("ledger 13, ledger 12");
+    expect(reply.split("ledger 13")).toHaveLength(2);
+    expect(reply).toContain("and 4 more");
   });
 
   it("does not act on a Resume button once the question it belongs to has expired", async () => {
