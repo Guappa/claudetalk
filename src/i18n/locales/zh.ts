@@ -453,6 +453,7 @@ export const zh: Catalog = {
   purge: {
     notDeletable:
       "`/purge` 只能在机器人可以管理消息的服务器文字频道中使用。在对话的频道中运行它，或在这里给机器人“管理消息”权限。",
+    running: "这里有一个轮次正在运行。让它完成或用 `/stop` 停止它，然后再 `/purge`。",
     warning: "这会删除此频道中的每一条消息，包括你的。此操作无法撤销。",
     warningConversation: "主机上的对话不受影响，你的下一条消息会从它继续。频道不会找回它的历史记录。",
     confirm: "删除它们",

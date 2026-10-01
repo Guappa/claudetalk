@@ -497,6 +497,7 @@ export const de: Catalog = {
   purge: {
     notDeletable:
       "`/purge` funktioniert nur in einem Server-Textkanal, in dem der Bot Nachrichten verwalten darf. Führ es im Kanal des Gesprächs aus, oder gib dem Bot hier Nachrichten verwalten.",
+    running: "Hier läuft ein Durchlauf. Lass ihn zu Ende kommen oder `/stop` ihn, dann `/purge`.",
     warning: "Das löscht jede Nachricht in diesem Kanal, auch deine. Es lässt sich nicht rückgängig machen.",
     warningConversation:
       "Das Gespräch auf dem Host wird nicht angerührt, und deine nächste Nachricht macht dort weiter. Der Kanal bekommt seinen Verlauf nicht zurück.",

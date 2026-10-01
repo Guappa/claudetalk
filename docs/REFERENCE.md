@@ -664,7 +664,11 @@ untracked directory.
 ## Clearing a channel
 
 `/purge` deletes every message in the channel, including yours, after a
-confirmation button that removes itself afterwards. It cannot be undone. In a
+confirmation button that removes itself afterwards. It cannot be undone. It
+refuses while a turn is running here, since it would take the trail, the Stop
+button and any open prompt with it; let the turn finish or `/stop` it first.
+Should the trail's message go anyway, deleted by hand say, the trail carries on
+in a new message rather than going blind for the rest of the turn. In a
 conversation channel it does not touch the conversation: the transcript on the
 host is the conversation and the channel is a view of it, so the next message
 picks up where the transcript left off. The channel does not get its history

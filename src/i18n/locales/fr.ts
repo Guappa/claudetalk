@@ -495,6 +495,7 @@ export const fr: Catalog = {
   purge: {
     notDeletable:
       "`/purge` ne fonctionne que dans un salon textuel d'un serveur où le bot peut gérer les messages. Lance-la dans le salon de la conversation, ou donne au bot Gérer les messages ici.",
+    running: "Un tour est en cours ici. Laisse-le finir ou lance `/stop`, puis `/purge`.",
     warning: "Ceci supprime tous les messages de ce salon, les tiens compris. C'est irréversible.",
     warningConversation:
       "La conversation sur l'hôte n'est pas touchée, et ton prochain message reprend à sa suite. Le salon ne récupère pas son historique.",

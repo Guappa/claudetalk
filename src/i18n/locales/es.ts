@@ -491,6 +491,7 @@ export const es: Catalog = {
   purge: {
     notDeletable:
       "`/purge` solo funciona en un canal de texto de un servidor donde el bot pueda gestionar mensajes. Ejecútalo en el canal de la conversación, o dale al bot Gestionar mensajes aquí.",
+    running: "Hay un turno en marcha aquí. Deja que termine o usa `/stop`, y después `/purge`.",
     warning: "Esto elimina todos los mensajes de este canal, incluidos los tuyos. No se puede deshacer.",
     warningConversation:
       "La conversación en el host no se toca, y tu próximo mensaje continúa desde ella. El canal no recupera su historial.",

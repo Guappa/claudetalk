@@ -210,6 +210,47 @@ describe("splitForDiscord", () => {
   });
 });
 
+describe("a channel sink whose message is gone", () => {
+  // A purge or a deletion by hand takes the trail's message; the next edit lands in a new one, so the turn is not blind for the rest of its run.
+  it("carries the trail on in a new message once its own was deleted", async () => {
+    const fake = fakeDiscordChannel("purged");
+    const send = fake.channel.send.bind(fake.channel);
+    let deletedBefore = 0;
+    fake.channel.send = (async (payload: unknown) => {
+      const sent = await send(payload as never);
+      const index = fake.posted.length - 1;
+      return {
+        ...sent,
+        edit: async (edited: unknown) => {
+          if (index < deletedBefore) throw Object.assign(new Error("Unknown Message"), { code: 10008 });
+          return await sent.edit(edited as never);
+        },
+      };
+    }) as unknown as typeof fake.channel.send;
+    const sink = channelSink(fake.channel);
+    await sink.edit("Working 1s", []);
+    await sink.edit("Working 2s", []);
+    deletedBefore = 1;
+    await sink.edit("Working 3s", []);
+    await sink.edit("Working 4s", []);
+    expect(fake.posted).toEqual(["Working 2s", "Working 4s"]);
+  });
+
+  it("still raises any other failure to edit", async () => {
+    const fake = fakeDiscordChannel("locked");
+    const send = fake.channel.send.bind(fake.channel);
+    fake.channel.send = (async (payload: unknown) => ({
+      ...(await send(payload as never)),
+      edit: async () => {
+        throw Object.assign(new Error("Missing Permissions"), { code: 50013 });
+      },
+    })) as unknown as typeof fake.channel.send;
+    const sink = channelSink(fake.channel);
+    await sink.edit("Working 1s", []);
+    await expect(sink.edit("Working 2s", [])).rejects.toThrow("Missing Permissions");
+  });
+});
+
 describe("fitForDiscord", () => {
   it("fits the start of a text made of nothing but markers, with the mark that says it was cut", () => {
     const first = fitForDiscord("_".repeat(5000), 1000);

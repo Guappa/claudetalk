@@ -18,10 +18,20 @@ function isConversationChannel(bridge: Bridge, channelId: string): boolean {
   return conversation !== undefined && !conversation.mentionOnly;
 }
 
+// A purge takes the trail, the Stop button and any open prompt with it; a running turn would go on blind.
+function turnRunsIn(bridge: Bridge, channelId: string): boolean {
+  const conversation = bridge.store.byChannel(channelId);
+  return conversation !== undefined && bridge.flow.isRunning(conversation.sessionId);
+}
+
 export async function handlePurgeCommand(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
   if (!interaction.channel || !("bulkDelete" in interaction.channel)) {
     await respond(interaction, say("purge.notDeletable"));
+    return;
+  }
+  if (turnRunsIn(bridge, interaction.channelId)) {
+    await respond(interaction, say("purge.running"));
     return;
   }
 
@@ -45,6 +55,11 @@ export async function confirmPurge(bridge: Bridge, interaction: ButtonInteractio
   const channel = interaction.channel;
   if (!channel || !("bulkDelete" in channel)) {
     await settleMenu(interaction, say("purge.notDeletable"));
+    return;
+  }
+  // A turn can have started between the warning and the press.
+  if (turnRunsIn(bridge, interaction.channelId)) {
+    await settleMenu(interaction, say("purge.running"));
     return;
   }
   await settleMenu(interaction, say("purge.deleting"));

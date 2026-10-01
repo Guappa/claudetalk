@@ -49,6 +49,7 @@ export function fakeChannel(id: string, name = "general"): FakeChannel {
     isThread: () => false,
     isDMBased: () => false,
     sendTyping: async () => undefined,
+    bulkDelete: async () => new Map(),
     send: async (payload: string | Payload) => {
       const at = posted.push(textOf(payload)) - 1;
       return {
