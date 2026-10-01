@@ -550,6 +550,7 @@ describe("what a turn is refused outright", () => {
     expect(shell("git push -f")).toContain("force push");
     expect(shell("git push origin +master")).toContain("force push");
     expect(shell("git branch -D main")).toContain("force push");
+    expect(shell("git -C /srv/app push --force origin main")).toContain("force push");
     expect(shell("git push --force-with-lease origin fix/thing")).toBeNull();
     expect(shell("git push -f origin feat/thing")).toBeNull();
     expect(shell("git push origin main")).toBeNull();
@@ -567,6 +568,13 @@ describe("what a turn is refused outright", () => {
     expect(edit("Read", path.join(scope.cwd, ".env"))).toBeNull();
     expect(shell("cat ~/.ssh/id_rsa")).toContain("private key");
     expect(shell("cat ~/.ssh/id_rsa.pub")).toBeNull();
+    expect(shell("echo 'Host x' >> ~/.ssh/config")).toContain("credentials");
+    expect(shell("cp stolen.json ~/.claude/.credentials.json")).toContain("credentials");
+    expect(shell("sed -i 's/a/b/' ~/.ssh/config")).toContain("credentials");
+    expect(shell(`echo probe > "${path.join(scope.dataDir, "probe.txt")}"`)).toContain("credentials");
+    expect(shell("cat ~/.ssh/config")).toBeNull();
+    expect(shell("ls -la ~/.ssh")).toBeNull();
+    expect(shell("echo probe > notes.txt")).toBeNull();
   });
 
   it("refuses a download piped into a shell and a command against the machine, and passes a download to a file", () => {

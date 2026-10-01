@@ -48,7 +48,27 @@ function underAny(roots: string[], target: string): boolean {
 
 // ~ and the home variables, as a shell would read them, so a path is judged by where it lands.
 function expandHome(token: string): string {
-  return token.replace(/^~(?=$|[\\/])/, home()).replace(/^(\$HOME|\$\{HOME\}|%USERPROFILE%)(?=$|[\\/])/, home());
+  return token
+    .replace(/^~(?=$|[\\/])/, home())
+    .replace(/^(\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE)(?=$|[\\/])/i, home());
+}
+
+// A path as a shell would see it: quotes off, home expanded, judged by where it lands from the working directory.
+function pathsNamed(command: string, cwd: string): string[] {
+  return command
+    .split(/\s+/)
+    .map((token) => expandHome(token.replace(/^["']|["']$/g, "")))
+    .filter((token) => /^[~$%]|[\\/]/.test(token))
+    .map((token) => path.resolve(cwd, token));
+}
+
+// The shell forms of a write that a reader would call obvious: a redirection, or a verb that writes, copies, moves or removes.
+const SHELL_WRITE =
+  /(^|[\s;&|])(>>?|tee|cp|mv|install|chmod|chown|truncate|rm|sed\s+-[a-zA-Z]*i|Set-Content|Out-File|Add-Content|Copy-Item|Move-Item|Remove-Item)(?=[\s]|$)/i;
+
+function writesProtected(command: string, scope: DenialScope): boolean {
+  if (!SHELL_WRITE.test(command)) return false;
+  return pathsNamed(command, scope.cwd).some((target) => underAny(protectedPaths(scope), target));
 }
 
 const RECURSIVE_DELETE =
@@ -72,7 +92,7 @@ function deletesOutside(command: string, cwd: string): boolean {
 
 // --force on a push to the main branches, or with no branch named, where the current one may be main; --force-with-lease is left alone.
 function forcesMain(command: string): boolean {
-  for (const match of command.matchAll(/git\s+push\b([^;&|]*)/g)) {
+  for (const match of command.matchAll(/\bgit\b(?:\s+-[^\s]+(?:\s+[^\s-][^\s]*)?)*\s+push\b([^;&|]*)/g)) {
     const args = (match[1] ?? "").split(/\s+/).filter(Boolean);
     const forced = args.some((arg) => arg === "--force" || arg === "-f" || /^-[a-eg-zA-Z]*f/.test(arg));
     const refs = args.filter((arg) => !arg.startsWith("-"));
@@ -116,6 +136,7 @@ export function deniedBy(
     if (rules.has("force-push") && forcesMain(command)) return REASONS["force-push"];
     if (rules.has("download-run") && DOWNLOAD_RUN.test(command)) return REASONS["download-run"];
     if (rules.has("machine") && MACHINE.test(command)) return REASONS.machine;
+    if (rules.has("secrets") && writesProtected(command, scope)) return REASONS.secrets;
     if (rules.has("keys") && KEY_MENTION.test(command)) return REASONS.keys;
     return null;
   }
