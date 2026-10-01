@@ -450,11 +450,13 @@ tagged with its language; a shell command shows as a `$` line in a `bash` or
 signature and no text. Every turn is therefore asked to think out loud, which
 costs tokens and is worth it, since progress you cannot see is indistinguishable
 from a hang. A remark keeps its paragraphs and code blocks, and one longer than
-a message continues into the next rather than being cut short. When the trail
-would no longer fit in one message, or something lasting has been posted
-beneath it, a question, an approval request, an attachment, the message is left
-as it stands and the trail continues in a new one below, with the heading and
-the Stop button moving down with it. The channel therefore reads in the order
+a message continues into the next the moment it is said, rather than being cut
+short or held back until the turn ends. When the trail would no longer fit in
+one message, or something lasting has been posted beneath it, a question, an
+approval request, an attachment, the message is left as it stands and the trail
+continues in a new one below, with the heading and the Stop button moving down
+with it. Nothing in the trail is ever shortened: a message is edited until it
+is full, then the next one begins. The channel therefore reads in the order
 things happened, the way the terminal scrolls, and nothing is rewritten above
 something newer. Edits slow from every two seconds to every fifteen as a turn
 drags, since each is an API call; a twenty minute turn costs around 138 edits.
@@ -462,7 +464,9 @@ Discord's typing indicator runs alongside.
 
 When the turn ends the heading changes to **Worked**, the trail stays, and the
 answer arrives as its own message beneath it, not repeated in the trail. A turn
-whose only remark was the answer keeps no trail.
+whose only remark was the answer keeps no trail. An answer the trail already
+holds whole, because it was a remark long enough to have continued across
+messages, is not posted a second time; the heading alone marks the end.
 
 Discord draws no tables, and every turn is told so. A Markdown table that
 arrives anyway is converted: two columns become a list with the first cell in
