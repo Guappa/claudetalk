@@ -1,9 +1,11 @@
+import { deniedBy } from "../claude/denials.ts";
 import {
   runTurn,
   type ApproveTool,
   type ChannelSettings,
   type RunningTurn,
   type ToolDecision,
+  type TurnRequest,
   type TurnResult,
 } from "../claude/runner.ts";
 import { assistantText, toolUses } from "../claude/streamParser.ts";
@@ -634,6 +636,7 @@ export class TurnFlow {
         name: options.name,
         fork: options.fork,
         approve: this.approvalGate(say, sessionId, sink, stillRunning, options.onState),
+        deny: this.denialGate(cwd),
         askQuestions: (questions) =>
           whileWaiting(options.onState, stillRunning, () => this.questions.ask(say, sessionId, sink, questions)),
       },
@@ -697,6 +700,13 @@ export class TurnFlow {
       const unattached = { folder: outboxRelative(sessionId), error: errorMessage(error) };
       await sink.notice(say("outbox.failed", unattached)).catch(reportUnposted(sessionId));
     }
+  }
+
+  // Rules the host set in TOOL_DENIALS, judged against the folder this turn works in.
+  private denialGate(cwd: string): TurnRequest["deny"] {
+    if (this.config.toolDenials.size === 0) return undefined;
+    const scope = { cwd, dataDir: this.config.dataDir };
+    return (toolName, toolInput) => deniedBy(this.config.toolDenials, scope, toolName, toolInput);
   }
 
   private approvalGate(

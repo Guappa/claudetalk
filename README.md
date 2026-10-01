@@ -125,6 +125,7 @@ cp .env.example .env
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
 | `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |
 | `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
+| `TOOL_DENIALS` | Optional, all six rules by default. What a turn is refused outright, approvals on or off: `deletes`, `force-push`, `secrets`, `keys`, `download-run`, `machine`, or `none`. `.env.example` says what each refuses |
 | `BRIDGE_LANGUAGE` | Optional, `en` by default. The language the bridge itself speaks: `en`, `de`, `es`, `fr`, `sv` or `zh`. `/language` changes it from Discord. Claude's answers are not affected |
 | `BINDINGS_PATH` | Optional, defaults to `data/conversations.json`. Its folder is where every other state file lives too: the lock, the language, the command cache, the active turns and, unless set apart, the operators |
 | `OPERATORS_PATH` | Optional, defaults to `operators.json` beside the bindings |

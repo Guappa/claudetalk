@@ -327,6 +327,7 @@ describe("what the bridge says lives in the catalog", () => {
     "src/discord/context.ts",
     "src/claude/auth.ts",
     "src/claude/versions.ts",
+    "src/claude/denials.ts",
     "src/instanceLock.ts",
     "src/conversations.ts",
     "src/discord/commands/registry.ts",

@@ -36,6 +36,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     dataDir: dir,
     operatorsPath: path.join(dir, "operators.json"),
     toolApprovals: false,
+    toolDenials: new Set(),
     language: "en",
     ...config,
   };
