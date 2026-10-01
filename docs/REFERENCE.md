@@ -295,18 +295,23 @@ denied when the turn ends, and a restart loses anything pending, which the model
 sees as a denial. "Approve the rest of this turn" lasts exactly that long.
 
 Six things are refused outright, before any approval and whether or not
-approvals are on, and the model is told why so it can ask you instead: a
-recursive delete reaching outside the working directory (`deletes`); a force
-push to `main` or `master`, or deleting that branch (`force-push`), while
-`--force-with-lease` to another branch passes; a write under `~/.ssh`, to
-Claude Code's login file, or to the bridge's own `.env` and data folder
-(`secrets`); a read of a private key or of that login file (`keys`); a download
-piped straight into a shell such as `curl ... | sh` (`download-run`), while a
-download to a file and `npm install` pass; and `shutdown`, `reboot`, `mkfs`,
-`diskpart`, `format` or `dd` to a device (`machine`). `TOOL_DENIALS` in `.env`
-names the rules to keep, or `none`. They guard against an accident and a
-careless model, not against a determined one, which can spell the same thing
-another way; what contains a turn is still who may send one.
+approvals are on, and the model is told why so it can ask you instead. They
+come in two kinds, and it matters which. Two are judged by tool and path and
+hold whatever the spelling: a write by an edit tool under `~/.ssh`, to Claude
+Code's login file, or to the bridge's own `.env` and data folder (`secrets`),
+and a read by the Read tool of a private key or of that login file (`keys`).
+The rest read the text of a shell command and catch its obvious forms, no
+more: a recursive delete reaching outside the working directory (`deletes`); a
+force push to `main` or `master`, or deleting that branch (`force-push`), while
+`--force-with-lease` to another branch passes; a download piped straight into a
+shell such as `curl ... | sh` (`download-run`), while a download to a file and
+`npm install` pass; `shutdown`, `reboot`, `mkfs`, `diskpart`, `format` or `dd`
+to a device (`machine`); and, for `secrets` and `keys` again, a shell command
+that names one of those paths with a redirection, `cp`, `sed -i`, `cat` and the
+like. A script that writes the same file, or a command spelled another way, is
+not caught. `TOOL_DENIALS` in `.env` names the rules to keep, or `none`. The
+whole list guards against an accident and a careless model, not against a
+determined one; what contains a turn is still who may send one.
 
 The gate is a `PreToolUse` hook, not a permission mode, because the host's own
 allow rules in `settings.json` are consulted before a permission mode and would
