@@ -455,8 +455,10 @@ short or held back until the turn ends. When the trail would no longer fit in
 one message, or something lasting has been posted beneath it, a question, an
 approval request, an attachment, the message is left as it stands and the trail
 continues in a new one below, with the heading and the Stop button moving down
-with it. Nothing in the trail is ever shortened: a message is edited until it
-is full, then the next one begins. The channel therefore reads in the order
+with it. A message of yours counts as something posted beneath, so a trail
+above it moves below it on its next remark and the answer lands below it, as
+the terminal appends. Nothing in the trail is ever shortened: a message is
+edited until it is full, then the next one begins. The channel therefore reads in the order
 things happened, the way the terminal scrolls, and nothing is rewritten above
 something newer. Edits slow from every two seconds to every fifteen as a turn
 drags, since each is an API call; a twenty minute turn costs around 138 edits.
