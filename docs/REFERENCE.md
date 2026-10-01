@@ -415,9 +415,11 @@ done in 1m 12s · 14 tools · 38.1k tokens
 Each entry ends as done, failed or stopped with its totals, and an agent that
 reports and is then sent back to work returns to running under the entry it
 already has. An agent that reports while a command it started is still running
-in the background reads as waiting on it, not as done. The trail stays the session's own: nothing about an agent appears
-in it, not its edits, its commands, its report or a count, and the session
-relays what its agents found in its own words. A task Claude Code runs in the
+in the background reads as waiting on it, not as done. The trail stays the
+session's own: nothing of an agent's work appears in it, not its edits, its
+commands, its report or a count, and the session relays what its agents found
+in its own words. The one line an agent gets in the trail is its end, named and
+timed, as the terminal reports one coming back: **reviewer** finished · 2m 10s. A task Claude Code runs in the
 cloud, a cloud review for one, is listed the same way with the type `cloud`.
 
 While any of them is running the progress message carries a **Stop agents**
@@ -462,7 +464,10 @@ edited until it is full, then the next one begins. The channel therefore reads i
 things happened, the way the terminal scrolls, and nothing is rewritten above
 something newer. Edits slow from every two seconds to every fifteen as a turn
 drags, since each is an API call; a twenty minute turn costs around 138 edits.
-Discord's typing indicator runs alongside.
+Discord's typing indicator runs alongside. While the session compacts its
+conversation the heading reads **Compacting** with the same clock, as the
+terminal swaps its spinner's words, and goes back to **Working** after; the
+counts arrive as a notice, and a compaction that fails says so with the reason.
 
 When the turn ends the heading changes to **Worked**, the trail stays, and the
 answer arrives as its own message beneath it, not repeated in the trail. A turn

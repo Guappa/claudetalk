@@ -18,6 +18,12 @@ const TITLE_CHARS = 97;
 
 type TallyKey = "agents.tallyRunning" | "agents.tallyDone" | "agents.tallyFailed" | "agents.tallyStopped";
 
+const ENDED: Record<AgentOutcome, "trail.agentDone" | "trail.agentFailed" | "trail.agentStopped"> = {
+  completed: "trail.agentDone",
+  failed: "trail.agentFailed",
+  stopped: "trail.agentStopped",
+};
+
 interface Agent {
   index: number;
   taskId: string;
@@ -74,25 +80,26 @@ export class AgentBoard {
     this.stopTask = stopTask;
   }
 
-  observe(event: AgentEvent): void {
+  // Returns the one line the trail gets about an agent: that it ended, named, with how long it took, as the terminal reports it.
+  observe(event: AgentEvent): string | null {
     if (event.kind === "started") {
       this.start(event);
-      return;
+      return null;
     }
     if (event.kind === "background") {
       const owner = (event.toolUseId ? this.calls.get(event.toolUseId) : undefined) ?? null;
       this.background.set(event.taskId, owner);
       if (owner) this.touch(owner);
-      return;
+      return null;
     }
     if (event.kind === "ended" && this.background.has(event.taskId)) {
       const owner = this.background.get(event.taskId);
       this.background.delete(event.taskId);
       if (owner) this.touch(owner);
-      return;
+      return null;
     }
     const agent = this.agents.get(event.taskId);
-    if (!agent) return;
+    if (!agent) return null;
 
     if (event.kind === "progress") {
       this.resume(agent);
@@ -101,14 +108,18 @@ export class AgentBoard {
       agent.toolUses = agent.earlierToolUses + event.toolUses;
       agent.tokens = event.tokens;
       this.touch(agent);
-      return;
+      return null;
     }
-    if (agent.state !== "running") return;
+    if (agent.state !== "running") return null;
     agent.state = event.outcome;
     agent.toolUses = event.toolUses === null ? agent.toolUses : agent.earlierToolUses + event.toolUses;
     agent.tokens = event.tokens ?? agent.tokens;
     agent.durationMs = agent.earlierMs + (event.durationMs ?? this.now() - agent.startedAt);
     this.touch(agent);
+    return this.say(ENDED[event.outcome], {
+      name: truncate(agent.description || agent.type, DESCRIPTION_CHARS),
+      elapsed: formatElapsed(this.say, agent.durationMs),
+    });
   }
 
   // What a stop would reach: the agents at work, and the commands agents left running behind them.

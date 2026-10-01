@@ -92,6 +92,13 @@ export const fr: Catalog = {
     answerCompacted: "Compacté.",
     answerStopped: "Arrêté.",
     compacting: "Compactage de la conversation, ce qui peut prendre un moment.",
+    compactingHeading: "**Compactage** {{elapsed}}",
+    compactingSteps_one: "**Compactage** {{elapsed}} · {{count}} étape",
+    compactingSteps_other: "**Compactage** {{elapsed}} · {{count}} étapes",
+    compactFailed: "Le compactage a échoué : {{error}}. La conversation continue telle quelle ; `/compact` réessaie.",
+    agentDone: "**{{name}}** terminé · {{elapsed}}",
+    agentFailed: "**{{name}}** échoué · {{elapsed}}",
+    agentStopped: "**{{name}}** arrêté · {{elapsed}}",
     compactedAuto:
       "Compacté (auto) : de {{before, number}} à {{after, number}} tokens, {{dropped, number}} écartés au total, {{seconds}} s.",
     compactedManual:

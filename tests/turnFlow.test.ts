@@ -565,6 +565,93 @@ describe("TurnFlow", () => {
     expect(states).toEqual(["running", "done"]);
   });
 
+  // The terminal swaps its spinner's words while the session compacts; the heading does the same, and goes back once the counts arrive.
+  it("heads the trail with Compacting while the session compacts, and with Working again after", async () => {
+    const compacting = { type: "system", subtype: "status", status: "compacting" };
+    const boundary = {
+      type: "system",
+      subtype: "compact_boundary",
+      compact_metadata: {
+        trigger: "auto",
+        pre_tokens: 9000,
+        post_tokens: 900,
+        cumulative_dropped_tokens: 8100,
+        duration_ms: 2000,
+      },
+    };
+    scripted.set("compacts midway", [compacting]);
+    scripted.set("compacted already", [compacting, boundary]);
+    const flow = makeFlow();
+    vi.useFakeTimers();
+    try {
+      const midway = recordingSink();
+      const letMidwayEnd = keepRunning("compacts midway");
+      const running = flow.run("s47", cwd, "compacts midway", {}, midway, { resume: true });
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(midway.messages.at(-1)).toContain("**Compacting**");
+      letMidwayEnd();
+      await running;
+
+      const after = recordingSink();
+      const letAfterEnd = keepRunning("compacted already");
+      const second = flow.run("s48", cwd, "compacted already", {}, after, { resume: true });
+      await vi.advanceTimersByTimeAsync(2500);
+      expect(after.messages.at(-1)).toContain("**Working**");
+      expect(after.messages.join("\n")).not.toContain("**Compacting**");
+      letAfterEnd();
+      await second;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says that a compaction failed, with the reason, and works on", async () => {
+    scripted.set("compaction fails", [
+      { type: "system", subtype: "status", status: "compacting" },
+      { type: "system", subtype: "status", status: null, compact_result: "failed", compact_error: "context too fragmented" },
+    ]);
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s50", cwd, "compaction fails", {}, sink, { resume: true });
+    const trail = sink.messages.join("\n");
+    expect(trail).toContain("Compaction failed: context too fragmented");
+    expect(sink.messages.at(-1)).not.toContain("**Compacting**");
+  });
+
+  // The terminal reports an agent coming back by name; the trail gets that one line about it, and nothing of its work.
+  it("notes an agent's end in the trail, named and timed, and nothing else of it", async () => {
+    scripted.set("fans out", [
+      {
+        type: "system",
+        subtype: "task_started",
+        task_id: "t9",
+        tool_use_id: "use9",
+        description: "Audit the access checks",
+        subagent_type: "Explore",
+        task_type: "local_agent",
+      },
+      {
+        type: "assistant",
+        parent_tool_use_id: "use9",
+        message: { content: [{ type: "text", text: "The agent's own words." }] },
+      },
+      {
+        type: "system",
+        subtype: "task_notification",
+        task_id: "t9",
+        status: "completed",
+        summary: "Nothing wrong.",
+        usage: { total_tokens: 38_100, tool_uses: 2, duration_ms: 4200 },
+      },
+    ]);
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s49", cwd, "fans out", {}, sink, { resume: true });
+    const trail = sink.messages.join("\n");
+    expect(trail).toContain("**Audit the access checks** finished · 4s");
+    expect(trail).not.toContain("The agent's own words.");
+  });
+
   // A notice that cannot be sent mid-turn is a rejection nobody awaits until the turn ends, which would end the process.
   it("keeps the turn going when a notice in the middle of it cannot be sent", async () => {
     scripted.set("compacts to a dead channel", [

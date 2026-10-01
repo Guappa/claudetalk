@@ -14,6 +14,7 @@ import {
   agentEvent,
   commandsChanged,
   compactMetadata,
+  compactionEnd,
   isCompactionStart,
   isInit,
   parentToolUseId,
@@ -756,12 +757,21 @@ export class TurnFlow {
 
     if (isCompactionStart(event)) {
       onCompactionStart();
+      status.setLive("compacting");
       status.noteOnce(say("trail.compacting"));
+      return;
+    }
+
+    const ended = compactionEnd(event);
+    if (ended) {
+      status.setLive("working");
+      if (ended.failed) status.note(say("trail.compactFailed", { error: ended.error || say("common.unknown") }));
       return;
     }
 
     const summary = compactMetadata(event);
     if (summary) {
+      status.setLive("working");
       tracker.reset();
       // A manual compaction happens wherever it was asked for and says nothing about where the session fills up.
       if (summary.trigger === "auto") tracker.learnCeiling(summary.pre_tokens);
@@ -778,7 +788,8 @@ export class TurnFlow {
 
     const agent = agentEvent(event);
     if (agent) {
-      board.observe(agent);
+      const ended = board.observe(agent);
+      if (ended) status.note(ended);
       return;
     }
 

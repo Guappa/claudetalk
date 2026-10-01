@@ -91,6 +91,13 @@ export const sv: Catalog = {
     answerCompacted: "Komprimerad.",
     answerStopped: "Stoppad.",
     compacting: "Komprimerar konversationen, vilket kan ta en stund.",
+    compactingHeading: "**Komprimerar** {{elapsed}}",
+    compactingSteps_one: "**Komprimerar** {{elapsed}} · {{count}} steg",
+    compactingSteps_other: "**Komprimerar** {{elapsed}} · {{count}} steg",
+    compactFailed: "Komprimeringen misslyckades: {{error}}. Konversationen fortsätter som den var; `/compact` försöker igen.",
+    agentDone: "**{{name}}** klar · {{elapsed}}",
+    agentFailed: "**{{name}}** misslyckades · {{elapsed}}",
+    agentStopped: "**{{name}}** stoppad · {{elapsed}}",
     compactedAuto:
       "Komprimerad (automatiskt): {{before, number}} till {{after, number}} tokens, {{dropped, number}} borttagna totalt, {{seconds}} s.",
     compactedManual:
