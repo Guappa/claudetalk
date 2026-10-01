@@ -108,6 +108,23 @@ export const fr: Catalog = {
     written_one: "{{path}} ({{count}} ligne)",
     written_other: "{{path}} ({{count}} lignes)",
   },
+  tools: {
+    read: "**Lit** {{path}}",
+    notebook: "**Notebook** {{path}}",
+    find: "**Cherche des fichiers** {{pattern}} dans {{path}}",
+    findAnywhere: "**Cherche des fichiers** {{pattern}}",
+    search: "**Cherche** {{pattern}} dans {{path}}",
+    searchAnywhere: "**Cherche** {{pattern}}",
+    fetch: "**Récupère** {{url}}",
+    webSearch: "**Recherche web** {{query}}",
+    toolSearch: "**Recherche d'outils** {{query}}",
+    agent: "**Agent** {{description}}",
+    skill: "**Skill** /{{name}}",
+    todos_one: "**À faire** · {{count}} élément",
+    todos_other: "**À faire** · {{count}} éléments",
+    server: "**{{server}}** {{tool}}",
+    other: "**{{name}}**",
+  },
   turn: {
     draining:
       "La passerelle s'éteint et ne prend plus rien de nouveau. Elle laisse d'abord finir les tours en cours, ce qui peut prendre un moment ; renvoie ceci une fois qu'elle est revenue.",

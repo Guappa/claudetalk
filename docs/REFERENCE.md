@@ -448,7 +448,12 @@ block under its file's path, written as code so no character in a file name
 turns into formatting, with the removed and added lines capped at two dozen and each line at 200 characters, since that is the
 one tag Discord colours by line; a written file shows its first lines in a block
 tagged with its language; a shell command shows as a `$` line in a `bash` or
-`powershell` block. Reads and searches are only counted. Reasoning cannot be shown: thinking arrives over the stream with a
+`powershell` block. Every other call gets the one line the terminal gives it:
+a read or a notebook edit names its file, a search or a find its pattern and
+where, a fetch its address, a web search or a tool search its query, an agent
+its task, a skill its name, a todo list its items ticked as they stand, a tool
+from an MCP server its server and name, and anything else its name, so that
+nothing a turn does goes unseen. Reasoning cannot be shown: thinking arrives over the stream with a
 signature and no text. Every turn is therefore asked to think out loud, which
 costs tokens and is worth it, since progress you cannot see is indistinguishable
 from a hang. A remark keeps its paragraphs and code blocks, and one longer than

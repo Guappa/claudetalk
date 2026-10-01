@@ -109,6 +109,23 @@ export const de: Catalog = {
     written_one: "{{path}} ({{count}} Zeile)",
     written_other: "{{path}} ({{count}} Zeilen)",
   },
+  tools: {
+    read: "**Liest** {{path}}",
+    notebook: "**Notebook** {{path}}",
+    find: "**Findet** {{pattern}} in {{path}}",
+    findAnywhere: "**Findet** {{pattern}}",
+    search: "**Sucht** {{pattern}} in {{path}}",
+    searchAnywhere: "**Sucht** {{pattern}}",
+    fetch: "**Holt** {{url}}",
+    webSearch: "**Websuche** {{query}}",
+    toolSearch: "**Werkzeugsuche** {{query}}",
+    agent: "**Agent** {{description}}",
+    skill: "**Skill** /{{name}}",
+    todos_one: "**Aufgaben** · {{count}} Punkt",
+    todos_other: "**Aufgaben** · {{count}} Punkte",
+    server: "**{{server}}** {{tool}}",
+    other: "**{{name}}**",
+  },
   turn: {
     draining:
       "Die Brücke fährt herunter und nimmt nichts Neues mehr an. Sie lässt laufende Durchläufe erst zu Ende kommen, was eine Weile dauern kann; schick das noch einmal, sobald sie wieder da ist.",
