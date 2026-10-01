@@ -401,6 +401,8 @@ export const zh: Catalog = {
     model: "模型",
     effort: "努力程度",
     version: "桥接 v{{version}}",
+    claude: "Claude Code {{bundled}}",
+    claudeDiffers: "Claude Code {{bundled}} 用于轮次，主机上为 {{host}}",
   },
   usage: {
     notReported: "套餐用量：尚未报告。Claude Code 会随每一轮发送它，所以第一轮之后就会显示。",

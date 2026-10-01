@@ -7,6 +7,7 @@ import { sweepAttachments } from "./attachments.ts";
 import { handleMessage } from "./discord/handlers/message.ts";
 import { handleInteraction } from "./discord/handlers/interaction.ts";
 import { startUp } from "./discord/startup.ts";
+import { describeClaudeVersions } from "./claude/versions.ts";
 import { count } from "./text.ts";
 
 const config = loadConfig();
@@ -21,6 +22,7 @@ const bridge = await createBridge(config);
 console.log(
   `Language: ${bridge.language.current()} (${bridge.language.wasPicked() ? "picked with /language" : "host default"}).`,
 );
+console.log(describeClaudeVersions(bridge.claude));
 await sweepAttachments();
 
 const client = new Client({

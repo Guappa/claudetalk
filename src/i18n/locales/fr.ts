@@ -438,6 +438,8 @@ export const fr: Catalog = {
     model: "Modèle",
     effort: "Effort",
     version: "passerelle v{{version}}",
+    claude: "Claude Code {{bundled}}",
+    claudeDiffers: "Claude Code {{bundled}} pour les tours, {{host}} sur l'hôte",
   },
   usage: {
     notReported:

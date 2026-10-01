@@ -45,7 +45,9 @@ Turns run through `@anthropic-ai/claude-agent-sdk`, which `npm ci` installs and
 which brings its own build of Claude Code to run them on. The `claude` you
 installed is what the bridge asks for the side jobs: which sessions are open on
 the host, stopping a background one, and listing plugins. The two share your
-sign-in and your conversations, and can be different versions. This bridge is MIT; that
+sign-in and your conversations, and can be different versions; the bridge prints
+both at start-up and in `/whoami`, and says so when they differ, since that is
+the first thing to check if resuming breaks after an update. This bridge is MIT; that
 package is not, so using it means accepting
 [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). That
 is the same agreement Claude Code itself is under, so it asks nothing new of

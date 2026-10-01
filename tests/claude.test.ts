@@ -3,7 +3,7 @@ import { usage, wait } from "./helpers/records.ts";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { attachmentsRoot } from "../src/platform.ts";
+import { attachmentsRoot, bundledClaudeBin } from "../src/platform.ts";
 import { detectClaudeError } from "../src/claude/errors.ts";
 import { buildOptions, bridgeSystemNote, foldResult, resultError } from "../src/claude/runner.ts";
 import { parseAgentsJson, readListing } from "../src/sessions/activeSessions.ts";
@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { UsageLedger } from "../src/claude/usageLedger.ts";
 import { PlanUsage, describePlanUsage, parsePlanUsage } from "../src/claude/planUsage.ts";
 import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
+import { describeClaudeVersions, parseVersion } from "../src/claude/versions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
 import { takenUp, type ClaudeEvent } from "../src/claude/events.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
@@ -492,6 +493,31 @@ describe("ContextTracker", () => {
       cache_creation_input_tokens: 10_000,
     });
     expect(warning?.level).toBe("approaching");
+  });
+});
+
+describe("Claude Code versions", () => {
+  it("reads the version off what --version prints, and nothing off anything else", () => {
+    expect(parseVersion("2.1.285 (Claude Code)\n")).toBe("2.1.285");
+    expect(parseVersion("  2.2.0-beta.1 (Claude Code)")).toBe("2.2.0-beta.1");
+    expect(parseVersion("")).toBeNull();
+    expect(parseVersion("claude: command not found")).toBeNull();
+  });
+
+  // Both builds read the same transcripts; the log says which runs what, and whether they agree.
+  it("says when the SDK's build and the host's are one, and names both when they differ", () => {
+    expect(describeClaudeVersions({ bundled: "2.1.285", host: "2.1.285" })).toBe(
+      "Claude Code 2.1.285, the SDK's build and the host's.",
+    );
+    const differ = describeClaudeVersions({ bundled: "2.1.285", host: "2.1.286" });
+    expect(differ).toContain("2.1.285 in the SDK (turns run on it)");
+    expect(differ).toContain("2.1.286 on the host");
+    expect(differ).toContain("They differ");
+    expect(describeClaudeVersions({ bundled: null, host: "2.1.286" })).toContain("unknown in the SDK");
+  });
+
+  it("finds the build the SDK ships for this platform", () => {
+    expect(bundledClaudeBin()).toMatch(/claude-agent-sdk-[a-z0-9]+-[a-z0-9]+[\\/]claude(\.exe)?$/);
   });
 });
 

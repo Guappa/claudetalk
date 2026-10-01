@@ -436,6 +436,8 @@ export const es: Catalog = {
     model: "Modelo",
     effort: "Esfuerzo",
     version: "puente v{{version}}",
+    claude: "Claude Code {{bundled}}",
+    claudeDiffers: "Claude Code {{bundled}} para los turnos, {{host}} en el host",
   },
   usage: {
     notReported: "Uso del plan: todavía sin informar. Claude Code lo envía con cada turno, así que aparece después del primero.",

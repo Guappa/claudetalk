@@ -1,6 +1,7 @@
 import type { Config } from "./config.ts";
 import { assertSpawnable, resolveClaudeBin } from "./platform.ts";
 import { readAuthStatus, SIGNED_OUT } from "./claude/auth.ts";
+import { readClaudeVersions, type ClaudeVersions } from "./claude/versions.ts";
 import { ConversationStore } from "./conversations.ts";
 import { OperatorStore } from "./operators.ts";
 import { CapabilityCache } from "./claude/capabilities.ts";
@@ -37,6 +38,8 @@ export interface Bridge {
   sessions: SessionIndex;
   pendingCreates: PendingCreates;
   pendingRuns: Pending<PendingRun>;
+  // Read once at start-up: the Claude Code turns run on, and the one the host's side jobs run on.
+  claude: ClaudeVersions;
 }
 
 export async function createBridge(config: Config): Promise<Bridge> {
@@ -86,6 +89,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
     activeTurns,
     latestPosts: new Map<string, string>(),
     heldAttachments: new Set<string>(),
+    claude: readClaudeVersions(),
     outbox,
     flow: new TurnFlow(
       capabilities,
