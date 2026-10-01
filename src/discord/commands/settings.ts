@@ -6,13 +6,25 @@ import { describeDefault, readHostDefaults, type HostDefaults } from "../../clau
 import { displayPath } from "../../displayPath.ts";
 import type { Say } from "../../i18n/index.ts";
 import { detail } from "../embeds.ts";
+import type { ClaudeVersions } from "../../claude/versions.ts";
 import { bridgeVersion } from "../../version.ts";
 import { respond } from "../respond.ts";
 
 export const MODEL_CHOICES = ["fable", "opus", "sonnet", "haiku"] as const;
 export const EFFORT_CHOICES = ["low", "medium", "high", "xhigh", "max"] as const;
 
-function bindingEmbed(say: Say, conversation: Conversation, defaults: HostDefaults) {
+// The footer names the Claude Code turns run on, and the host's when that is another build.
+function versionsFooter(say: Say, versions: ClaudeVersions): string {
+  const bridge = say("whoami.version", { version: bridgeVersion() });
+  if (!versions.bundled) return bridge;
+  const claude =
+    versions.host && versions.host !== versions.bundled
+      ? say("whoami.claudeDiffers", { bundled: versions.bundled, host: versions.host })
+      : say("whoami.claude", { bundled: versions.bundled });
+  return `${bridge} · ${claude}`;
+}
+
+function bindingEmbed(say: Say, conversation: Conversation, defaults: HostDefaults, versions: ClaudeVersions) {
   return detail(
     say("whoami.title"),
     `${say("whoami.resumeHint")}
@@ -24,14 +36,14 @@ claude --resume ${conversation.sessionId}
       { name: say("whoami.model"), value: describeDefault(say, conversation.settings.model, defaults.model), inline: true },
       { name: say("whoami.effort"), value: describeDefault(say, conversation.settings.effort, defaults.effort), inline: true },
     ],
-  ).setFooter({ text: say("whoami.version", { version: bridgeVersion() }) });
+  ).setFooter({ text: versionsFooter(say, versions) });
 }
 
 export async function handleWhoami(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
   const defaults = await readHostDefaults(conversation.cwd);
-  await respond(interaction, { embeds: [bindingEmbed(bridge.language.say, conversation, defaults)] });
+  await respond(interaction, { embeds: [bindingEmbed(bridge.language.say, conversation, defaults, bridge.claude)] });
 }
 
 export async function handleSetting(

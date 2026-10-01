@@ -431,6 +431,8 @@ export const en = {
     model: "Model",
     effort: "Effort",
     version: "bridge v{{version}}",
+    claude: "Claude Code {{bundled}}",
+    claudeDiffers: "Claude Code {{bundled}} for turns, {{host}} on the host",
   },
   usage: {
     notReported: "Plan usage: not reported yet. Claude Code sends it with each turn, so it appears after the first one.",

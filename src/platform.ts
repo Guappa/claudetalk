@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { accessSync, constants, realpathSync } from "node:fs";
 import os from "node:os";
@@ -28,6 +29,17 @@ function findOnPath(command: string, env: NodeJS.ProcessEnv): string | null {
 export function resolveClaudeBin(env: NodeJS.ProcessEnv = process.env): string {
   if (env.CLAUDE_BIN) return env.CLAUDE_BIN;
   return findOnPath("claude", env) ?? "claude";
+}
+
+// The Agent SDK ships Claude Code as a package per platform; null when none is installed for this one.
+export function bundledClaudeBin(): string | null {
+  const name = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+  try {
+    const manifest = createRequire(import.meta.url).resolve(`${name}/package.json`);
+    return path.join(path.dirname(manifest), process.platform === "win32" ? "claude.exe" : "claude");
+  } catch {
+    return null;
+  }
 }
 
 export function assertSpawnable(bin: string): void {

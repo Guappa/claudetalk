@@ -434,6 +434,8 @@ export const sv: Catalog = {
     model: "Modell",
     effort: "Effort",
     version: "brygga v{{version}}",
+    claude: "Claude Code {{bundled}}",
+    claudeDiffers: "Claude Code {{bundled}} för omgångar, {{host}} på värden",
   },
   usage: {
     notReported: "Plananvändning: inte rapporterad än. Claude Code skickar den med varje omgång, så den syns efter den första.",
