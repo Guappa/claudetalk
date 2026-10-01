@@ -179,18 +179,24 @@ describe("StatusMessage", () => {
     expect(sink.messages[1]).toContain("**Worked**");
   });
 
-  // The answer arrives as the last remark a moment before the turn ends, and an edit can fall in that moment.
-  it("does not seal part of a long last remark into the trail, since it may be the answer posted beneath", async () => {
+  // A long remark is read while the turn runs, not after it: its head is sealed the moment it overflows, and one that turns out to be the answer is then already shown, so it is not posted beneath again.
+  it("seals the head of a long last remark as soon as it overflows, and reports an answer that repeats it as shown", async () => {
     const sink = recordingSink();
+    const answer = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: ${"y".repeat(90)}`).join("\n");
     vi.useFakeTimers();
     try {
       const status = new StatusMessage(say, sink);
       await status.start();
       status.note("Reading the three reports first.");
-      const answer = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: ${"y".repeat(90)}`).join("\n");
       status.note(answer);
       await vi.advanceTimersByTimeAsync(2500);
-      status.dropEcho(answer);
+
+      expect(sink.messages.length).toBeGreaterThan(1);
+      expect(sink.messages[0]).toContain("Point 1:");
+      expect(sink.messages.at(-1)).toContain("**Working**");
+      expect(sink.messages.join("\n")).not.toContain("...");
+
+      expect(status.dropEcho(answer)).toBe("shown");
       await status.settle();
     } finally {
       vi.useRealTimers();
@@ -198,7 +204,48 @@ describe("StatusMessage", () => {
 
     const trail = sink.messages.join("\n");
     expect(trail).toContain("Reading the three reports first.");
-    expect(trail).not.toContain("Point 1:");
+    for (let point = 1; point <= 40; point += 1) expect(trail).toContain(`Point ${point}:`);
+    expect(trail.match(/Point 40:/g)).toHaveLength(1);
+    for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
+  });
+
+  // An answer still wholly in the live message is dropped from it as before, and one the trail never held is nothing to it.
+  it("tells an answer dropped from the live message from one the trail never held", () => {
+    const sink = recordingSink();
+    const status = new StatusMessage(say, sink, () => 0);
+    status.note("Checking the diff first.");
+    expect(status.dropEcho("Something else entirely.")).toBe("none");
+    expect(status.dropEcho("Checking the diff first.")).toBe("dropped");
+    expect(status.hasNotes()).toBe(false);
+  });
+
+  // The agents' tally rides under the heading and can leave a full-length piece no room; the piece then gets a message of its own rather than a cut.
+  it("seals a lone piece that does not fit beside a long heading, rather than cutting it", async () => {
+    const sink = recordingSink();
+    const tally = `**Agents** · ${"reviewer running, ".repeat(20)}`;
+    vi.useFakeTimers();
+    try {
+      const status = new StatusMessage(
+        say,
+        sink,
+        undefined,
+        () => [],
+        undefined,
+        undefined,
+        () => tally,
+      );
+      await status.start();
+      const piece = `Report: ${"z".repeat(1650)}`;
+      status.note(piece);
+      await vi.advanceTimersByTimeAsync(2500);
+      await status.settle();
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(sink.messages[0]).toBe(`Report: ${"z".repeat(1650)}`);
+    expect(sink.messages.at(-1)).toContain("**Worked**");
+    expect(sink.messages.join("\n")).not.toContain("...");
+    for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
   });
 
   // A link is several times the length of the reference it replaces, and the trail is measured before it is linked.

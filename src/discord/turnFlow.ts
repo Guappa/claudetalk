@@ -196,7 +196,10 @@ async function postAnswer(
 ): Promise<void> {
   const raw = text.trim() ? text : say(compacted ? "trail.answerCompacted" : "trail.answerDoneNoText");
   // The echo is matched against what the model said, before any rewriting of it.
-  status.dropEcho(raw);
+  if (status.dropEcho(raw) === "shown") {
+    await status.settle("done");
+    return;
+  }
   const linked = await linkEverything(cwd, convertTables(raw));
   await conclude(say, status, sink, splitForDiscord(linked, status.roomForOutcome("done")), "done");
 }
@@ -658,13 +661,15 @@ export class TurnFlow {
       // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
       const stopped = this.stopping.has(sessionId);
       // Claude Code says its own reason as the turn's last remark too, and once is enough.
-      if (result.error.kind === "reported") status.dropEcho(result.error.text);
+      const echo = result.error.kind === "reported" ? status.dropEcho(result.error.text) : "none";
       const outcome = stopped ? say("trail.answerStopped") : describeFailure(say, result.error);
       const mood = stopped ? "stopped" : "failed";
       // Split like an answer: the reason Claude Code gives for failing can run past one message, and one that does not fit is never shown.
-      await conclude(say, status, sink, splitForDiscord(outcome, status.roomForOutcome(mood)), mood).catch(
-        reportUnposted(sessionId),
-      );
+      const ended =
+        echo === "shown" && !stopped
+          ? status.settle(mood)
+          : conclude(say, status, sink, splitForDiscord(outcome, status.roomForOutcome(mood)), mood);
+      await ended.catch(reportUnposted(sessionId));
       await options.onState?.(mood);
       await this.settleFolded(sessionId, stopped ? "stopped" : "failed");
       return;

@@ -511,6 +511,31 @@ describe("TurnFlow", () => {
     expect(closed).toEqual(["The turn ended before this was taken up. Send it again."]);
   });
 
+  // A report written mid-turn and then given as the answer is read once, where the trail already showed it whole.
+  it("does not post an answer the trail has already shown across messages", async () => {
+    const report = Array.from({ length: 40 }, (_, index) => `Finding ${index + 1}: ${"w".repeat(90)}`).join("\n");
+    scripted.set("long report", [
+      { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: report }] } },
+    ]);
+    endings.set("long report", { ok: true, text: report });
+    const flow = makeFlow();
+    const sink = recordingSink();
+    vi.useFakeTimers();
+    try {
+      const letEnd = keepRunning("long report");
+      const running = flow.run("s46", cwd, "long report", {}, sink, { resume: true });
+      await vi.advanceTimersByTimeAsync(2500);
+      letEnd();
+      await running;
+    } finally {
+      vi.useRealTimers();
+    }
+    const everything = sink.messages.join("\n");
+    expect(everything.match(/Finding 1:/g)).toHaveLength(1);
+    expect(everything.match(/Finding 40:/g)).toHaveLength(1);
+    expect(sink.messages.at(-1)).toContain("**Worked**");
+  });
+
   // A progress message purged mid-turn cannot take the final edit, and the answer, the reaction and the outbox must not go down with it.
   it("still says the answer when the progress message is gone by the end", async () => {
     scripted.set("purged under it", [

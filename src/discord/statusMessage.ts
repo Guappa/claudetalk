@@ -35,6 +35,9 @@ export function tickIntervalMs(elapsedMs: number): number {
 // The state a heading shows, at a glance.
 export type Mood = "working" | "done" | "stopped" | "failed";
 
+// What became of an answer the trail may already hold: nothing of it was there, its remark was dropped from the live message, or it was already shown whole across sealed messages.
+export type Echo = "none" | "dropped" | "shown";
+
 // The one place the trail uses emoji: the state at a glance, heading only, standard Unicode only.
 const EMOJI: Record<Mood, string> = {
   working: "⏳",
@@ -136,6 +139,8 @@ export class StatusMessage {
   // Which remark each piece of the trail came from, and the remarks as they were said before being cut up and drawn.
   private origins: number[] = [];
   private readonly remarks: string[] = [];
+  // Remarks a piece of which has been sealed into a finished message, where nothing can take it back.
+  private readonly sealedOrigins = new Set<number>();
   private sealed = 0;
   private steps = 0;
   private timer: NodeJS.Timeout | null = null;
@@ -209,19 +214,16 @@ export class StatusMessage {
     }
   }
 
-  // While the turn runs the newest remark is never sealed, however long: it may turn out to be the answer, and a piece of it left in a finished message would show a second time beneath.
-  private rollOverOverflow(newest: "held" | "sealed"): void {
+  // Whatever no longer fits under the heading is sealed the moment it is said, the newest remark included: the channel reads in order, and nothing waits for the turn to end to be shown whole.
+  private rollOverOverflow(): void {
     if (!this.sink.continueIn) return;
     const elapsed = this.now() - this.startedAt;
-    while (this.notes.length > 1 && !fitsInOne(this.say, this.notes, elapsed, this.steps, this.extra())) {
-      const fitting = this.oldestThatFit();
-      const sealed = newest === "held" ? fitting.slice(0, this.origins.indexOf(this.origins.at(-1)!)) : fitting;
-      if (sealed.length === 0) return;
-      this.rollOver(sealed);
+    while (this.notes.length > 0 && !fitsInOne(this.say, this.notes, elapsed, this.steps, this.extra())) {
+      this.rollOver(this.oldestThatFit());
     }
   }
 
-  // The oldest remarks that fill one message on their own; the newer ones carry on in the next.
+  // The oldest remarks that fill one message on their own; the newer ones carry on in the next. A lone piece too long for the heading beside it is sealed alone, so that it is never cut.
   private oldestThatFit(): string[] {
     const sealed: string[] = [];
     let used = 0;
@@ -230,7 +232,8 @@ export class StatusMessage {
       sealed.push(note);
       used += note.length + 2;
     }
-    return sealed.length < this.notes.length ? sealed : this.notes.slice(0, -1);
+    if (sealed.length < this.notes.length) return sealed;
+    return this.notes.length > 1 ? this.notes.slice(0, -1) : this.notes;
   }
 
   // A status Claude Code repeats every few seconds should read as one line, not a growing column.
@@ -248,19 +251,23 @@ export class StatusMessage {
     return this.notes.length === 0;
   }
 
-  // The last thing said is the answer, which is about to be posted in full beneath the trail.
-  dropEcho(answer: string): void {
+  // The last thing said is the answer, which is about to be posted in full beneath the trail; one the trail already sealed in part is left where it stands, since the sealed part cannot be taken back and the answer would show twice.
+  dropEcho(answer: string): Echo {
     // Tidied the way a remark is, or an answer naming a home path would never match the remark that had it redacted.
     const said = comparable(tidy(answer));
-    if (!said) return;
+    if (!said) return "none";
 
+    let echo: Echo = "none";
     for (let last = this.lastRemark(); last !== undefined && said.includes(comparable(last)); last = this.lastRemark()) {
-      const origin = this.origins.at(-1);
+      const origin = this.origins.at(-1)!;
+      if (this.sealedOrigins.has(origin)) return "shown";
       while (this.origins.length > 0 && this.origins.at(-1) === origin) {
         this.notes.pop();
         this.origins.pop();
       }
+      echo = "dropped";
     }
+    return echo;
   }
 
   // The newest remark still in hand, as it was said: a piece of the trail may be a cut of it, or a table redrawn.
@@ -272,7 +279,7 @@ export class StatusMessage {
   // Leaves the trail in place, marked finished, so the answer can arrive beneath it.
   async settle(mood: Mood = "done"): Promise<void> {
     this.stop();
-    this.rollOverOverflow("sealed");
+    this.rollOverOverflow();
     await this.pendingEdit;
     await this.sink.edit(await this.finalized(this.drawn(mood)), []);
   }
@@ -325,6 +332,7 @@ export class StatusMessage {
 
   // The sealed remarks stay in the current message as they are; the heading and the button move to a new one below.
   private rollOver(sealed: string[]): void {
+    for (const origin of this.origins.slice(0, sealed.length)) this.sealedOrigins.add(origin);
     this.notes = this.notes.slice(sealed.length);
     this.origins = this.origins.slice(sealed.length);
     this.sealed += sealed.length;
@@ -357,7 +365,7 @@ export class StatusMessage {
   private async tick(): Promise<void> {
     if (this.stopped) return;
 
-    this.rollOverOverflow("held");
+    this.rollOverOverflow();
     const text = this.drawn("working");
     if (text !== this.lastSent) {
       this.lastSent = text;
