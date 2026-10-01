@@ -1,4 +1,4 @@
-import type { Message, MessageCreateOptions, SendableChannels } from "discord.js";
+import { type Message, type MessageCreateOptions, RESTJSONErrorCodes, type SendableChannels } from "discord.js";
 import {
   ActionRowBuilder,
   AttachmentBuilder,
@@ -111,7 +111,13 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
         owned = await post({ ...firstSendOptions(shown), components: buttonRow(actions) });
         return;
       }
-      await owned.edit({ content: shown, allowedMentions, components: buttonRow(actions) });
+      try {
+        await owned.edit({ content: shown, allowedMentions, components: buttonRow(actions) });
+      } catch (error) {
+        // Purged or deleted by hand: the trail carries on in a new message rather than editing a void for the rest of the turn.
+        if ((error as { code?: unknown }).code !== RESTJSONErrorCodes.UnknownMessage) throw error;
+        owned = await post({ content: shown, allowedMentions, components: buttonRow(actions) });
+      }
     },
     async continueIn(text: string, actions: SinkAction[] = []): Promise<void> {
       owned = await post({ content: forDiscord(text), allowedMentions, components: buttonRow(actions) });

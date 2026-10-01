@@ -484,6 +484,7 @@ export const en = {
   purge: {
     notDeletable:
       "`/purge` only works in a server text channel where the bot can manage messages. Run it in the conversation's channel, or give the bot Manage Messages here.",
+    running: "A turn is running here. Let it finish or `/stop` it, then `/purge`.",
     warning: "This deletes every message in this channel, including yours. It cannot be undone.",
     warningConversation:
       "The conversation on the host is not touched, and your next message carries on from it. The channel does not get its history back.",

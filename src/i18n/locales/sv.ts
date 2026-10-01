@@ -487,6 +487,7 @@ export const sv: Catalog = {
   purge: {
     notDeletable:
       "`/purge` fungerar bara i en textkanal på en server där boten får hantera meddelanden. Kör det i konversationens kanal, eller ge boten behörigheten Hantera meddelanden (Manage Messages) här.",
+    running: "En omgång körs här. Låt den bli klar eller `/stop` den, sedan `/purge`.",
     warning: "Det här tar bort varje meddelande i den här kanalen, även dina. Det går inte att ångra.",
     warningConversation:
       "Konversationen på värddatorn rörs inte, och ditt nästa meddelande fortsätter från den. Kanalen får inte tillbaka sin historik.",

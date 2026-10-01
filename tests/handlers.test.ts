@@ -6,6 +6,7 @@ import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleClear } from "../src/discord/commands/clear.ts";
 import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
 import { handleUnbind } from "../src/discord/commands/control.ts";
+import { handlePurgeCommand } from "../src/discord/commands/purge.ts";
 import { handleSetting } from "../src/discord/commands/settings.ts";
 import { handleInvite, handleUninvite } from "../src/discord/commands/membership.ts";
 import { handleSync } from "../src/discord/commands/sync.ts";
@@ -848,6 +849,12 @@ describe("/unbind", () => {
     await handleUnbind(bridge, command.interaction);
     expect(command.replies).toEqual(["A turn is running here. Let it finish or `/stop` it, then `/unbind`."]);
     expect(bridge.store.byChannel("c4")).toBe(bound);
+
+    // A purge would take the trail, the Stop button and any open prompt with it.
+    const purge = fakeCommand(place, OWNER);
+    await handlePurgeCommand(bridge, purge.interaction);
+    expect(purge.replies).toEqual(["A turn is running here. Let it finish or `/stop` it, then `/purge`."]);
+    expect(purge.controls()).toEqual([]);
 
     held.get("hold the lane")?.();
     await running;
