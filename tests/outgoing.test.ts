@@ -699,15 +699,16 @@ describe("convertTables", () => {
 });
 
 describe("repo links against a real repository", () => {
+  // Who commits here, and no signing: a contributor whose git signs every commit would otherwise be asked for a key.
+  const GIT_IDENTITY = ["-c", "commit.gpgsign=false", "-c", "user.email=tests@example.invalid", "-c", "user.name=Tests"];
+  // Each git spawn costs most of a second on a Windows runner, and the resolver spawns its own; the default five seconds is the runner's cost, not the code's.
+  const REAL_GIT_MS = 30_000;
+
   // A blob URL names the committed tree, so a file that is only on disk would link to a 404.
-  it("links a committed file and leaves an untracked one plain", async () => {
+  it("links a committed file and leaves an untracked one plain", { timeout: REAL_GIT_MS }, async () => {
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), "claudetalk-links-"));
-    // Without this a contributor whose git signs every commit would be asked for a key here.
-    const run = (...args: string[]) =>
-      execFileSync("git", ["-C", repo, "-c", "commit.gpgsign=false", ...args], { stdio: "pipe" });
+    const run = (...args: string[]) => execFileSync("git", ["-C", repo, ...GIT_IDENTITY, ...args], { stdio: "pipe" });
     run("init", "-q");
-    run("config", "user.email", "tests@example.invalid");
-    run("config", "user.name", "Tests");
     run("remote", "add", "origin", "https://example.com/acme/ledger.git");
     await fs.writeFile(path.join(repo, "committed.md"), "tracked\n");
     await fs.writeFile(path.join(repo, "local-only.md"), "not tracked\n");
@@ -721,13 +722,10 @@ describe("repo links against a real repository", () => {
   });
 
   // A conversation can work in a folder below the repository's root, and a blob link is written from the root.
-  it("links a file named from a folder inside the repository by its path from the root", async () => {
+  it("links a file named from a folder inside the repository by its path from the root", { timeout: REAL_GIT_MS }, async () => {
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), "links-subfolder-"));
-    const run = (...args: string[]) =>
-      execFileSync("git", ["-C", repo, "-c", "commit.gpgsign=false", ...args], { stdio: "pipe" });
+    const run = (...args: string[]) => execFileSync("git", ["-C", repo, ...GIT_IDENTITY, ...args], { stdio: "pipe" });
     run("init", "-q");
-    run("config", "user.email", "tests@example.invalid");
-    run("config", "user.name", "Tests");
     run("remote", "add", "origin", "https://example.com/acme/ledger.git");
     const inside = path.join(repo, "packages", "app");
     await fs.mkdir(path.join(inside, "src"), { recursive: true });
