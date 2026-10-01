@@ -71,6 +71,12 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...valid, DISCORD_OWNER_IDS: " , " })).toThrow(/DISCORD_OWNER_IDS/);
   });
 
+  it("takes the denial rules from TOOL_DENIALS, and names them all when one is wrong", () => {
+    expect([...loadConfig(valid).toolDenials]).toHaveLength(6);
+    expect([...loadConfig({ ...valid, TOOL_DENIALS: "none" }).toolDenials]).toEqual([]);
+    expect(() => loadConfig({ ...valid, TOOL_DENIALS: "secrets,typos" })).toThrow(/TOOL_DENIALS.*"typos".*deletes, force-push/);
+  });
+
   it("refuses an owner id that is not a Discord id", () => {
     expect(() => loadConfig({ ...valid, DISCORD_OWNER_IDS: "not-a-snowflake" })).toThrow(/not a Discord user id/);
     expect(() => loadConfig({ ...valid, DISCORD_OWNER_IDS: "12345" })).toThrow(/not a Discord user id/);

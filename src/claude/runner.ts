@@ -30,6 +30,7 @@ export interface TurnRequest {
   fork?: boolean;
   approve?: ApproveTool;
   askQuestions?: AskQuestions;
+  deny?: (toolName: string, toolInput: Record<string, unknown>) => string | null;
 }
 
 interface TurnOutcome {
@@ -124,6 +125,8 @@ function denied(reason: string): HookOutput {
 interface Gates {
   approve?: ApproveTool;
   askQuestions?: AskQuestions;
+  // The reason a call is refused outright, before any approval is asked; null lets it through to the rest of the gate.
+  deny?: (toolName: string, toolInput: Record<string, unknown>) => string | null;
 }
 
 async function decide(
@@ -138,6 +141,8 @@ async function decide(
       : denied(outcome.reason);
   }
 
+  const refused = gates.deny?.(toolName, toolInput);
+  if (refused) return denied(refused);
   if (!gates.approve || UNGATED_TOOLS.has(toolName)) return { continue: true };
   const decision = await gates.approve(toolName, toolInput);
   return decision.allow ? allowed("Approved from Discord.") : denied(decision.reason);
@@ -303,7 +308,7 @@ interface Attempt {
 
 export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => void): RunningTurn {
   const options = buildOptions(request);
-  if (request.approve || request.askQuestions) options.hooks = gate(request);
+  if (request.approve || request.askQuestions || request.deny) options.hooks = gate(request);
 
   // Spawning it ourselves is the only way to learn the pid, and stopping a turn means its whole tree.
   let pid: number | undefined;

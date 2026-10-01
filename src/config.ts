@@ -1,3 +1,4 @@
+import { parseDenials, type Denial } from "./claude/denials.ts";
 import path from "node:path";
 import { LANGUAGES, isLanguage, type Language } from "./i18n/index.ts";
 
@@ -11,6 +12,7 @@ export interface Config {
   dataDir: string;
   operatorsPath: string;
   toolApprovals: boolean;
+  toolDenials: Set<Denial>;
   language: Language;
   categoryId?: string;
   workspacesRoot?: string;
@@ -85,6 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir: path.dirname(bindingsPathFrom(env)),
     operatorsPath: env.OPERATORS_PATH?.trim() || path.join(path.dirname(bindingsPathFrom(env)), "operators.json"),
     toolApprovals: toolApprovals(env),
+    toolDenials: parseDenials(env.TOOL_DENIALS),
     language: language(env),
     categoryId: env.DISCORD_CATEGORY_ID?.trim() || undefined,
     workspacesRoot: env.WORKSPACES_ROOT?.trim() || undefined,

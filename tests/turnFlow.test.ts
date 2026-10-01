@@ -85,7 +85,7 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
 });
 
 function makeFlow(language: () => Say = () => sayIn("en"), approvals = new ApprovalPrompts()): TurnFlow {
-  const config = { toolApprovals: false, ownerIds: [] } as unknown as Config;
+  const config = { toolApprovals: false, toolDenials: new Set(), ownerIds: [], dataDir: "data" } as unknown as Config;
   return new TurnFlow(
     new CapabilityCache(),
     () => new ContextTracker(),
