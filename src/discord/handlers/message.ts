@@ -256,6 +256,8 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
 
   const target = await targetFor(bridge, message, channel, existing);
   if (!target) return;
+  // The channel reads in order, as the terminal does: a trail above this message moves below it, and the answer lands beneath it, never in a message above.
+  bridge.latestPosts.set(message.channelId, message.id);
   const plain = classification.kind === "turn";
   // A command is only a command as the first thing the session reads, so nothing is put in front of one.
   const context = plain ? contextFor(message, replied, addressing) : noContext();

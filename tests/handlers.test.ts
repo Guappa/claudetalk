@@ -86,6 +86,22 @@ describe("a message in a channel that holds no conversation", () => {
     expect(asked[0]!.sessionId).toBe(bridge.store.byChannel("m1")?.sessionId);
   });
 
+  // The sink decides where the trail may write from the channel's latest post; a prompt is one, or the answer would be edited into a message above it.
+  it("counts a prompt as the channel's latest post, so nothing of the turn is written above it", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("m9");
+    const first = fakeMessage(place, { authorId: OWNER, content: "start here", mentionsBot: true });
+    const posted: string[] = [];
+    const remember = bridge.latestPosts.set.bind(bridge.latestPosts);
+    bridge.latestPosts.set = (channelId, messageId) => {
+      posted.push(messageId);
+      return remember(channelId, messageId);
+    };
+    await handleMessage(bridge, first.message);
+    expect(posted[0]).toBe(first.message.id);
+    expect(posted.length).toBeGreaterThan(1);
+  });
+
   // The category files new channels and means nothing else, so a channel outside it is found by its name like any other.
   it("binds to the conversation the channel is named after, whatever category the channel sits in", async () => {
     const known = record({ sessionId: SESSION, name: "ledger notes", cwd: os.tmpdir(), lastActivity: new Date() });
