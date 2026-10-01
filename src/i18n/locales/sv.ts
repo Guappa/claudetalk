@@ -107,6 +107,23 @@ export const sv: Catalog = {
     written_one: "{{path}} ({{count}} rad)",
     written_other: "{{path}} ({{count}} rader)",
   },
+  tools: {
+    read: "**Läser** {{path}}",
+    notebook: "**Notebook** {{path}}",
+    find: "**Hittar** {{pattern}} i {{path}}",
+    findAnywhere: "**Hittar** {{pattern}}",
+    search: "**Söker** {{pattern}} i {{path}}",
+    searchAnywhere: "**Söker** {{pattern}}",
+    fetch: "**Hämtar** {{url}}",
+    webSearch: "**Webbsökning** {{query}}",
+    toolSearch: "**Verktygssökning** {{query}}",
+    agent: "**Agent** {{description}}",
+    skill: "**Skill** /{{name}}",
+    todos_one: "**Att göra** · {{count}} punkt",
+    todos_other: "**Att göra** · {{count}} punkter",
+    server: "**{{server}}** {{tool}}",
+    other: "**{{name}}**",
+  },
   turn: {
     draining:
       "Bryggan håller på att stängas av och tar inte emot något nytt. Den låter pågående omgångar bli klara först, vilket kan ta en stund; skicka detta igen när den är tillbaka.",

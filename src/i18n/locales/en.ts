@@ -105,6 +105,23 @@ export const en = {
     written_one: "{{path}} ({{count}} line)",
     written_other: "{{path}} ({{count}} lines)",
   },
+  tools: {
+    read: "**Read** {{path}}",
+    notebook: "**Notebook** {{path}}",
+    find: "**Find** {{pattern}} in {{path}}",
+    findAnywhere: "**Find** {{pattern}}",
+    search: "**Search** {{pattern}} in {{path}}",
+    searchAnywhere: "**Search** {{pattern}}",
+    fetch: "**Fetch** {{url}}",
+    webSearch: "**Web search** {{query}}",
+    toolSearch: "**Tool search** {{query}}",
+    agent: "**Agent** {{description}}",
+    skill: "**Skill** /{{name}}",
+    todos_one: "**Todo** · {{count}} item",
+    todos_other: "**Todo** · {{count}} items",
+    server: "**{{server}}** {{tool}}",
+    other: "**{{name}}**",
+  },
   turn: {
     draining:
       "The bridge is shutting down and takes nothing new. It lets running turns finish first, which can take a while; send this again once it is back.",

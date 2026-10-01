@@ -476,11 +476,38 @@ describe("describeToolUse", () => {
     expect(describeToolUse(say, "Write", { file_path: "/srv/app/notes.unknownext", content: "a" })).toContain("```\na\n```");
   });
 
-  it("shows a command as a prompt line in a shell block and keeps the rest of the tools counted only", () => {
+  it("shows a command as a prompt line in a shell block", () => {
     expect(describeToolUse(say, "Bash", { command: "npm   test\n  --run" })).toBe("```bash\n$ npm test --run\n```");
     expect(describeToolUse(say, "PowerShell", { command: "Get-Date" })).toBe("```powershell\n$ Get-Date\n```");
-    expect(describeToolUse(say, "Read", { file_path: "/srv/app/x.ts" })).toBeNull();
-    expect(describeToolUse(say, "Grep", { pattern: "x" })).toBeNull();
+  });
+
+  // The terminal gives every call a line; a reader who sees only edits and commands cannot tell a fetch from a hang.
+  it("gives every other call the line the terminal gives it", () => {
+    expect(describeToolUse(say, "Read", { file_path: "/srv/app/x.ts" })).toBe("**Read** `/srv/app/x.ts`");
+    expect(describeToolUse(say, "Grep", { pattern: "limit", path: "/srv/app/src" })).toBe("**Search** `limit` in `/srv/app/src`");
+    expect(describeToolUse(say, "Grep", { pattern: "x`y" })).toBe("**Search** `x'y`");
+    expect(describeToolUse(say, "Glob", { pattern: "**/*.ts" })).toBe("**Find** `**/*.ts`");
+    expect(describeToolUse(say, "WebFetch", { url: "https://example.com/docs" })).toBe("**Fetch** <https://example.com/docs>");
+    expect(describeToolUse(say, "WebSearch", { query: "github rulesets  approvals" })).toBe(
+      "**Web search** github rulesets approvals",
+    );
+    expect(describeToolUse(say, "Agent", { description: "Audit the access checks" })).toBe("**Agent** Audit the access checks");
+    expect(describeToolUse(say, "Skill", { skill: "code-review" })).toBe("**Skill** /code-review");
+    expect(describeToolUse(say, "mcp__playwright__browser_click", { ref: "e1" })).toBe("**playwright** browser_click");
+    expect(describeToolUse(say, "SomethingNew", {})).toBe("**SomethingNew**");
+    expect(describeToolUse(say, "AskUserQuestion", { questions: [] })).toBeNull();
+  });
+
+  it("lists the todos a turn keeps, ticked as they are, and caps a long list", () => {
+    const todos = [
+      { content: "Read the spec", status: "completed" },
+      { content: "Write the test", status: "in_progress" },
+    ];
+    expect(describeToolUse(say, "TodoWrite", { todos })).toBe("**Todo** · 2 items\n- [x] Read the spec\n- [ ] Write the test");
+    const many = Array.from({ length: 15 }, (_, index) => ({ content: `Step ${index + 1}`, status: "pending" }));
+    const shown = describeToolUse(say, "TodoWrite", { todos: many });
+    expect(shown?.split("\n")).toHaveLength(14);
+    expect(shown).toContain("... 3 more lines");
   });
 
   it("never lets a fence inside the content close the block early", () => {

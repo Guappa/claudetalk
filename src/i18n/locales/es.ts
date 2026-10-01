@@ -108,6 +108,23 @@ export const es: Catalog = {
     written_one: "{{path}} ({{count}} línea)",
     written_other: "{{path}} ({{count}} líneas)",
   },
+  tools: {
+    read: "**Lee** {{path}}",
+    notebook: "**Notebook** {{path}}",
+    find: "**Busca archivos** {{pattern}} en {{path}}",
+    findAnywhere: "**Busca archivos** {{pattern}}",
+    search: "**Busca** {{pattern}} en {{path}}",
+    searchAnywhere: "**Busca** {{pattern}}",
+    fetch: "**Descarga** {{url}}",
+    webSearch: "**Búsqueda web** {{query}}",
+    toolSearch: "**Búsqueda de herramientas** {{query}}",
+    agent: "**Agente** {{description}}",
+    skill: "**Skill** /{{name}}",
+    todos_one: "**Pendientes** · {{count}} elemento",
+    todos_other: "**Pendientes** · {{count}} elementos",
+    server: "**{{server}}** {{tool}}",
+    other: "**{{name}}**",
+  },
   turn: {
     draining:
       "El puente se está apagando y no acepta nada nuevo; antes deja terminar los turnos en marcha, lo que puede tardar un rato. Envía esto otra vez cuando haya vuelto.",

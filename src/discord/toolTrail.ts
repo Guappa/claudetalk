@@ -2,7 +2,7 @@ import { displayPath } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 
-// What the terminal shows for a tool call, drawn from the call's own input, so it costs the model nothing.
+// What the terminal shows for a tool call, drawn from the call's own input, so it costs the model nothing: every call gets a line, as in the terminal, so nothing a turn does goes unseen.
 export function describeToolUse(say: Say, name: string, input: Record<string, unknown>): string | null {
   switch (name) {
     case "Edit":
@@ -15,8 +15,32 @@ export function describeToolUse(say: Say, name: string, input: Record<string, un
       return command(input, "bash");
     case "PowerShell":
       return command(input, "powershell");
-    default:
+    case "Read":
+      return filed(say, "tools.read", input.file_path);
+    case "NotebookEdit":
+      return filed(say, "tools.notebook", input.notebook_path);
+    case "Glob":
+      return searched(say, "tools.find", "tools.findAnywhere", input);
+    case "Grep":
+      return searched(say, "tools.search", "tools.searchAnywhere", input);
+    case "WebFetch":
+      return quoted(input.url, (url) => say("tools.fetch", { url: `<${url}>` }));
+    case "WebSearch":
+      return quoted(input.query, (query) => say("tools.webSearch", { query }));
+    case "ToolSearch":
+      return quoted(input.query, (query) => say("tools.toolSearch", { query }));
+    case "Agent":
+    case "Task":
+      return quoted(input.description, (description) => say("tools.agent", { description }));
+    case "Skill":
+      return quoted(input.skill, (name) => say("tools.skill", { name }));
+    case "TodoWrite":
+      return todos(say, input);
+    // The questions reach the channel as menus of their own.
+    case "AskUserQuestion":
       return null;
+    default:
+      return named(say, name);
   }
 }
 
@@ -46,6 +70,53 @@ function fenced(kind: string, lines: string[]): string {
 // A path is code, so no character in a file name reads as formatting.
 function pathHeading(filePath: string): string {
   return `\`${displayPath(filePath)}\``;
+}
+
+// One line, as the terminal gives a call: what it was and what it was given, cut where a phone stops reading.
+const MAX_LINE_CHARS_SHOWN = 200;
+const MAX_TODOS_SHOWN = 12;
+
+function filed(say: Say, key: "tools.read" | "tools.notebook", value: unknown): string | null {
+  const filePath = text(value);
+  return filePath ? say(key, { path: pathHeading(filePath) }) : null;
+}
+
+function searched(
+  say: Say,
+  within: "tools.find" | "tools.search",
+  anywhere: "tools.findAnywhere" | "tools.searchAnywhere",
+  input: Record<string, unknown>,
+): string | null {
+  const pattern = text(input.pattern);
+  if (!pattern) return null;
+  const where = text(input.path);
+  const shown = `\`${truncate(pattern, MAX_LINE_CHARS_SHOWN).replace(/`/g, "'")}\``;
+  return where ? say(within, { pattern: shown, path: pathHeading(where) }) : say(anywhere, { pattern: shown });
+}
+
+function quoted(value: unknown, sentence: (shown: string) => string): string | null {
+  const given = text(value).replace(/\s+/g, " ").trim();
+  return given ? sentence(truncate(given, MAX_LINE_CHARS_SHOWN)) : null;
+}
+
+function todos(say: Say, input: Record<string, unknown>): string | null {
+  const listed = Array.isArray(input.todos) ? input.todos : [];
+  const items = listed
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({ content: text(item.content), done: item.status === "completed" }))
+    .filter((item) => item.content);
+  if (items.length === 0) return null;
+  const lines = items
+    .slice(0, MAX_TODOS_SHOWN)
+    .map((item) => `- ${item.done ? "[x]" : "[ ]"} ${truncate(item.content, MAX_LINE_CHARS_SHOWN)}`);
+  if (items.length > MAX_TODOS_SHOWN) lines.push(say("trail.moreLines", { count: items.length - MAX_TODOS_SHOWN }));
+  return `${say("tools.todos", { count: items.length })}\n${lines.join("\n")}`;
+}
+
+// A tool from an MCP server is named by the server and the tool; any other is named as it is.
+function named(say: Say, name: string): string {
+  const mcp = /^mcp__([^_]+(?:_[^_]+)*)__(.+)$/.exec(name);
+  return mcp ? say("tools.server", { server: mcp[1]!, tool: mcp[2]! }) : say("tools.other", { name });
 }
 
 function diffLines(before: string, after: string): string[] {
