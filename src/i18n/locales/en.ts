@@ -89,6 +89,13 @@ export const en = {
     answerCompacted: "Compacted.",
     answerStopped: "Stopped.",
     compacting: "Compacting the conversation, which can take a while.",
+    compactingHeading: "**Compacting** {{elapsed}}",
+    compactingSteps_one: "**Compacting** {{elapsed}} · {{count}} step",
+    compactingSteps_other: "**Compacting** {{elapsed}} · {{count}} steps",
+    compactFailed: "Compaction failed: {{error}}. The conversation carries on as it was; `/compact` tries again.",
+    agentDone: "**{{name}}** finished · {{elapsed}}",
+    agentFailed: "**{{name}}** failed · {{elapsed}}",
+    agentStopped: "**{{name}}** stopped · {{elapsed}}",
     compactedAuto:
       "Compacted (auto): {{before, number}} to {{after, number}} tokens, {{dropped, number}} dropped in total, {{seconds}}s.",
     compactedManual:

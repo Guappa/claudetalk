@@ -92,6 +92,14 @@ export const de: Catalog = {
     answerCompacted: "Komprimiert.",
     answerStopped: "Gestoppt.",
     compacting: "Das Gespräch wird komprimiert, was eine Weile dauern kann.",
+    compactingHeading: "**Komprimiert** {{elapsed}}",
+    compactingSteps_one: "**Komprimiert** {{elapsed}} · {{count}} Schritt",
+    compactingSteps_other: "**Komprimiert** {{elapsed}} · {{count}} Schritte",
+    compactFailed:
+      "Die Komprimierung ist fehlgeschlagen: {{error}}. Das Gespräch geht weiter wie bisher; `/compact` versucht es noch einmal.",
+    agentDone: "**{{name}}** fertig · {{elapsed}}",
+    agentFailed: "**{{name}}** fehlgeschlagen · {{elapsed}}",
+    agentStopped: "**{{name}}** gestoppt · {{elapsed}}",
     compactedAuto:
       "Komprimiert (automatisch): {{before, number}} auf {{after, number}} Tokens, {{dropped, number}} insgesamt verworfen, {{seconds}} s.",
     compactedManual:

@@ -55,6 +55,13 @@ export function isCompactionStart(event: ClaudeEvent): boolean {
   return event.type === "system" && event.subtype === "status" && "status" in event && event.status === "compacting";
 }
 
+// The status after a compaction says how it went; the boundary that follows a successful one carries the counts.
+export function compactionEnd(event: ClaudeEvent): { failed: boolean; error: string } | null {
+  if (event.type !== "system" || event.subtype !== "status" || !("compact_result" in event) || !event.compact_result) return null;
+  const error = (event as { compact_error?: unknown }).compact_error;
+  return { failed: event.compact_result === "failed", error: typeof error === "string" ? error : "" };
+}
+
 // A task the previous process left running is reported once, by the next process to resume the session.
 export function isOrphanReport(event: ClaudeEvent): boolean {
   return event.type === "system" && event.subtype === "task_notification" && "status" in event && event.status === "stopped";

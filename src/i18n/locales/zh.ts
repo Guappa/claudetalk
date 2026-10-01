@@ -83,6 +83,13 @@ export const zh: Catalog = {
     answerCompacted: "已压缩。",
     answerStopped: "已停止。",
     compacting: "正在压缩对话，这可能需要一段时间。",
+    compactingHeading: "**压缩中** {{elapsed}}",
+    compactingSteps_one: "**压缩中** {{elapsed}} · {{count}} 步",
+    compactingSteps_other: "**压缩中** {{elapsed}} · {{count}} 步",
+    compactFailed: "压缩失败：{{error}}。对话照旧继续；运行 `/compact` 可再试一次。",
+    agentDone: "**{{name}}** 已完成 · {{elapsed}}",
+    agentFailed: "**{{name}}** 已失败 · {{elapsed}}",
+    agentStopped: "**{{name}}** 已停止 · {{elapsed}}",
     compactedAuto:
       "已压缩（自动）：从 {{before, number}} 到 {{after, number}} 个 token，共丢弃 {{dropped, number}} 个，用时 {{seconds}} 秒。",
     compactedManual:

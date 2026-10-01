@@ -33,7 +33,9 @@ export function tickIntervalMs(elapsedMs: number): number {
 }
 
 // The state a heading shows, at a glance.
-export type Mood = "working" | "done" | "stopped" | "failed";
+export type Mood = "working" | "compacting" | "done" | "stopped" | "failed";
+// What the heading says while the turn runs: at work, or compacting, which the terminal shows in place of its spinner.
+export type LiveMood = "working" | "compacting";
 
 // What became of an answer the trail may already hold: nothing of it was there, its remark was dropped from the live message, or it was already shown whole across sealed messages.
 export type Echo = "none" | "dropped" | "shown";
@@ -41,6 +43,7 @@ export type Echo = "none" | "dropped" | "shown";
 // The one place the trail uses emoji: the state at a glance, heading only, standard Unicode only.
 const EMOJI: Record<Mood, string> = {
   working: "⏳",
+  compacting: "⏳",
   done: "✅",
   stopped: "⏹️",
   failed: "❌",
@@ -48,6 +51,7 @@ const EMOJI: Record<Mood, string> = {
 
 const HEADINGS = {
   working: "trail.working",
+  compacting: "trail.compactingHeading",
   done: "trail.done",
   stopped: "trail.stopped",
   failed: "trail.failed",
@@ -55,6 +59,7 @@ const HEADINGS = {
 
 const HEADINGS_WITH_STEPS = {
   working: "trail.workingSteps",
+  compacting: "trail.compactingSteps",
   done: "trail.doneSteps",
   stopped: "trail.stoppedSteps",
   failed: "trail.failedSteps",
@@ -150,6 +155,7 @@ export class StatusMessage {
   private startedAt = 0;
   private stopped = false;
   private moving = false;
+  private live: LiveMood = "working";
   private readonly say: Say;
   private readonly sink: MessageSink;
   private readonly now: () => number;
@@ -179,7 +185,7 @@ export class StatusMessage {
 
   async start(): Promise<void> {
     this.startedAt = this.now();
-    this.lastSent = this.drawn("working");
+    this.lastSent = this.drawn(this.live);
     // One request: an edit with nothing to edit yet posts the message, controls and all.
     await this.sink.edit(this.lastSent, this.actions());
     this.sink.typing?.();
@@ -190,6 +196,11 @@ export class StatusMessage {
 
   stepped(count: number): void {
     this.steps += count;
+  }
+
+  // Drawn on the next tick, as the terminal swaps its spinner's words; the remarks are untouched.
+  setLive(mood: LiveMood): void {
+    this.live = mood;
   }
 
   // A remark longer than a message is not cut short; it continues across as many as it needs.
@@ -343,7 +354,7 @@ export class StatusMessage {
     this.chain(async () => {
       try {
         await this.sink.edit(await this.finalized(sealedText), []);
-        await this.sink.continueIn!(this.drawn("working"), this.actions());
+        await this.sink.continueIn!(this.drawn(this.live), this.actions());
         await this.onContinue?.();
       } finally {
         this.moving = false;
@@ -366,7 +377,7 @@ export class StatusMessage {
     if (this.stopped) return;
 
     this.rollOverOverflow();
-    const text = this.drawn("working");
+    const text = this.drawn(this.live);
     if (text !== this.lastSent) {
       this.lastSent = text;
       this.chain(() => this.sink.edit(text, this.actions()));

@@ -92,6 +92,13 @@ export const es: Catalog = {
     answerCompacted: "Compactado.",
     answerStopped: "Detenido.",
     compacting: "Compactando la conversación, lo que puede tardar un rato.",
+    compactingHeading: "**Compactando** {{elapsed}}",
+    compactingSteps_one: "**Compactando** {{elapsed}} · {{count}} paso",
+    compactingSteps_other: "**Compactando** {{elapsed}} · {{count}} pasos",
+    compactFailed: "La compactación falló: {{error}}. La conversación sigue como estaba; `/compact` lo intenta de nuevo.",
+    agentDone: "**{{name}}** terminado · {{elapsed}}",
+    agentFailed: "**{{name}}** fallido · {{elapsed}}",
+    agentStopped: "**{{name}}** detenido · {{elapsed}}",
     compactedAuto:
       "Compactado (automático): de {{before, number}} a {{after, number}} tokens, {{dropped, number}} descartados en total, {{seconds}} s.",
     compactedManual:
