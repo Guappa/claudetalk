@@ -39,6 +39,11 @@ describe("detectClaudeError", () => {
     expect(detectClaudeError("Done. The file was written.")).toBeNull();
   });
 
+  it("detects a login refresh lost to another process, keeping Claude Code's own words", () => {
+    const text = "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh.";
+    expect(detectClaudeError(text)).toEqual({ kind: "token-refresh", text });
+  });
+
   it("returns null for output that merely mentions an error", () => {
     expect(detectClaudeError("I fixed the error in your test.")).toBeNull();
   });

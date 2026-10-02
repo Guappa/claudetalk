@@ -1,3 +1,4 @@
+import { setTimeout as wait } from "node:timers/promises";
 import { spawn } from "node:child_process";
 import { query, type Options, type Query } from "@anthropic-ai/claude-agent-sdk";
 import { killTree, turnSpawnOptions } from "../platform.ts";
@@ -31,6 +32,9 @@ export interface TurnRequest {
   approve?: ApproveTool;
   askQuestions?: AskQuestions;
   deny?: (toolName: string, toolInput: Record<string, unknown>) => string | null;
+  // Told when the turn is run a second time after a login refresh lost to another process, so the trail can say so.
+  onRetry?: () => void;
+  retryDelayMs?: number;
 }
 
 interface TurnOutcome {
@@ -190,6 +194,8 @@ function messageUsage(usage: unknown): TokenUsage | undefined {
 }
 
 const RESTART = Symbol("restart");
+// Long enough for the other process to finish refreshing the login; Claude Code's own advice is to retry in a minute.
+const REFRESH_RETRY_MS = 15_000;
 
 async function consumeStream(
   held: HeldPrompt,
@@ -268,7 +274,8 @@ export function foldResult(outcome: TurnOutcome, result: ResultMessage): ClaudeE
     outcome.text = said;
     return null;
   }
-  return result.subtype === "success" ? { kind: "reported", text: said } : resultError(result.subtype, result.errors ?? []);
+  if (result.subtype !== "success") return resultError(result.subtype, result.errors ?? []);
+  return detectClaudeError(said) ?? { kind: "reported", text: said };
 }
 
 function addUsage(earlier: TokenUsage | undefined, later: TokenUsage | undefined): TokenUsage | undefined {
@@ -338,9 +345,14 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
   let attempt = start();
   let stopped = false;
 
-  // A process that met an orphaned task is thrown away before the prompt goes out, and a fresh one gets the turn.
+  // A process that met an orphaned task is thrown away before the prompt goes out, and a fresh one gets the turn; one that lost the login refresh to another process gets a second go after a pause.
   const done = attempt.done.then(async (result) => {
-    if (result !== RESTART) return result;
+    const lostRefresh = result !== RESTART && !result.ok && result.error.kind === "token-refresh";
+    if (result !== RESTART && !lostRefresh) return result;
+    if (lostRefresh) {
+      request.onRetry?.();
+      await wait(request.retryDelayMs ?? REFRESH_RETRY_MS);
+    }
     if (stopped) return { text: "", ok: false, error: { kind: "stopped" } } as TurnResult;
     attempt = start();
     const again = await attempt.done;

@@ -143,6 +143,36 @@ describe("a turn around an Agent SDK session", () => {
     expect(await runTurn(request(), () => undefined).done).toMatchObject({ ok: false, error: { kind: "orphan-twice" } });
   });
 
+  // The token expires on the hour for every process at once; the loser of the refresh is told to retry, and the bridge does it.
+  it("runs the turn once more after a login refresh lost to another process, and gives up on a second loss", async () => {
+    const lost: ClaudeEvent = {
+      type: "result",
+      subtype: "success",
+      is_error: true,
+      result: "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh.",
+      usage: { input_tokens: 1 },
+    } as unknown as ClaudeEvent;
+    let retries = 0;
+    sessions.scripts.push(async function* () {
+      yield lost;
+    }, answers("clean"));
+    const first = await runTurn({ ...request(), retryDelayMs: 5, onRetry: () => void (retries += 1) }, () => undefined).done;
+    expect(first).toMatchObject({ ok: true, text: "clean" });
+    expect(retries).toBe(1);
+    expect(sessions.options).toHaveLength(2);
+
+    sessions.scripts.push(
+      async function* () {
+        yield lost;
+      },
+      async function* () {
+        yield lost;
+      },
+    );
+    const second = await runTurn({ ...request(), retryDelayMs: 5 }, () => undefined).done;
+    expect(second).toMatchObject({ ok: false, error: { kind: "token-refresh" } });
+  });
+
   it("ends as stopped, with no second process, when stopped while the first attempt is still under way", async () => {
     sessions.scripts.push(async function* (signal) {
       // Says nothing until it is aborted; the yield after that is never reached and only makes this a generator.
