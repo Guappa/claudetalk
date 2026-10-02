@@ -91,7 +91,7 @@ export const sv: Catalog = {
     answerCompacted: "Komprimerad.",
     answerStopped: "Stoppad.",
     compacting: "Komprimerar konversationen, vilket kan ta en stund.",
-    retryingRefresh: "En annan Claude Code-process höll på att förnya inloggningen; försöker omgången igen om en stund.",
+    retryingRefresh: "En annan Claude Code-process höll på att förnya inloggningen; försöker omgången igen om en minut.",
     compactingHeading: "**Komprimerar** {{elapsed}}",
     compactingSteps_one: "**Komprimerar** {{elapsed}} · {{count}} steg",
     compactingSteps_other: "**Komprimerar** {{elapsed}} · {{count}} steg",

@@ -93,7 +93,7 @@ export const de: Catalog = {
     answerStopped: "Gestoppt.",
     compacting: "Das Gespräch wird komprimiert, was eine Weile dauern kann.",
     retryingRefresh:
-      "Ein anderer Claude-Code-Prozess hat gerade die Anmeldung erneuert; dieser Durchlauf wird gleich noch einmal versucht.",
+      "Ein anderer Claude-Code-Prozess hat gerade die Anmeldung erneuert; dieser Durchlauf wird in einer Minute noch einmal versucht.",
     compactingHeading: "**Komprimiert** {{elapsed}}",
     compactingSteps_one: "**Komprimiert** {{elapsed}} · {{count}} Schritt",
     compactingSteps_other: "**Komprimiert** {{elapsed}} · {{count}} Schritte",

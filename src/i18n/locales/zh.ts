@@ -83,7 +83,7 @@ export const zh: Catalog = {
     answerCompacted: "已压缩。",
     answerStopped: "已停止。",
     compacting: "正在压缩对话，这可能需要一段时间。",
-    retryingRefresh: "另一个 Claude Code 进程正在刷新登录；稍后将重试本轮。",
+    retryingRefresh: "另一个 Claude Code 进程正在刷新登录；一分钟后将重试本轮。",
     compactingHeading: "**压缩中** {{elapsed}}",
     compactingSteps_one: "**压缩中** {{elapsed}} · {{count}} 步",
     compactingSteps_other: "**压缩中** {{elapsed}} · {{count}} 步",

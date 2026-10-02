@@ -89,7 +89,7 @@ export const en = {
     answerCompacted: "Compacted.",
     answerStopped: "Stopped.",
     compacting: "Compacting the conversation, which can take a while.",
-    retryingRefresh: "Another Claude Code process was refreshing the login; trying this turn again in a moment.",
+    retryingRefresh: "Another Claude Code process was refreshing the login; trying this turn again in a minute.",
     compactingHeading: "**Compacting** {{elapsed}}",
     compactingSteps_one: "**Compacting** {{elapsed}} · {{count}} step",
     compactingSteps_other: "**Compacting** {{elapsed}} · {{count}} steps",
