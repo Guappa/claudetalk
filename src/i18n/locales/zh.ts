@@ -83,6 +83,7 @@ export const zh: Catalog = {
     answerCompacted: "已压缩。",
     answerStopped: "已停止。",
     compacting: "正在压缩对话，这可能需要一段时间。",
+    retryingRefresh: "另一个 Claude Code 进程正在刷新登录；稍后将重试本轮。",
     compactingHeading: "**压缩中** {{elapsed}}",
     compactingSteps_one: "**压缩中** {{elapsed}} · {{count}} 步",
     compactingSteps_other: "**压缩中** {{elapsed}} · {{count}} 步",
@@ -131,6 +132,8 @@ export const zh: Catalog = {
       stopped: "本轮已停止。",
       orphanTwice:
         "Claude Code 连续两次报告了上一轮遗留的后台命令，而一个以报告此类命令开始的会话会拒绝所有工具调用。请再发一次消息；通常下一次就正常了。",
+      refreshTwice:
+        "Claude Code 连续两次无法刷新登录：它的另一个进程正持有刷新，或在刷新中途退出了。一分钟后再试；如果持续发生，请关闭主机上的其他 Claude Code 进程，或在那里重新登录。",
       ended: "本轮以 {{subtype}} 结束。试着再发一次你的消息。",
       unexplained: "Claude Code 以错误结束了本轮，且没有给出原因。试着再发一次你的消息。",
       endedSaying: "本轮以 {{subtype}} 结束。\n{{text}} 试着再发一次你的消息。",

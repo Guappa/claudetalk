@@ -92,6 +92,7 @@ export const es: Catalog = {
     answerCompacted: "Compactado.",
     answerStopped: "Detenido.",
     compacting: "Compactando la conversación, lo que puede tardar un rato.",
+    retryingRefresh: "Otro proceso de Claude Code estaba renovando el inicio de sesión; este turno se reintenta en un momento.",
     compactingHeading: "**Compactando** {{elapsed}}",
     compactingSteps_one: "**Compactando** {{elapsed}} · {{count}} paso",
     compactingSteps_other: "**Compactando** {{elapsed}} · {{count}} pasos",
@@ -143,6 +144,8 @@ export const es: Catalog = {
       stopped: "El turno se detuvo.",
       orphanTwice:
         "Claude Code informó dos veces seguidas de un comando en segundo plano que quedó de un turno anterior, y una sesión que empieza informando de uno rechaza todas las llamadas a herramientas. Envía el mensaje otra vez; normalmente se resuelve al siguiente intento.",
+      refreshTwice:
+        "Claude Code no pudo renovar el inicio de sesión dos veces seguidas: otro de sus procesos tenía la renovación, o murió con ella. Inténtalo de nuevo en un minuto; si sigue pasando, cierra otros procesos de Claude Code en el host o vuelve a iniciar sesión allí.",
       ended: "El turno terminó como {{subtype}}. Prueba a enviar tu mensaje otra vez.",
       unexplained: "Claude Code terminó el turno con un error y no dio ningún motivo. Prueba a enviar tu mensaje otra vez.",
       endedSaying: "El turno terminó como {{subtype}}.\n{{text}} Prueba a enviar tu mensaje otra vez.",

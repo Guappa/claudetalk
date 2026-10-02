@@ -185,6 +185,8 @@ function failureDetail(say: Say, error: Exclude<ClaudeError, { kind: "session-bu
       return say("turn.errors.couldNotRun", { error: error.message });
     case "reported":
       return error.text || say("turn.errors.unexplained");
+    case "token-refresh":
+      return say("turn.errors.refreshTwice");
   }
 }
 
@@ -637,6 +639,7 @@ export class TurnFlow {
         fork: options.fork,
         approve: this.approvalGate(say, sessionId, sink, stillRunning, options.onState),
         deny: this.denialGate(cwd),
+        onRetry: () => status.note(say("trail.retryingRefresh")),
         askQuestions: (questions) =>
           whileWaiting(options.onState, stillRunning, () => this.questions.ask(say, sessionId, sink, questions)),
       },

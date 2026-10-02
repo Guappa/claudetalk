@@ -91,6 +91,7 @@ export const sv: Catalog = {
     answerCompacted: "Komprimerad.",
     answerStopped: "Stoppad.",
     compacting: "Komprimerar konversationen, vilket kan ta en stund.",
+    retryingRefresh: "En annan Claude Code-process höll på att förnya inloggningen; försöker omgången igen om en stund.",
     compactingHeading: "**Komprimerar** {{elapsed}}",
     compactingSteps_one: "**Komprimerar** {{elapsed}} · {{count}} steg",
     compactingSteps_other: "**Komprimerar** {{elapsed}} · {{count}} steg",
@@ -142,6 +143,8 @@ export const sv: Catalog = {
       stopped: "Omgången stoppades.",
       orphanTwice:
         "Claude Code rapporterade ett bakgrundskommando som blivit kvar från en tidigare omgång två gånger i rad, och en session som börjar med att rapportera ett sådant nekar varje verktygsanrop. Skicka meddelandet igen; det brukar gå över vid nästa försök.",
+      refreshTwice:
+        "Claude Code kunde inte förnya inloggningen två gånger i rad: en annan av dess processer höll förnyelsen, eller dog med den. Försök igen om en minut; om det fortsätter, stäng andra Claude Code-processer på värden eller logga in igen där.",
       ended: "Omgången slutade som {{subtype}}. Försök skicka ditt meddelande igen.",
       unexplained: "Claude Code avslutade omgången med ett fel utan att ange någon orsak. Försök skicka ditt meddelande igen.",
       endedSaying: "Omgången slutade som {{subtype}}.\n{{text}} Försök skicka ditt meddelande igen.",

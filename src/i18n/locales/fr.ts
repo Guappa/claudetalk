@@ -92,6 +92,7 @@ export const fr: Catalog = {
     answerCompacted: "Compacté.",
     answerStopped: "Arrêté.",
     compacting: "Compactage de la conversation, ce qui peut prendre un moment.",
+    retryingRefresh: "Un autre processus Claude Code renouvelait la connexion ; ce tour est retenté dans un instant.",
     compactingHeading: "**Compactage** {{elapsed}}",
     compactingSteps_one: "**Compactage** {{elapsed}} · {{count}} étape",
     compactingSteps_other: "**Compactage** {{elapsed}} · {{count}} étapes",
@@ -143,6 +144,8 @@ export const fr: Catalog = {
       stopped: "Le tour a été arrêté.",
       orphanTwice:
         "Claude Code a signalé deux fois de suite une commande en arrière-plan restée d'un tour précédent, et une session qui commence par en signaler une refuse tout appel d'outil. Renvoie le message ; en général ça passe à l'essai suivant.",
+      refreshTwice:
+        "Claude Code n'a pas pu renouveler la connexion deux fois de suite : un autre de ses processus tenait le renouvellement, ou est mort avec. Réessaie dans une minute ; si ça continue, ferme les autres processus Claude Code sur l'hôte ou reconnecte-toi là-bas.",
       ended: "Le tour s'est terminé en {{subtype}}. Essaie de renvoyer ton message.",
       unexplained: "Claude Code a terminé le tour sur une erreur sans en donner la raison. Essaie de renvoyer ton message.",
       endedSaying: "Le tour s'est terminé en {{subtype}}.\n{{text}} Essaie de renvoyer ton message.",

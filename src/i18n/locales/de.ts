@@ -92,6 +92,8 @@ export const de: Catalog = {
     answerCompacted: "Komprimiert.",
     answerStopped: "Gestoppt.",
     compacting: "Das Gespräch wird komprimiert, was eine Weile dauern kann.",
+    retryingRefresh:
+      "Ein anderer Claude-Code-Prozess hat gerade die Anmeldung erneuert; dieser Durchlauf wird gleich noch einmal versucht.",
     compactingHeading: "**Komprimiert** {{elapsed}}",
     compactingSteps_one: "**Komprimiert** {{elapsed}} · {{count}} Schritt",
     compactingSteps_other: "**Komprimiert** {{elapsed}} · {{count}} Schritte",
@@ -144,6 +146,8 @@ export const de: Catalog = {
       stopped: "Der Durchlauf wurde gestoppt.",
       orphanTwice:
         "Claude Code hat zweimal hintereinander einen Hintergrundbefehl aus einem früheren Durchlauf gemeldet, und eine Sitzung, die mit so einer Meldung beginnt, verweigert jeden Werkzeugaufruf. Schick die Nachricht noch einmal; beim nächsten Versuch ist es normalerweise vorbei.",
+      refreshTwice:
+        "Claude Code konnte die Anmeldung zweimal hintereinander nicht erneuern: ein anderer seiner Prozesse hielt die Erneuerung, oder ist damit abgestürzt. Versuch es in einer Minute noch einmal; wenn es so bleibt, schließ andere Claude-Code-Prozesse auf dem Host oder meld dich dort neu an.",
       ended: "Der Durchlauf endete als {{subtype}}. Versuch, deine Nachricht noch einmal zu schicken.",
       unexplained:
         "Claude Code hat den Durchlauf mit einem Fehler beendet und keinen Grund genannt. Versuch, deine Nachricht noch einmal zu schicken.",

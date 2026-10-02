@@ -89,6 +89,7 @@ export const en = {
     answerCompacted: "Compacted.",
     answerStopped: "Stopped.",
     compacting: "Compacting the conversation, which can take a while.",
+    retryingRefresh: "Another Claude Code process was refreshing the login; trying this turn again in a moment.",
     compactingHeading: "**Compacting** {{elapsed}}",
     compactingSteps_one: "**Compacting** {{elapsed}} · {{count}} step",
     compactingSteps_other: "**Compacting** {{elapsed}} · {{count}} steps",
@@ -140,6 +141,8 @@ export const en = {
       stopped: "The turn was stopped.",
       orphanTwice:
         "Claude Code reported a background command left over from an earlier turn twice in a row, and a session that starts by reporting one refuses every tool call. Send the message again; it normally clears on the next try.",
+      refreshTwice:
+        "Claude Code could not refresh the login twice in a row: another of its processes held the refresh, or died holding it. Try again in a minute; if it keeps happening, close other Claude Code processes on the host or sign in again there.",
       ended: "The turn ended as {{subtype}}. Try sending your message again.",
       unexplained: "Claude Code ended the turn with an error and gave no reason. Try sending your message again.",
       endedSaying: "The turn ended as {{subtype}}.\n{{text}} Try sending your message again.",
