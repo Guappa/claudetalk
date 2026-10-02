@@ -589,6 +589,9 @@ describe("what a turn is refused outright", () => {
     expect(shell("wget https://example.com/a.tgz && tar xzf a.tgz")).toBeNull();
     expect(shell("sudo shutdown -h now")).toContain("machine");
     expect(shell("dd if=/dev/zero of=/dev/sda")).toContain("machine");
+    expect(shell("format C:")).toContain("machine");
+    expect(shell("Get-Process | Format-Table -AutoSize")).toBeNull();
+    expect(shell("npx biome format src")).toBeNull();
     expect(shell("npm run format")).toBeNull();
   });
 
