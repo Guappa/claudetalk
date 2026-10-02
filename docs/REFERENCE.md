@@ -493,10 +493,9 @@ conversation the heading reads **Compacting** with the same clock, as the
 terminal swaps its spinner's words, and goes back to **Working** after; the
 counts arrive as a notice, and a compaction that fails says so with the reason.
 When Claude Code could not refresh the login because another of its processes
-held the refresh, as happens when a terminal session and a turn hit the hour
-the token expires together, the bridge says so in the trail, waits fifteen
-seconds and runs the turn once more; a second failure is reported as the
-turn's outcome.
+held the refresh, or died holding it, the bridge says so in the trail, waits
+the minute Claude Code itself advises and runs the turn once more; a second
+failure is reported as the turn's outcome.
 
 When the turn ends the heading changes to **Worked**, the trail stays, and the
 answer arrives as its own message beneath it, not repeated in the trail. A turn

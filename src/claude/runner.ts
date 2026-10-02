@@ -194,8 +194,8 @@ function messageUsage(usage: unknown): TokenUsage | undefined {
 }
 
 const RESTART = Symbol("restart");
-// Long enough for the other process to finish refreshing the login; Claude Code's own advice is to retry in a minute.
-const REFRESH_RETRY_MS = 15_000;
+// What Claude Code itself advises on this error: retry in a minute. A lock left by a process that died takes about that long to count as stale.
+const REFRESH_RETRY_MS = 60_000;
 
 async function consumeStream(
   held: HeldPrompt,

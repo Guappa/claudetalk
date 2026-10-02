@@ -92,7 +92,7 @@ export const fr: Catalog = {
     answerCompacted: "Compacté.",
     answerStopped: "Arrêté.",
     compacting: "Compactage de la conversation, ce qui peut prendre un moment.",
-    retryingRefresh: "Un autre processus Claude Code renouvelait la connexion ; ce tour est retenté dans un instant.",
+    retryingRefresh: "Un autre processus Claude Code renouvelait la connexion ; ce tour est retenté dans une minute.",
     compactingHeading: "**Compactage** {{elapsed}}",
     compactingSteps_one: "**Compactage** {{elapsed}} · {{count}} étape",
     compactingSteps_other: "**Compactage** {{elapsed}} · {{count}} étapes",
