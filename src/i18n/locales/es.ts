@@ -335,7 +335,9 @@ export const es: Catalog = {
   },
   takeover: {
     closedTerminal:
-      "Se cerró Claude Code en la terminal del host (pid {{pid}}). Esta conversación ya está libre: envía tu mensaje. Para abrirla allí otra vez, ejecuta `claude --resume {{sessionId}}` en el host.",
+      "Se cerró Claude Code en la terminal del host (pid {{pid}}). Para abrir la conversación allí otra vez, ejecuta `claude --resume {{sessionId}}` en el host.",
+    free: "Esta conversación ya está libre: envía tu mensaje.",
+    heldRuns: "Tu mensaje de antes se ejecuta ahora.",
     notClosed:
       "Claude Code en la terminal del host (pid {{pid}}) no se cerró en unos segundos, así que no se tomó el control de nada. Cierra esa terminal en el host y vuelve a intentarlo.",
     running: "Ahora mismo hay un turno en marcha aquí. Usa `/stop` para terminarlo.",

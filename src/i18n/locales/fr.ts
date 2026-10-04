@@ -336,7 +336,9 @@ export const fr: Catalog = {
   },
   takeover: {
     closedTerminal:
-      "Claude Code a été fermé dans le terminal sur l'hôte (pid {{pid}}). Cette conversation est libre maintenant : envoie ton message. Pour la rouvrir là-bas, lance `claude --resume {{sessionId}}` sur l'hôte.",
+      "Claude Code a été fermé dans le terminal sur l'hôte (pid {{pid}}). Pour y rouvrir la conversation, lance `claude --resume {{sessionId}}` sur l'hôte.",
+    free: "Cette conversation est libre maintenant : envoie ton message.",
+    heldRuns: "Ton message d'avant s'exécute maintenant.",
     notClosed:
       "Claude Code dans le terminal sur l'hôte (pid {{pid}}) ne s'est pas fermé en quelques secondes, donc rien n'a été repris. Ferme ce terminal sur l'hôte, puis réessaie.",
     running: "Un tour est en cours ici en ce moment. Utilise `/stop` pour le finir.",
