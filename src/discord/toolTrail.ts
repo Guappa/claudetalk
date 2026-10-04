@@ -28,7 +28,7 @@ export function describeToolUse(say: Say, name: string, input: Record<string, un
     case "WebSearch":
       return quoted(input.query, (query) => say("tools.webSearch", { query }));
     case "ToolSearch":
-      return quoted(input.query, (query) => say("tools.toolSearch", { query }));
+      return quoted(input.query, (query) => say("tools.toolSearch", { query: asCode(query) }));
     case "Agent":
     case "Task":
       return quoted(input.description, (description) => say("tools.agent", { description }));
@@ -72,6 +72,11 @@ function pathHeading(filePath: string): string {
   return `\`${displayPath(filePath)}\``;
 }
 
+// A pattern or a list of tool names is not prose: as code, its underscores and stars stay characters, and a backtick of its own cannot end the span early.
+function asCode(value: string): string {
+  return `\`${value.replace(/`/g, "'")}\``;
+}
+
 // One line, as the terminal gives a call: what it was and what it was given, cut where a phone stops reading.
 const MAX_LINE_CHARS_SHOWN = 200;
 const MAX_TODOS_SHOWN = 12;
@@ -90,7 +95,7 @@ function searched(
   const pattern = text(input.pattern);
   if (!pattern) return null;
   const where = text(input.path);
-  const shown = `\`${truncate(pattern, MAX_LINE_CHARS_SHOWN).replace(/`/g, "'")}\``;
+  const shown = asCode(truncate(pattern, MAX_LINE_CHARS_SHOWN));
   return where ? say(within, { pattern: shown, path: pathHeading(where) }) : say(anywhere, { pattern: shown });
 }
 
