@@ -437,6 +437,7 @@ export const sv: Catalog = {
     model: "Modell",
     effort: "Effort",
     version: "brygga v{{version}}",
+    newerVersion: "v{{version}} har släppts",
     claude: "Claude Code {{bundled}}",
     claudeDiffers: "Claude Code {{bundled}} för omgångar, {{host}} på värden",
   },

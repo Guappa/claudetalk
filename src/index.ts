@@ -23,6 +23,7 @@ console.log(
   `Language: ${bridge.language.current()} (${bridge.language.wasPicked() ? "picked with /language" : "host default"}).`,
 );
 console.log(describeClaudeVersions(bridge.claude));
+bridge.updates.watch();
 await sweepAttachments();
 
 const client = new Client({

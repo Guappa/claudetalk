@@ -434,6 +434,7 @@ export const en = {
     model: "Model",
     effort: "Effort",
     version: "bridge v{{version}}",
+    newerVersion: "v{{version}} is out",
     claude: "Claude Code {{bundled}}",
     claudeDiffers: "Claude Code {{bundled}} for turns, {{host}} on the host",
   },

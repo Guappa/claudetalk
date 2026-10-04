@@ -1,9 +1,13 @@
 {
   "name": "claudetalk",
-  "version": "0.25.1",
+  "version": "0.26.0",
   "description": "Reach Claude Code sessions on your own machine from Discord, on any device",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Guappa/claudetalk.git"
+  },
   "engines": {
     "node": ">=22.12"
   },

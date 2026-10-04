@@ -1,11 +1,24 @@
 import { readFileSync } from "node:fs";
 
+interface Manifest {
+  version?: string;
+  repository?: { url?: string };
+}
+
 // Read rather than imported, so it is the same value whether running from src or dist.
-export function bridgeVersion(): string {
+function manifest(): Manifest {
   try {
-    const manifest = readFileSync(new URL("../package.json", import.meta.url), "utf8");
-    return (JSON.parse(manifest) as { version?: string }).version ?? "unknown";
+    return JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as Manifest;
   } catch {
-    return "unknown";
+    return {};
   }
+}
+
+export function bridgeVersion(): string {
+  return manifest().version ?? "unknown";
+}
+
+// Where this copy's versions are tagged, which for a fork is the fork.
+export function bridgeRepository(): string | undefined {
+  return manifest().repository?.url;
 }

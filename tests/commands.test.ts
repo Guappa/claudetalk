@@ -37,6 +37,7 @@ import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/pur
 import { CHANNELS_PER_CATEGORY, describeCategoryFull, findCategory, normaliseCategoryName } from "../src/discord/category.ts";
 import { forkName } from "../src/discord/commands/fork.ts";
 import { sayIn } from "../src/i18n/index.ts";
+import { versionsFooter } from "../src/discord/commands/settings.ts";
 import { TurnQueue, describeDepth, describeFull, describeQueued, MAX_QUEUE_DEPTH } from "../src/discord/turnQueue.ts";
 
 const say = sayIn("en");
@@ -771,5 +772,13 @@ describe("clear asks before starting over", () => {
     expect(text).toContain("none of what was said in this one");
     expect(text).toContain("/resume");
     expect(text).toContain("/purge");
+  });
+});
+
+describe("the versions under /whoami", () => {
+  it("names a newer bridge beside the running one, and only once one has been tagged", () => {
+    const versions = { bundled: "2.1.9", host: "2.1.9" };
+    expect(versionsFooter(say, versions, null)).toMatch(/^bridge v\S+ · Claude Code 2\.1\.9$/);
+    expect(versionsFooter(say, versions, "9.9.9")).toMatch(/^bridge v\S+ · v9\.9\.9 is out · Claude Code 2\.1\.9$/);
   });
 });

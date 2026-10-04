@@ -13,6 +13,7 @@ import {
   turnSpawnOptions,
 } from "../src/platform.ts";
 import { bindingsPathFrom, loadConfig } from "../src/config.ts";
+import { UpdateCheck, githubSlug, isNewer, newestVersion } from "../src/updateCheck.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { execFile, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -76,6 +77,12 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...valid, PING_AFTER_SECONDS: "0" }).pingAfterMs).toBe(0);
     expect(loadConfig({ ...valid, PING_AFTER_SECONDS: " 45 " }).pingAfterMs).toBe(45_000);
     expect(() => loadConfig({ ...valid, PING_AFTER_SECONDS: "2m" })).toThrow(/PING_AFTER_SECONDS is "2m"/);
+  });
+
+  it("checks for a newer version unless UPDATE_CHECK says not to, and refuses what is neither true nor false", () => {
+    expect(loadConfig(valid).updateCheck).toBe(true);
+    expect(loadConfig({ ...valid, UPDATE_CHECK: "false" }).updateCheck).toBe(false);
+    expect(() => loadConfig({ ...valid, UPDATE_CHECK: "no" })).toThrow(/UPDATE_CHECK is "no"/);
   });
 
   it("takes the denial rules from TOOL_DENIALS, and names them all when one is wrong", () => {
@@ -369,5 +376,95 @@ describe("isWithin", () => {
   it("follows the platform's idea of case", () => {
     if (process.platform === "linux") return;
     expect(isWithin("/P", "/p/thing")).toBe(true);
+  });
+});
+
+describe("the check for a newer version", () => {
+  it("finds the repository in the address package.json gives, and none in an address that is not GitHub's", () => {
+    expect(githubSlug("git+https://github.com/someone/some-bridge.git")).toBe("someone/some-bridge");
+    expect(githubSlug("git@github.com:someone/some.bridge.git")).toBe("someone/some.bridge");
+    expect(githubSlug("https://github.com/someone/some-bridge")).toBe("someone/some-bridge");
+    expect(githubSlug("https://example.org/someone/some-bridge.git")).toBeNull();
+    expect(githubSlug(undefined)).toBeNull();
+  });
+
+  it("compares versions number by number, and never ranks what is not a version", () => {
+    expect(isNewer("0.10.0", "0.9.9")).toBe(true);
+    expect(isNewer("1.0.0", "0.99.99")).toBe(true);
+    expect(isNewer("0.9.9", "0.10.0")).toBe(false);
+    expect(isNewer("0.9.0", "0.9.0")).toBe(false);
+    expect(isNewer("1.0.0-rc.1", "0.9.0")).toBe(false);
+    expect(isNewer("1.0.0", "unknown")).toBe(false);
+  });
+
+  it("picks the newest version among tags in any order, leaving out tags that are not versions", () => {
+    expect(newestVersion(["v0.9.0", "nightly", "v0.10.1", "v0.10.0", "v1.0.0-rc.1"])).toBe("0.10.1");
+    expect(newestVersion(["nightly"])).toBeNull();
+    expect(newestVersion([])).toBeNull();
+  });
+
+  it("names a newer version, and none while the running one is the newest tagged or ahead of the tags", async () => {
+    const behind = new UpdateCheck("0.9.0", "someone/some-bridge", async () => ["v0.9.0", "v0.10.0"]);
+    await behind.refresh();
+    expect(behind.newer()).toBe("0.10.0");
+
+    for (const current of ["0.10.0", "0.11.0"]) {
+      const upToDate = new UpdateCheck(current, "someone/some-bridge", async () => ["v0.9.0", "v0.10.0"]);
+      await upToDate.refresh();
+      expect(upToDate.newer(), current).toBeNull();
+    }
+  });
+
+  // Being offline is no reason to stop, or to forget a version already heard of.
+  it("keeps what it knew and carries on when the check does not get through", async () => {
+    const answers: Array<() => Promise<string[]>> = [
+      async () => ["v0.10.0"],
+      async () => {
+        throw new Error("offline");
+      },
+    ];
+    const check = new UpdateCheck("0.9.0", "someone/some-bridge", () => answers.shift()!());
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await check.refresh();
+      await check.refresh();
+      expect(check.newer()).toBe("0.10.0");
+      expect(logged.mock.calls[0]![0]).toContain("offline");
+      expect(logged.mock.calls[0]![0]).toContain("UPDATE_CHECK=false");
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("asks nothing when it has no repository to ask, which is how it is switched off", async () => {
+    let asked = 0;
+    const off = new UpdateCheck("0.9.0", null, async () => {
+      asked += 1;
+      return ["v9.9.9"];
+    });
+    await off.refresh();
+    expect(asked).toBe(0);
+    expect(off.newer()).toBeNull();
+  });
+
+  it("says in the host log of each newer version once, with where to read what changed, however often it is seen again", async () => {
+    vi.useFakeTimers();
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    try {
+      const tags = ["v0.10.0"];
+      new UpdateCheck("0.9.0", "someone/some-bridge", async () => [...tags]).watch();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(logged.mock.calls[0]![0]).toContain("https://github.com/someone/some-bridge/compare/v0.9.0...v0.10.0");
+
+      tags.push("v0.11.0");
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
+      expect(logged).toHaveBeenCalledTimes(2);
+      expect(logged.mock.calls[1]![0]).toContain("v0.11.0 is out");
+    } finally {
+      logged.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
