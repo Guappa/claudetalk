@@ -19,6 +19,7 @@ import {
 import { classifyTyped, describeNotRun, isNotRun } from "../commands/typed.ts";
 import { channelSink } from "../sink.ts";
 import { sendNotice } from "../notice.ts";
+import { tellOwnerOfUpdate } from "../updateNotice.ts";
 import { runConversationTurn } from "../turn.ts";
 import { reactionMarker } from "../reactions.ts";
 import { isFromGuild } from "../gate.ts";
@@ -256,6 +257,8 @@ export async function handleMessage(bridge: Bridge, message: Message): Promise<v
 
   const target = await targetFor(bridge, message, channel, existing);
   if (!target) return;
+  // Only an owner can update the bridge, so only an owner is told there is something to update to.
+  if (tier === "owner") await tellOwnerOfUpdate(bridge, channel);
   // The channel reads in order, as the terminal does: a trail above this message moves below it, and the answer lands beneath it, never in a message above.
   bridge.latestPosts.set(message.channelId, message.id);
   const plain = classification.kind === "turn";

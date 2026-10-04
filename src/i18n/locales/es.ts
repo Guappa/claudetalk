@@ -184,6 +184,13 @@ export const es: Catalog = {
     afterTurns_other: "Se reiniciará cuando terminen los {{count}} turnos en marcha. El puente lo dirá aquí cuando haya vuelto.",
     back: "El puente ha vuelto tras su reinicio, en la v{{version}}.",
   },
+  update: {
+    out_one: "Ha salido la **v{{version}}** del puente, una versión por delante de la v{{current}} que funciona aquí.",
+    out_other: "Ha salido la **v{{version}}** del puente, {{count}} versiones por delante de la v{{current}} que funciona aquí.",
+    more_one: "... y {{count}} cambio más",
+    more_other: "... y {{count}} cambios más",
+    how: "Todo lo que hay entre ambas: <{{url}}>. Para actualizar, descarga el código nuevo en el host y reinicia el puente, o descarga la imagen nueva. Esto se dice una vez por versión, y como mucho una vez por semana.",
+  },
   stop: {
     button: "Detener",
     allButton: "Detener todo",
