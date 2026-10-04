@@ -9,6 +9,7 @@ on:
     paths:
       - Dockerfile
       - .dockerignore
+      - compose.yaml
       - .github/workflows/image.yml
   workflow_dispatch:
     inputs:
@@ -49,6 +50,15 @@ jobs:
           output="$(docker run --rm claudetalk:smoke 2>&1)" && { echo "started without a token"; exit 1; }
           echo "$output" | grep -q "DISCORD_BOT_TOKEN is not set" || { echo "$output"; exit 1; }
           docker run --rm claudetalk:smoke claude --version
+      # Run as a newcomer runs it, over the image just built: an untouched .env.example has to reach the same refusal.
+      - name: boot it through the compose file
+        run: |
+          set -uo pipefail
+          cp .env.example .env
+          echo "PROJECTS_DIR=$RUNNER_TEMP" >> .env
+          docker tag claudetalk:smoke ghcr.io/guappa/claudetalk:latest
+          output="$(docker compose run --rm claudetalk 2>&1)" && { echo "started without a token"; exit 1; }
+          echo "$output" | grep -q "DISCORD_BOT_TOKEN is not set" || { echo "$output"; exit 1; }
 
       - name: publish
         if: github.event_name != 'pull_request'

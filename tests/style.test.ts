@@ -199,6 +199,7 @@ describe("docs follow code", () => {
       "CONTRIBUTING.md",
       "SECURITY.md",
       ".env.example",
+      "compose.yaml",
       ".github/ISSUE_TEMPLATE/bug_report.yml",
       ".github/ISSUE_TEMPLATE/config.yml",
       ".github/pull_request_template.md",

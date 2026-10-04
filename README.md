@@ -237,6 +237,20 @@ own. Any other setting from the table above is passed with `-e`. Logs are
 give it the same ceiling the services get; Docker's default grace is ten
 seconds and would kill a turn mid-flight.
 
+With Compose, [`compose.yaml`](compose.yaml) is the same thing written down.
+Put it in a folder beside a `.env` made from `.env.example`, add a line
+`PROJECTS_DIR=` naming the folder your projects live in, and:
+
+```bash
+docker compose up -d
+docker compose exec claudetalk claude auth login
+```
+
+It runs as uid 1000; if `id -u` says otherwise, add `CLAUDETALK_UID=` with that
+number to the same `.env`. `PROJECTS_ROOT` in that file is not used: inside the
+container the projects are always at `/projects`. `docker compose down` drains
+the same way, with the thirty minutes already set.
+
 What is different inside a container, said plainly:
 
 - The conversations are a fresh set. Nothing from a terminal on the host is

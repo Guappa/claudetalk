@@ -1,0 +1,26 @@
+# The bridge as a container. Beside this file, a .env made from .env.example
+# holds the settings, plus PROJECTS_DIR for the folder to mount. Then:
+#   docker compose up -d
+#   docker compose exec claudetalk claude auth login
+services:
+  claudetalk:
+    image: ghcr.io/guappa/claudetalk:latest
+    container_name: claudetalk
+    restart: unless-stopped
+    # A stop drains the turns in flight first; Docker's default ten seconds would kill one halfway.
+    stop_grace_period: 30m
+    # Your own uid, so what Claude writes into your projects is yours; group 0 is what lets any uid write the image's own folders.
+    user: "${CLAUDETALK_UID:-1000}:0"
+    env_file: .env
+    environment:
+      # The mount below, whatever host path .env gives PROJECTS_ROOT.
+      PROJECTS_ROOT: /projects
+    volumes:
+      - claudetalk-data:/app/data
+      - claudetalk-claude:/home/node/.claude
+      # Required rather than defaulted: a folder Docker makes for a missing path belongs to root, and no turn could write to it.
+      - ${PROJECTS_DIR:?set PROJECTS_DIR in .env to the folder your projects live in}:/projects
+
+volumes:
+  claudetalk-data:
+  claudetalk-claude:

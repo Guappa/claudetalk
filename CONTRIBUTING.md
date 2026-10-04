@@ -363,8 +363,9 @@ so there is one way the bridge runs everywhere; what differs is outside the
 code: the `claude` on the image's PATH is a link to the build the
 Agent SDK ships, so listings and turns run one Claude Code, and the folders the
 bridge writes belong to the root group so `--user` with any uid can still write
-them. A change to the `Dockerfile` or `.dockerignore` is proved on the pull
-request by `image.yml`, which builds the image and boots it without a token;
+them. A change to the `Dockerfile`, `.dockerignore` or `compose.yaml` is proved
+on the pull request by `image.yml`, which builds the image and boots it without
+a token, directly and through the compose file over an untouched `.env.example`;
 a tag publishes it to `ghcr.io` for amd64 and arm64. hadolint lints the
 `Dockerfile` in CI, with `.hadolint.yaml` naming what it ignores and why.
 
