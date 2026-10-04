@@ -392,13 +392,15 @@ it is not part of, or as a reply to another person, gets no answer.
 
 A conversation can only be driven by one process at a time. With nothing holding
 it, a turn runs. Held by a background agent, the bridge refuses and offers
-`/takeover`, which stops the agent and continues.
+`/takeover`, which stops the agent and runs the message that was refused.
 
 Held by an open terminal, it refuses naming the pid and directory, and what
 it offers depends on what the terminal is doing, which Claude Code reports for
 each open session. One where nothing is running can be taken over: `/takeover`
-ends Claude Code there, the conversation is free, and your next message runs.
-The terminal is left showing that Claude Code has exited, and
+ends Claude Code there, and the message that was refused runs at once, with no
+need to send it again; it is kept for ten minutes, and it is the last one
+refused in that channel. With none kept, the conversation is free and your next
+message runs. The terminal is left showing that Claude Code has exited, and
 `claude --resume <id>` reopens the conversation in it, Discord's turns
 included; the reply to `/takeover` gives the command. One where a turn is
 running is left alone, since closing it would cut that turn short: let it

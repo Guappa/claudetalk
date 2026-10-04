@@ -331,7 +331,9 @@ export const en = {
   },
   takeover: {
     closedTerminal:
-      "Closed Claude Code in the terminal on the host (pid {{pid}}). This conversation is free now: send your message. To open it there again, run `claude --resume {{sessionId}}` on the host.",
+      "Closed Claude Code in the terminal on the host (pid {{pid}}). To open the conversation there again, run `claude --resume {{sessionId}}` on the host.",
+    free: "This conversation is free now: send your message.",
+    heldRuns: "Your message from before runs now.",
     notClosed:
       "Claude Code in the terminal on the host (pid {{pid}}) did not close within a few seconds, so nothing was taken over. Close that terminal on the host, then try again.",
     running: "A turn is running here right now. Use `/stop` to end it.",

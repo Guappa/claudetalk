@@ -43,6 +43,8 @@ export interface Bridge {
   sessions: SessionIndex;
   pendingCreates: PendingCreates;
   pendingRuns: Pending<PendingRun>;
+  // By channel: the last message refused because something held the conversation, kept so that `/takeover` can run it.
+  heldMessages: Pending<() => Promise<void>>;
   // Read once at start-up: the Claude Code turns run on, and the one the host's side jobs run on.
   claude: ClaudeVersions;
   updates: UpdateCheck;
@@ -129,5 +131,6 @@ export async function createBridge(config: Config, supervised: boolean): Promise
     sessions: new SessionIndex(),
     pendingCreates: new PendingCreates(),
     pendingRuns: new Pending<PendingRun>(),
+    heldMessages: new Pending<() => Promise<void>>(),
   };
 }

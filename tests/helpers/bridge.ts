@@ -103,5 +103,6 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     sessions,
     pendingCreates: new PendingCreates(),
     pendingRuns: new Pending(),
+    heldMessages: new Pending(),
   };
 }
