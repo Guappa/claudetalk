@@ -184,8 +184,10 @@ export const es: Catalog = {
     checkTimedOut:
       "No se reinició: comprobar que el código del host arrancaría llevó más de un minuto y se abandonó. El puente sigue funcionando como está; el registro del host puede decir a qué esperaba.",
     now: "Reiniciando ahora. El puente lo dirá aquí cuando haya vuelto.",
-    afterTurns_one: "Se reiniciará cuando termine el {{count}} turno en marcha. El puente lo dirá aquí cuando haya vuelto.",
-    afterTurns_other: "Se reiniciará cuando terminen los {{count}} turnos en marcha. El puente lo dirá aquí cuando haya vuelto.",
+    afterTurns_one:
+      "Se reiniciará en cuanto termine el {{count}} turno en marcha y no haya nada más en marcha. Hasta entonces el puente funciona como siempre, y lo dirá aquí cuando haya vuelto.",
+    afterTurns_other:
+      "Se reiniciará en cuanto terminen los {{count}} turnos en marcha y no haya nada más en marcha. Hasta entonces el puente funciona como siempre, y lo dirá aquí cuando haya vuelto.",
     back: "El puente ha vuelto tras su reinicio, en la v{{version}}.",
   },
   update: {

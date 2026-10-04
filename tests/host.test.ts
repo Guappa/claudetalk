@@ -19,7 +19,7 @@ import { buildName } from "../src/version.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { execFile, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { requestStop, stopRequestPath, takeStopRequest, watchForStop } from "../src/stopSignal.ts";
+import { requestStop, stopRequestPath, takeStopRequest, watchForStop, whenIdle } from "../src/stopSignal.ts";
 
 describe("platform", () => {
   it("prefers CLAUDE_BIN when set", () => {
@@ -142,6 +142,39 @@ describe("stop requests", () => {
     expect(await takeStopRequest(lockPath)).toEqual({ mode: "restart" });
     await requestStop(lockPath, "restart", "3f0c1d2e-0000-4000-8000-000000000001");
     expect(await takeStopRequest(lockPath)).toEqual({ mode: "restart", sessionId: "3f0c1d2e-0000-4000-8000-000000000001" });
+  });
+
+  // A restart must take nothing from a conversation that did not ask for it, so it waits for idle and refuses nobody meanwhile.
+  it("waits for a restart until nothing is running, however long that takes, and then goes once", () => {
+    vi.useFakeTimers();
+    try {
+      const running = { turns: 2 };
+      const restarted = vi.fn();
+      whenIdle(() => running.turns, restarted, 250);
+
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      expect(restarted).not.toHaveBeenCalled();
+      running.turns = 0;
+      vi.advanceTimersByTime(250);
+      expect(restarted).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(5000);
+      expect(restarted).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not restart once the wait is called off", () => {
+    vi.useFakeTimers();
+    try {
+      const restarted = vi.fn();
+      const callOff = whenIdle(() => 0, restarted, 250);
+      callOff();
+      vi.advanceTimersByTime(5000);
+      expect(restarted).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the request beside the lock, not inside it", async () => {

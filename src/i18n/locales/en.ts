@@ -181,8 +181,10 @@ export const en = {
     checkTimedOut:
       "Not restarted: checking that the code on the host would start took over a minute and was given up. The bridge keeps running as it is; the log on the host may say what it was waiting on.",
     now: "Restarting now. The bridge says so here once it is back.",
-    afterTurns_one: "Restarting once the {{count}} running turn has finished. The bridge says so here once it is back.",
-    afterTurns_other: "Restarting once the {{count}} running turns have finished. The bridge says so here once it is back.",
+    afterTurns_one:
+      "Restarting as soon as the {{count}} running turn has finished and nothing else is running. The bridge works as usual until then, and says so here once it is back.",
+    afterTurns_other:
+      "Restarting as soon as the {{count}} running turns have finished and nothing else is running. The bridge works as usual until then, and says so here once it is back.",
     back: "The bridge is back after its restart, on v{{version}}.",
   },
   update: {

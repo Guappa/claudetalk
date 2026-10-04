@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits, Options } from "discord.js";
 import { loadConfig } from "./config.ts";
 import { acquireInstanceLock, lockPathBeside, STALE_AFTER_MS } from "./instanceLock.ts";
-import { RESTART_EXIT_CODE, takeStopRequest, watchForStop, type StopMode, type StopRequest } from "./stopSignal.ts";
+import { RESTART_EXIT_CODE, takeStopRequest, watchForStop, whenIdle, type StopMode, type StopRequest } from "./stopSignal.ts";
 import { CHECK_FLAG } from "./bootCheck.ts";
 import { askerFor } from "./discord/restart.ts";
 import { createBridge } from "./bridge.ts";
@@ -83,6 +83,24 @@ lock.whenTaken((holder) => {
   );
   void shutDown("now");
 });
+// A restart waits for the bridge to be idle and goes on serving every conversation until it is; asked for twice, it is still one wait.
+function waitingRestart(): { begin: () => void; callOff: () => void } {
+  let callOff: (() => void) | null = null;
+  return {
+    begin: () => {
+      callOff ??= whenIdle(
+        () => bridge.flow.activeCount(),
+        () => void shutDown("restart"),
+      );
+    },
+    callOff: () => {
+      callOff?.();
+      callOff = null;
+    },
+  };
+}
+const restartWait = waitingRestart();
+
 // A restart nothing would follow is refused: the bridge would only be gone.
 async function onStopRequest(request: StopRequest): Promise<void> {
   if (request.mode === "restart" && !supervised) {
@@ -94,7 +112,13 @@ async function onStopRequest(request: StopRequest): Promise<void> {
   }
   const asker = request.sessionId ? askerFor(bridge, request.sessionId) : null;
   if (asker) await bridge.restartNote.add(asker);
-  await shutDown(request.mode);
+  if (request.mode !== "restart") {
+    // A stop asked for while a restart waits is the last word, and what it stops stays stopped.
+    restartWait.callOff();
+    await shutDown(request.mode);
+    return;
+  }
+  restartWait.begin();
 }
 // A crash leaves the lock behind on purpose: its heartbeat goes stale and the next start takes it over.
 const stopWatch = watchForStop(lockPath, (request) => {
