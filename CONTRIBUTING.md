@@ -60,8 +60,9 @@ Dependabot updates both together.
 ## Running it
 
 ```bash
-npm run dev     # start
-npm run stop    # stop the instance named in data/bridge.lock
+npm run dev      # start
+npm run stop     # stop the instance named in data/bridge.lock
+npm run restart  # have a bridge that a service runs restart itself
 ```
 
 Use `npm run stop` rather than killing the process. It writes `data/stop.request`,
