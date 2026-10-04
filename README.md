@@ -84,7 +84,8 @@ application anyway. For containment, run the bridge in a container or VM.
 Every turn runs against the host's Claude subscription. Sharing that is not
 something the Anthropic terms permit; for a team, run one bridge per person.
 
-The full access model is in [docs/REFERENCE.md](docs/REFERENCE.md#access).
+The full access model is in [docs/REFERENCE.md](docs/REFERENCE.md#access). To
+report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## Setting up the Discord bot
 

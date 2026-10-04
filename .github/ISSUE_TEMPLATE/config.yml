@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/Guappa/claudetalk/security/advisories/new
+    about: Privately, so it is not public before a fix exists. SECURITY.md says what counts.

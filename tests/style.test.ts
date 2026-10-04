@@ -193,7 +193,13 @@ describe("docs follow code", () => {
 
   // The shapes are the scanner's own, so the two can never disagree about what a leak looks like.
   it("keeps identifying details out of anything shipped", () => {
-    const shipped = ["README.md", "docs/REFERENCE.md", "CONTRIBUTING.md", ".env.example"];
+    const shipped = [
+      "README.md",
+      "docs/REFERENCE.md",
+      "CONTRIBUTING.md",
+      "SECURITY.md",
+      ".env.example",
+    ];
     const leaks = [...SHAPES, ...DOC_ONLY] as Array<[string, RegExp]>;
 
     const found: string[] = [];
