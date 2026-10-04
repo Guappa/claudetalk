@@ -819,6 +819,7 @@ the language it started in, so its trail does not change tongue halfway.
 | `data/operators.json` | Who an owner made an operator |
 | `data/language.json` | The language picked with `/language`. Absent until someone picks one |
 | `data/bridge.lock` | Prevents a second instance. Delete only if you are sure nothing is running |
+| `data/update.json` | The newer version an owner was last told of, and when, so it is said once and at most weekly |
 | `data/restart.json` | Who asked for a restart, kept across it so the bridge can say it is back. Removed once it has |
 | `data/bridge.log` | Autostart output, rotated at 5 MB to `bridge.log.1` |
 | `<tmp>/claudetalk-attachments-<uid>/` | Attachment downloads, owner-only, swept an hour after the turn |
@@ -835,6 +836,19 @@ host log says so once, with a link to what changed between the two, and the
 footer of `/whoami` names it. Nothing is downloaded or installed: updating is
 still `git pull` and a restart for a clone, and pulling the new image for a
 container.
+
+An owner is also told in Discord, the next time they send the bridge a
+message, as a notice in that channel that is removed after five minutes. It
+names the newest version and how many versions lie between it and the running
+one, lists up to five things that changed, and links to the rest. There is no
+changelog: what changed is read from the commits between the two tags, one
+more request to GitHub per new version, and only the subjects of those that
+add or mend something are shown. It is said once per version and at most once
+a week, however many versions come out in it, which `data/update.json` keeps
+track of. The bridge never sends this on its own or by direct message: an
+owner is an id in `.env`, which may belong to somebody who is not in the
+server and never asked to hear from it. An operator is not told, having no
+way to update anything.
 
 Which repository is asked comes from `package.json`, so a fork that changes
 the address there hears about its own tags. A check that does not get through,

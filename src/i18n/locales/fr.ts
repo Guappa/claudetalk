@@ -185,6 +185,13 @@ export const fr: Catalog = {
       "Redémarrage dès que les {{count}} tours en cours seront terminés. La passerelle le dira ici une fois revenue.",
     back: "La passerelle est revenue après son redémarrage, en v{{version}}.",
   },
+  update: {
+    out_one: "La **v{{version}}** de la passerelle est sortie, une version après la v{{current}} qui tourne ici.",
+    out_other: "La **v{{version}}** de la passerelle est sortie, {{count}} versions après la v{{current}} qui tourne ici.",
+    more_one: "... et {{count}} autre changement",
+    more_other: "... et {{count}} autres changements",
+    how: "Tout ce qu'il y a entre les deux : <{{url}}>. Pour mettre à jour, récupère le nouveau code sur l'hôte et redémarre la passerelle, ou récupère la nouvelle image. C'est dit une fois par version, et au plus une fois par semaine.",
+  },
   stop: {
     button: "Arrêter",
     allButton: "Tout arrêter",
