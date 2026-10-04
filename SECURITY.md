@@ -7,8 +7,8 @@ report one privately.
 ## Reporting a vulnerability
 
 Use [private vulnerability reporting](https://github.com/Guappa/claudetalk/security/advisories/new)
-on this repository. Do not open a public issue, a pull request or a Discord
-message about it first.
+on this repository. Do not open a public issue or a pull request about it
+first.
 
 Include what an attacker needs (an account in the server, an operator, a
 crafted message), the steps that reproduce it, and the bridge and Claude Code
