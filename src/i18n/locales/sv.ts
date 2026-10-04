@@ -333,7 +333,9 @@ export const sv: Catalog = {
   },
   takeover: {
     closedTerminal:
-      "Stängde Claude Code i terminalen på värddatorn (pid {{pid}}). Den här konversationen är ledig nu: skicka ditt meddelande. För att öppna den där igen, kör `claude --resume {{sessionId}}` på värddatorn.",
+      "Stängde Claude Code i terminalen på värddatorn (pid {{pid}}). För att öppna konversationen där igen, kör `claude --resume {{sessionId}}` på värddatorn.",
+    free: "Den här konversationen är ledig nu: skicka ditt meddelande.",
+    heldRuns: "Ditt meddelande från nyss körs nu.",
     notClosed:
       "Claude Code i terminalen på värddatorn (pid {{pid}}) stängdes inte inom några sekunder, så inget togs över. Stäng den terminalen på värddatorn och försök sedan igen.",
     running: "En omgång körs här just nu. Använd `/stop` för att avsluta den.",

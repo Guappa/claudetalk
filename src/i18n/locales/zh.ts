@@ -306,7 +306,9 @@ export const zh: Catalog = {
   },
   takeover: {
     closedTerminal:
-      "已关闭主机终端中的 Claude Code（pid {{pid}}）。此对话现在空闲了：发送你的消息吧。要在那边重新打开它，请在主机上运行 `claude --resume {{sessionId}}`。",
+      "已关闭主机终端中的 Claude Code（pid {{pid}}）。要在那边重新打开此对话，请在主机上运行 `claude --resume {{sessionId}}`。",
+    free: "此对话现在空闲了：发送你的消息吧。",
+    heldRuns: "你之前的那条消息现在开始运行。",
     notClosed:
       "主机终端中的 Claude Code（pid {{pid}}）没有在几秒内关闭，所以没有接管任何东西。请在主机上关闭那个终端，然后再试。",
     running: "这里现在有一个轮次正在运行。用 `/stop` 结束它。",
