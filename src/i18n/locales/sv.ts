@@ -171,6 +171,18 @@ export const sv: Catalog = {
     runningWith_other: "En omgång körs, med {{count}} meddelanden i kö efter den.",
     full: "Den här konversationen håller redan {{limit}} meddelanden: ett som körs och {{queued}} i kö efter det. Låt den komma ikapp, kör `/stop` för att avsluta det som körs och låta nästa börja, eller `/stop all:true` för att tömma kön också.",
   },
+  restart: {
+    unsupervised:
+      "Inte omstartad: den här bryggan startades för hand, eller av en tjänst som installerades innan den kunde starta om sig själv, så inget skulle starta den igen. Kör installationsskriptet för autostart från README en gång till, eller stoppa och starta den på värden.",
+    broken:
+      "Inte omstartad: koden på värden skulle inte starta, så bryggan kör vidare som den är. Rätta det den pekar på och be sedan igen.\n```\n{{error}}\n```",
+    checkTimedOut:
+      "Inte omstartad: kontrollen av att koden på värden skulle starta tog över en minut och gavs upp. Bryggan kör vidare som den är; loggen på värden kan säga vad den väntade på.",
+    now: "Startar om nu. Bryggan säger till här när den är tillbaka.",
+    afterTurns_one: "Startar om när den {{count}} pågående omgången är klar. Bryggan säger till här när den är tillbaka.",
+    afterTurns_other: "Startar om när de {{count}} pågående omgångarna är klara. Bryggan säger till här när den är tillbaka.",
+    back: "Bryggan är tillbaka efter sin omstart, på v{{version}}.",
+  },
   stop: {
     button: "Stoppa",
     allButton: "Stoppa allt",

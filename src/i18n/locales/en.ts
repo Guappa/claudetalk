@@ -169,6 +169,18 @@ export const en = {
     runningWith_other: "One turn is running, with {{count}} messages queued behind it.",
     full: "This conversation already holds {{limit}} messages: one running and {{queued}} queued behind it. Let it catch up, run `/stop` to end the one in flight and let the next start, or `/stop all:true` to drop the queue with it.",
   },
+  restart: {
+    unsupervised:
+      "Not restarted: this bridge was started by hand, or by a service installed before it could restart itself, so nothing would start it again. Run the autostart installer from the README again, or stop and start it on the host.",
+    broken:
+      "Not restarted: the code on the host would not start, so the bridge keeps running as it is. Fix what it names, then ask again.\n```\n{{error}}\n```",
+    checkTimedOut:
+      "Not restarted: checking that the code on the host would start took over a minute and was given up. The bridge keeps running as it is; the log on the host may say what it was waiting on.",
+    now: "Restarting now. The bridge says so here once it is back.",
+    afterTurns_one: "Restarting once the {{count}} running turn has finished. The bridge says so here once it is back.",
+    afterTurns_other: "Restarting once the {{count}} running turns have finished. The bridge says so here once it is back.",
+    back: "The bridge is back after its restart, on v{{version}}.",
+  },
   stop: {
     button: "Stop",
     allButton: "Stop all",

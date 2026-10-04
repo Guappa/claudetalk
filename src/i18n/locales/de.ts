@@ -176,6 +176,20 @@ export const de: Catalog = {
     runningWith_other: "Ein Durchlauf läuft, mit {{count}} Nachrichten dahinter in der Warteschlange.",
     full: "Dieses Gespräch hält schon {{limit}} Nachrichten: Eine läuft und {{queued}} stehen dahinter an. Lass es aufholen, führ `/stop` aus, um die laufende zu beenden und die nächste starten zu lassen, oder `/stop all:true`, um die Warteschlange gleich mit zu verwerfen.",
   },
+  restart: {
+    unsupervised:
+      "Nicht neu gestartet: Diese Brücke wurde von Hand gestartet, oder von einem Dienst, der eingerichtet wurde, bevor sie sich selbst neu starten konnte, also würde nichts sie wieder starten. Führ das Autostart-Installationsskript aus der README noch einmal aus, oder stopp und starte sie auf dem Host.",
+    broken:
+      "Nicht neu gestartet: Der Code auf dem Host würde nicht starten, also läuft die Brücke weiter, wie sie ist. Behebe, was er nennt, und frag dann noch einmal.\n```\n{{error}}\n```",
+    checkTimedOut:
+      "Nicht neu gestartet: Die Prüfung, ob der Code auf dem Host starten würde, dauerte über eine Minute und wurde aufgegeben. Die Brücke läuft weiter, wie sie ist; das Log auf dem Host sagt vielleicht, worauf sie gewartet hat.",
+    now: "Neustart jetzt. Die Brücke sagt es hier, sobald sie wieder da ist.",
+    afterTurns_one:
+      "Neustart, sobald der {{count}} laufende Durchlauf fertig ist. Die Brücke sagt es hier, sobald sie wieder da ist.",
+    afterTurns_other:
+      "Neustart, sobald die {{count}} laufenden Durchläufe fertig sind. Die Brücke sagt es hier, sobald sie wieder da ist.",
+    back: "Die Brücke ist nach ihrem Neustart wieder da, auf v{{version}}.",
+  },
   stop: {
     button: "Stopp",
     allButton: "Alles stoppen",

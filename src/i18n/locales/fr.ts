@@ -172,6 +172,19 @@ export const fr: Catalog = {
     runningWith_other: "Un tour est en cours, avec {{count}} messages en file derrière lui.",
     full: "Cette conversation tient déjà {{limit}} messages : un en cours et {{queued}} en file derrière. Laisse-la rattraper son retard, lance `/stop` pour finir celui en vol et laisser partir le suivant, ou `/stop all:true` pour écarter la file avec.",
   },
+  restart: {
+    unsupervised:
+      "Pas de redémarrage : cette passerelle a été lancée à la main, ou par un service installé avant qu'elle ne sache se relancer, donc rien ne la relancerait. Relance l'installateur de démarrage automatique du README, ou arrête-la et démarre-la sur l'hôte.",
+    broken:
+      "Pas de redémarrage : le code sur l'hôte ne démarrerait pas, la passerelle continue donc telle quelle. Corrige ce qu'il indique, puis redemande.\n```\n{{error}}\n```",
+    checkTimedOut:
+      "Pas de redémarrage : vérifier que le code sur l'hôte démarrerait a pris plus d'une minute et a été abandonné. La passerelle continue telle quelle ; le journal sur l'hôte dit peut-être ce qu'elle attendait.",
+    now: "Redémarrage immédiat. La passerelle le dira ici une fois revenue.",
+    afterTurns_one: "Redémarrage dès que le {{count}} tour en cours sera terminé. La passerelle le dira ici une fois revenue.",
+    afterTurns_other:
+      "Redémarrage dès que les {{count}} tours en cours seront terminés. La passerelle le dira ici une fois revenue.",
+    back: "La passerelle est revenue après son redémarrage, en v{{version}}.",
+  },
   stop: {
     button: "Arrêter",
     allButton: "Tout arrêter",

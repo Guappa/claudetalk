@@ -120,6 +120,7 @@ case "$action" in
         <string>--env-file-if-exists=.env</string>
         <string>--experimental-strip-types</string>
         <string>src/index.ts</string>
+        <string>--supervised</string>
     </array>
     <key>WorkingDirectory</key>
     <string>$escaped_root</string>

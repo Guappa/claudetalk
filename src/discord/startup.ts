@@ -1,10 +1,10 @@
 import { RESTJSONErrorCodes, type Client } from "discord.js";
 import type { Bridge } from "../bridge.ts";
 import { errorMessage } from "../text.ts";
-import { bridgeVersion } from "../version.ts";
 import { markInterrupted } from "./activeTurns.ts";
 import { bridgeCommandDefinitions } from "./commands/registry.ts";
 import { watchOutboxes } from "./outboxWatcher.ts";
+import { announceRestart } from "./restart.ts";
 
 async function registerCommands(bridge: Bridge, client: Client<true>): Promise<boolean> {
   try {
@@ -45,8 +45,9 @@ export async function startUp(bridge: Bridge, client: Client<true>): Promise<Nod
     console.error(`Bindings could not be checked against the channels that still exist: ${errorMessage(error)}`);
   });
   await markInterrupted(client, await bridge.activeTurns.takeLeftovers(), bridge.language.say);
+  await announceRestart(client, await bridge.restartNote.take(), bridge.build, bridge.language.say);
   const watching = watchOutboxes(bridge, client);
-  const ready = `Ready as ${client.user.tag} on v${bridgeVersion()}.`;
+  const ready = `Ready as ${client.user.tag} on v${bridge.build}.`;
   if (registered) console.log(`${ready} Commands registered to guild ${bridge.config.guildId}.`);
   else console.log(`${ready} Commands are NOT registered; see above.`);
   return watching;

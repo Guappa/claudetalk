@@ -13,6 +13,8 @@ export interface LockInfo {
   startedAt: string;
   heartbeatAt: string;
   draining?: DrainState;
+  // True when something will start the bridge again if it leaves asking for that; absent in a lock an older bridge wrote.
+  supervised?: boolean;
 }
 
 export function lockPathBeside(bindingsPath: string): string {
@@ -64,14 +66,16 @@ async function publish(from: string, to: string): Promise<void> {
 export class InstanceLock {
   private readonly lockPath: string;
   private readonly startedAt: string;
+  private readonly supervised: boolean;
   private draining: DrainState | undefined;
   private heartbeat: NodeJS.Timeout | null = null;
   private taken = false;
   private onTaken: (holder: Partial<LockInfo>) => void = () => undefined;
   private readonly save: (value: unknown) => Promise<void>;
 
-  constructor(lockPath: string) {
+  constructor(lockPath: string, supervised = false) {
     this.lockPath = lockPath;
+    this.supervised = supervised;
     this.startedAt = new Date().toISOString();
     this.save = orderedWriter(lockPath);
   }
@@ -148,6 +152,7 @@ export class InstanceLock {
   private info(): LockInfo {
     const info: LockInfo = { pid: process.pid, startedAt: this.startedAt, heartbeatAt: new Date().toISOString() };
     if (this.draining) info.draining = this.draining;
+    if (this.supervised) info.supervised = true;
     return info;
   }
 
@@ -169,8 +174,9 @@ function parseLock(raw: string): Partial<LockInfo> | null {
 export async function acquireInstanceLock(
   lockPath: string,
   aliveCheck: (pid: number) => boolean = isProcessAlive,
+  supervised = false,
 ): Promise<InstanceLock> {
-  const lock = new InstanceLock(lockPath);
+  const lock = new InstanceLock(lockPath, supervised);
   await lock.acquire(aliveCheck);
   return lock;
 }

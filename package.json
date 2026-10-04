@@ -1,6 +1,6 @@
 {
   "name": "claudetalk",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "description": "Reach Claude Code sessions on your own machine from Discord, on any device",
   "type": "module",
   "license": "MIT",
@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "stop": "node --env-file-if-exists=.env scripts/stop.mjs",
     "stop:now": "node --env-file-if-exists=.env scripts/stop.mjs --now",
+    "restart": "node --env-file-if-exists=.env scripts/restart.mjs",
     "check:private": "node scripts/scan-private.mjs",
     "lint": "biome check .",
     "format": "biome check --write .",

@@ -14,6 +14,7 @@ import {
 } from "../src/platform.ts";
 import { bindingsPathFrom, loadConfig } from "../src/config.ts";
 import { UpdateCheck, githubSlug, isNewer, newestVersion } from "../src/updateCheck.ts";
+import { checkBoot } from "../src/bootCheck.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { execFile, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -119,7 +120,7 @@ describe("stop requests", () => {
 
   it("is consumed exactly once, so a stale request cannot stop the next run", async () => {
     await requestStop(lockPath);
-    expect(await takeStopRequest(lockPath)).toBe("drain");
+    expect(await takeStopRequest(lockPath)).toEqual({ mode: "drain" });
     expect(await takeStopRequest(lockPath)).toBeNull();
   });
 
@@ -129,9 +130,17 @@ describe("stop requests", () => {
 
   it("carries the mode, and reads an older timestamp request as a drain", async () => {
     await requestStop(lockPath, "now");
-    expect(await takeStopRequest(lockPath)).toBe("now");
+    expect(await takeStopRequest(lockPath)).toEqual({ mode: "now" });
     await fs.writeFile(stopRequestPath(lockPath), "2026-01-01T00:00:00.000Z");
-    expect(await takeStopRequest(lockPath)).toBe("drain");
+    expect(await takeStopRequest(lockPath)).toEqual({ mode: "drain" });
+  });
+
+  // The conversation is how the bridge that comes back knows where to say so.
+  it("carries a restart, and the conversation it was asked from when there is one", async () => {
+    await requestStop(lockPath, "restart");
+    expect(await takeStopRequest(lockPath)).toEqual({ mode: "restart" });
+    await requestStop(lockPath, "restart", "3f0c1d2e-0000-4000-8000-000000000001");
+    expect(await takeStopRequest(lockPath)).toEqual({ mode: "restart", sessionId: "3f0c1d2e-0000-4000-8000-000000000001" });
   });
 
   it("keeps the request beside the lock, not inside it", async () => {
@@ -232,6 +241,17 @@ describe("acquireInstanceLock", () => {
     expect(first).toEqual({ since: expect.any(String), turns: 2 });
     expect(second).toEqual({ since: first.since, turns: 1 });
     await lock.release();
+  });
+
+  // The restart script reads this before it asks: a bridge nothing would start again must not be told to leave.
+  it("says in the lock that it is supervised, and says nothing of it when it is not", async () => {
+    const supervised = await acquireInstanceLock(lockPath, undefined, true);
+    expect(JSON.parse(await fs.readFile(lockPath, "utf8")).supervised).toBe(true);
+    await supervised.release();
+
+    const byHand = await acquireInstanceLock(lockPath);
+    expect(JSON.parse(await fs.readFile(lockPath, "utf8"))).not.toHaveProperty("supervised");
+    await byHand.release();
   });
 
   it("refuses when another live process is still beating", async () => {
@@ -467,4 +487,42 @@ describe("the check for a newer version", () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe("the check that the bridge would start", () => {
+  // Every setting is given, so nothing is taken from the machine the test runs on; the claude named does not exist, which a start survives.
+  async function scratch(): Promise<{ dir: string; env: NodeJS.ProcessEnv }> {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "boot-check-"));
+    const env = {
+      PATH: process.env.PATH,
+      DISCORD_BOT_TOKEN: "t",
+      DISCORD_GUILD_ID: "g",
+      DISCORD_OWNER_IDS: "100000000000000001",
+      PROJECTS_ROOT: dir,
+      BINDINGS_PATH: path.join(dir, "data", "conversations.json"),
+      CLAUDE_BIN: path.join(dir, "no-such-claude"),
+    };
+    return { dir, env };
+  }
+
+  it("passes for settings a start would accept, without taking the lock a running bridge holds", async () => {
+    const { dir, env } = await scratch();
+    expect(await checkBoot(dir, env)).toEqual({ ok: true });
+    await expect(fs.access(path.join(dir, "data", "bridge.lock"))).rejects.toThrow();
+  }, 60_000);
+
+  it("fails with what the start would have said", async () => {
+    const { dir, env } = await scratch();
+    const check = await checkBoot(dir, { ...env, DISCORD_BOT_TOKEN: "" });
+    expect(check).toMatchObject({ ok: false, timedOut: false });
+    expect(check.ok ? "" : check.output).toContain("DISCORD_BOT_TOKEN is not set");
+  }, 60_000);
+
+  // A running bridge carries the settings it started with, and Node lets those win over the file: the check has to read the file as the next start will.
+  it("reads the settings file as it stands now, over what the process asking was started with", async () => {
+    const { dir, env } = await scratch();
+    await fs.writeFile(path.join(dir, ".env"), "PING_AFTER_SECONDS=2m\n");
+    const check = await checkBoot(dir, { ...env, PING_AFTER_SECONDS: "120" });
+    expect(check.ok ? "" : check.output).toContain('PING_AFTER_SECONDS is "2m"');
+  }, 60_000);
 });
