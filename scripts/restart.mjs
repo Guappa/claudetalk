@@ -1,9 +1,25 @@
 import { resolve } from "node:path";
-import { checkBoot } from "../src/bootCheck.ts";
-import { bindingsPathFrom } from "../src/config.ts";
-import { isProcessAlive, lockPathBeside } from "../src/instanceLock.ts";
-import { readJsonOr } from "../src/jsonFile.ts";
-import { requestStop } from "../src/stopSignal.ts";
+
+// Loaded here and not at the top: this script reads the same source it is about to check, and source that does not load must end in a refusal, not in a stack trace of its own.
+async function loadSource() {
+  try {
+    const [bootCheck, config, instanceLock, jsonFile, stopSignal] = await Promise.all([
+      import("../src/bootCheck.ts"),
+      import("../src/config.ts"),
+      import("../src/instanceLock.ts"),
+      import("../src/jsonFile.ts"),
+      import("../src/stopSignal.ts"),
+    ]);
+    return { ...bootCheck, ...config, ...instanceLock, ...jsonFile, ...stopSignal };
+  } catch (error) {
+    console.error(
+      `Not restarted: the code here does not load, so the bridge keeps running as it is. Fix what this names, then ask again.\n\n${error?.stack ?? error}`,
+    );
+    process.exit(1);
+  }
+}
+
+const { bindingsPathFrom, checkBoot, isProcessAlive, lockPathBeside, readJsonOr, requestStop } = await loadSource();
 
 // Found the way the bridge finds it, from the same setting, or a BINDINGS_PATH elsewhere would have this looking in an empty folder.
 const lockPath = resolve(lockPathBeside(bindingsPathFrom(process.env)));
