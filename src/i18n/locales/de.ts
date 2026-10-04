@@ -445,6 +445,7 @@ export const de: Catalog = {
     model: "Modell",
     effort: "Aufwand",
     version: "Brücke v{{version}}",
+    newerVersion: "v{{version}} ist erschienen",
     claude: "Claude Code {{bundled}}",
     claudeDiffers: "Claude Code {{bundled}} für Durchläufe, {{host}} auf dem Host",
   },

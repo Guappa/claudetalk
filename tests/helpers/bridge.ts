@@ -16,6 +16,7 @@ import { QuestionPrompts } from "../../src/discord/questions.ts";
 import { TurnFlow } from "../../src/discord/turnFlow.ts";
 import { LanguageChoice } from "../../src/i18n/languageChoice.ts";
 import { OperatorStore } from "../../src/operators.ts";
+import { UpdateCheck } from "../../src/updateCheck.ts";
 import type { SessionIndex, SessionRecord } from "../../src/sessions/index.ts";
 import { newestCopy } from "../../src/sessions/resolve.ts";
 
@@ -38,6 +39,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     toolApprovals: false,
     toolDenials: new Set(),
     pingAfterMs: 0,
+    updateCheck: false,
     language: "en",
     ...config,
   };
@@ -75,6 +77,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     latestPosts: new Map<string, string>(),
     heldAttachments: new Set<string>(),
     claude: { bundled: "2.1.9", host: "2.1.9" },
+    updates: new UpdateCheck("0.0.0", null),
     outbox,
     flow: new TurnFlow(
       capabilities,

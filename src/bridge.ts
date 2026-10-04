@@ -16,6 +16,8 @@ import { ApprovalPrompts } from "./discord/approvals.ts";
 import { QuestionPrompts } from "./discord/questions.ts";
 import { ActiveTurns } from "./discord/activeTurns.ts";
 import { LanguageChoice } from "./i18n/languageChoice.ts";
+import { UpdateCheck, githubSlug } from "./updateCheck.ts";
+import { bridgeRepository, bridgeVersion } from "./version.ts";
 import path from "node:path";
 
 export interface Bridge {
@@ -40,6 +42,7 @@ export interface Bridge {
   pendingRuns: Pending<PendingRun>;
   // Read once at start-up: the Claude Code turns run on, and the one the host's side jobs run on.
   claude: ClaudeVersions;
+  updates: UpdateCheck;
 }
 
 export async function createBridge(config: Config): Promise<Bridge> {
@@ -90,6 +93,7 @@ export async function createBridge(config: Config): Promise<Bridge> {
     latestPosts: new Map<string, string>(),
     heldAttachments: new Set<string>(),
     claude: readClaudeVersions(),
+    updates: new UpdateCheck(bridgeVersion(), config.updateCheck ? githubSlug(bridgeRepository()) : null),
     outbox,
     flow: new TurnFlow(
       capabilities,

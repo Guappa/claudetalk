@@ -404,6 +404,7 @@ export const zh: Catalog = {
     model: "模型",
     effort: "努力程度",
     version: "桥接 v{{version}}",
+    newerVersion: "v{{version}} 已发布",
     claude: "Claude Code {{bundled}}",
     claudeDiffers: "Claude Code {{bundled}} 用于轮次，主机上为 {{host}}",
   },

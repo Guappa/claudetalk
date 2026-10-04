@@ -13,7 +13,7 @@ this covers behaviour.
 | `/resume <name>` | O | Opens an existing conversation: makes a channel, binds it, posts the last exchange. Points at the existing channel if one is already open. Autocompletes to the most recent per name; type a session id to reach an older one. |
 | `/fork [name]` | O | Branches this conversation into a new one in its own channel. The original is untouched. |
 | `/sessions [filter]` | O | Lists conversations on the host: name, transcript size, directory, last activity, whether something is holding it. Ones working inside the temp folder are left out unless a filter is given. |
-| `/whoami` | O | What this channel is bound to, its model and effort, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. |
+| `/whoami` | O | What this channel is bound to, its model and effort, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. The footer names the running version, and a newer one once it has been tagged. |
 | `/spend` | O | Plan usage first, the 5-hour and weekly windows as Claude Code reports them with each turn, for the whole account; a window whose reset has passed with nothing reported since is shown as reset, not as the share last seen for it. Then turns and tokens for this conversation and for every conversation the bridge has touched since it last started; a restart resets those, and turns run in a terminal are never counted. The tokens are the session's own and leave out what its agents used, which the cost does include. An API-equivalent cost comes last, only for ranking conversations against each other: a subscription is not billed by it. Named `/spend` so Claude Code's own `/usage` and `/cost` still reach the session. |
 | `/members` | O | The conversation's owner, who else can see its channel, and where it runs. |
 | `/operator <add\|remove\|list> [user]` | H | Who may use the bot, and where each one comes from. |
@@ -787,6 +787,22 @@ the language it started in, so its trail does not change tongue halfway.
 | `<tmp>/claudetalk-attachments-<uid>/` | Attachment downloads, owner-only, swept an hour after the turn |
 
 Deleting `data/` loses bindings and settings, never conversations.
+
+## Knowing about a newer version
+
+When it starts, and once a day after, the bridge reads the list of tags of its
+own repository on GitHub. It is the one request the bridge makes on its own
+account to anything but Discord, and a plain read of a public list: it sends
+nothing about the host. When a tag newer than the running version exists, the
+host log says so once, with a link to what changed between the two, and the
+footer of `/whoami` names it. Nothing is downloaded or installed: updating is
+still `git pull` and a restart for a clone, and pulling the new image for a
+container.
+
+Which repository is asked comes from `package.json`, so a fork that changes
+the address there hears about its own tags. A check that does not get through,
+offline or rate limited, is noted in the log and tried again the next day.
+`UPDATE_CHECK=false` makes no request at all.
 
 ## Running several bridges in one server
 

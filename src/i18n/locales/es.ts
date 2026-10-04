@@ -439,6 +439,7 @@ export const es: Catalog = {
     model: "Modelo",
     effort: "Esfuerzo",
     version: "puente v{{version}}",
+    newerVersion: "ya salió la v{{version}}",
     claude: "Claude Code {{bundled}}",
     claudeDiffers: "Claude Code {{bundled}} para los turnos, {{host}} en el host",
   },
