@@ -5,10 +5,15 @@ import { isWithin } from "../platform.ts";
 
 const execFileAsync = promisify(execFile);
 
+// What the remote says a number is; "unknown" is a number it has nothing under.
+type Numbered = "change" | "issue" | "unknown";
+
 export interface ReferenceLinks {
   commit(hash: string): string | null;
   issue(number: string): string;
   merge(number: string): string | null;
+  // Null where the remote was not asked or did not answer in time, so nothing is known of any number. Asked as a change request, a number is one or it is unknown.
+  numbered(number: string, asChange: boolean): Numbered | null;
   ref(name: string): string | null;
   file(filePath: string, line?: string, end?: string): string | null;
 }
@@ -19,6 +24,16 @@ export interface References {
   files: Set<string>;
 }
 
+// What the remote knows of the numbers people cite.
+export interface Tracker {
+  changes: Set<string>;
+  // Issues found one at a time, where the remote could be asked for one.
+  issues: Set<string>;
+  // Issues and change requests share one count on GitHub and its kin, so every number below the highest change request is one or the other.
+  shared: boolean;
+  highest: number;
+}
+
 interface Verified {
   head: string;
   // Where the working directory sits inside the repository, empty at its root; a blob link is written from the root.
@@ -27,6 +42,7 @@ interface Verified {
   branches: Set<string>;
   tags: Set<string>;
   files: Set<string>;
+  tracker: Tracker | null;
 }
 
 interface PathShapes {
@@ -103,6 +119,14 @@ export function referenceLinks(webUrl: string, verified: Verified): ReferenceLin
     merge: (number) => {
       const shape = shapes.merge(number);
       return shape ? `${webUrl}${shape}` : null;
+    },
+    numbered: (number, asChange) => {
+      const tracker = verified.tracker;
+      if (!tracker) return null;
+      // Where issues have a count of their own, a hash number is an issue unless the words say otherwise, whatever change request carries the same number.
+      if (tracker.changes.has(number) && (asChange || tracker.shared)) return "change";
+      if (asChange || !tracker.shared) return "unknown";
+      return tracker.issues.has(number) || Number(number) < tracker.highest ? "issue" : "unknown";
     },
     ref: (name) => {
       if (verified.tags.has(name)) return `${webUrl}${shapes.tag(name)}`;
@@ -187,10 +211,54 @@ const LEADING_HASH = /^([0-9a-f]{7,40})\s+(.+)$/;
 
 const NUMBER_LIST = /(?:#\d+\s*(?:,\s*and|,|and|&)\s*)+$/i;
 const CHANGE_REQUEST = /\b(?:PRs?|pull requests?|MRs?|merge requests?)\s*$/i;
+const ISSUE = /\b(?:issues?|bugs?|tickets?)\s*$/i;
+// Words a hash number counts off or colours in: a place in a list, or a shade, and never an item in a tracker.
+const NOT_AN_ITEM =
+  /\b(?:steps?|points?|items?|options?|numbers?|no\.?|phases?|parts?|tasks?|questions?|rules?|rounds?|attempts?|places?|cases?|findings?|problems?|reasons?|colou?rs?|hex|backgrounds?|shades?|fills?|strokes?|borders?)\s*$/i;
+// A place in a list is nearly always a single digit; from here up a hash number that exists in the tracker is read as an item in it.
+const SELDOM_A_PLACE = 10;
 
-// A bare number is as often the third point of a list as a tracker item, so only a change request named as one links.
-function namesChangeRequest(text: string, offset: number): boolean {
-  return CHANGE_REQUEST.test(text.slice(0, offset).replace(NUMBER_LIST, ""));
+type Naming = "change" | "issue" | "other" | null;
+
+function namingBefore(text: string, offset: number): Naming {
+  const before = text.slice(0, offset).replace(NUMBER_LIST, "");
+  if (CHANGE_REQUEST.test(before)) return "change";
+  if (ISSUE.test(before)) return "issue";
+  return NOT_AN_ITEM.test(before) ? "other" : null;
+}
+
+function changeUrl(links: ReferenceLinks, number: string): string {
+  return links.merge(number) ?? links.issue(number);
+}
+
+// A number links when the remote knows it and the words say, or the message makes plain, that an item in the tracker is meant.
+function numberUrl(links: ReferenceLinks, number: string, naming: Naming, tracked: boolean): string | null {
+  const named = naming === "change";
+  const kind = links.numbered(number, named);
+  // Nothing is known of the number, so only what the words name a change request links, taken at its word.
+  if (kind === null) return named ? changeUrl(links, number) : null;
+  // No tracker counts from zero, so a number written with one in front is something else: a colour, a code.
+  if (kind === "unknown" || naming === "other" || number.startsWith("0")) return null;
+  // Called an issue while the remote has it as a change request, the word more likely counts a problem off than names an item.
+  if (naming === "issue" && kind !== "issue") return null;
+  if (naming === null && !tracked && Number(number) < SELDOM_A_PLACE) return null;
+  return kind === "change" ? changeUrl(links, number) : links.issue(number);
+}
+
+function mergeUrl(links: ReferenceLinks, number: string): string | null {
+  return links.numbered(number, true) === "unknown" ? null : links.merge(number);
+}
+
+// Once a message names an item the remote knows, its other numbers are read as items too, small ones included.
+function speaksOfTracker(text: string, links: ReferenceLinks): boolean {
+  for (const match of text.matchAll(TOKENS)) {
+    const groups = match.groups ?? {};
+    if (groups.merge && mergeUrl(links, groups.merge)) return true;
+    if (!groups.issue) continue;
+    const naming = namingBefore(text, match.index);
+    if ((naming === "change" || naming === "issue") && numberUrl(links, groups.issue, naming, false)) return true;
+  }
+  return false;
 }
 
 function linkSpan(content: string, links: ReferenceLinks): string | null {
@@ -244,15 +312,17 @@ function linkWithoutRepo(whole: string, groups: Record<string, string | undefine
 }
 
 export function linkReferences(text: string, links: ReferenceLinks): string {
+  const tracked = speaksOfTracker(text, links);
   return text.replace(TOKENS, (whole: string, ...rest: unknown[]) => {
     const groups = rest.at(-1) as Record<string, string | undefined>;
     if (groups.span) return linkSpan(groups.span, links) ?? whole;
     if (groups.issue) {
-      const named = namesChangeRequest(rest.at(-2) as string, rest.at(-3) as number);
-      return named ? link(whole, links.merge(groups.issue) ?? links.issue(groups.issue)) : whole;
+      const naming = namingBefore(rest.at(-2) as string, rest.at(-3) as number);
+      const url = numberUrl(links, groups.issue, naming, tracked);
+      return url ? link(whole, url) : whole;
     }
     if (groups.merge) {
-      const url = links.merge(groups.merge);
+      const url = mergeUrl(links, groups.merge);
       return url ? link(whole, url) : whole;
     }
     if (groups.file) {
@@ -297,6 +367,75 @@ async function git(cwd: string, args: string[]): Promise<string | null> {
   }
 }
 
+// Long enough for a remote that is there, short enough that an answer is not held up by one that is not.
+const REMOTE_TIMEOUT_MS = 2500;
+// A number the refs cannot place costs a request each, so a message full of them is not chased to the end.
+const MAX_ASKED_ONE_BY_ONE = 3;
+const CITED_NUMBER = /(?<![\w#!/])[#!](\d+)\b/g;
+
+// The remote keeps a ref for every change request, which is how a number is known to be one without any forge's API. Bitbucket keeps none.
+function changeRefs(host: string): string | null {
+  if (host === "bitbucket.org") return null;
+  return host.includes("gitlab") ? "refs/merge-requests/*/head" : "refs/pull/*/head";
+}
+
+export function trackerFrom(host: string, listedRefs: string): Tracker {
+  const changes = new Set<string>();
+  for (const line of listedRefs.split("\n")) {
+    const number = /refs\/(?:pull|merge-requests)\/(\d+)\/head$/.exec(line.trim())?.[1];
+    if (number) changes.add(number);
+  }
+  const highest = [...changes].reduce((most, number) => Math.max(most, Number(number)), 0);
+  return { changes, issues: new Set(), shared: !host.includes("gitlab"), highest };
+}
+
+// Git asks with whatever access the repository already has, and must never stop to ask a person for more.
+async function listChangeRefs(cwd: string, pattern: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", ["-C", cwd, "ls-remote", "origin", pattern], {
+      windowsHide: true,
+      maxBuffer: 4_000_000,
+      timeout: REMOTE_TIMEOUT_MS,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
+    });
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
+// An issue filed after the last change request has no ref and nothing above it to place it by, so a public repository on GitHub is asked for it by number.
+async function askForNewest(tracker: Tracker, webUrl: string, numbers: string[]): Promise<void> {
+  const unplaced = numbers.filter((number) => !tracker.changes.has(number) && Number(number) >= tracker.highest);
+  const slug = new URL(webUrl).pathname.slice(1);
+  await Promise.all(
+    [...new Set(unplaced)].slice(0, MAX_ASKED_ONE_BY_ONE).map(async (number) => {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${slug}/issues/${number}`, {
+          headers: { Accept: "application/vnd.github+json", "User-Agent": "claudetalk-links" },
+          signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS),
+        });
+        if (!response.ok) return;
+        const item = (await response.json()) as { pull_request?: unknown };
+        (item.pull_request ? tracker.changes : tracker.issues).add(number);
+      } catch {
+        return;
+      }
+    }),
+  );
+}
+
+// Null where the remote keeps no such refs or did not answer: nothing is then known of any number.
+async function trackerFor(cwd: string, webUrl: string, numbers: string[]): Promise<Tracker | null> {
+  const host = new URL(webUrl).host;
+  const pattern = changeRefs(host);
+  const listed = pattern ? await listChangeRefs(cwd, pattern) : null;
+  if (listed === null) return null;
+  const tracker = trackerFrom(host, listed);
+  if (host === "github.com") await askForNewest(tracker, webUrl, numbers);
+  return tracker;
+}
+
 // One process answers for every candidate at once; a name it does not know comes back as "missing".
 function existingCommits(cwd: string, hashes: string[]): Promise<Set<string>> {
   return new Promise((resolve) => {
@@ -337,8 +476,8 @@ async function existingFiles(cwd: string, files: string[]): Promise<Set<string>>
 // Nothing in the repo is linked unless it has a remote and the reference exists, so prose never links by accident.
 export async function resolveReferences(cwd: string, text: string): Promise<ReferenceLinks | null> {
   const wanted = collectReferences(text);
-  const hasNumber = /(?<![\w#!/])[#!]\d+\b/.test(text);
-  if (wanted.hashes.size + wanted.names.size + wanted.files.size === 0 && !hasNumber) return null;
+  const numbers = [...text.matchAll(CITED_NUMBER)].map((match) => match[1]!);
+  if (wanted.hashes.size + wanted.names.size + wanted.files.size === 0 && numbers.length === 0) return null;
 
   // One process answers for both: the folder's place in the repository on the first line, which is empty at its root, and the commit on the last.
   const [remote, placed] = await Promise.all([
@@ -350,10 +489,12 @@ export async function resolveReferences(cwd: string, text: string): Promise<Refe
   if (!webUrl || !head) return null;
 
   // None of these needs another's answer, and each is a process of its own; asked at once, together they take as long as the slowest.
-  const [refs, commits, files] = await Promise.all([
+  const [refs, commits, files, tracker] = await Promise.all([
     wanted.names.size > 0 ? git(cwd, ["for-each-ref", "--format=%(refname)"]) : Promise.resolve(""),
     wanted.hashes.size > 0 ? existingCommits(cwd, [...wanted.hashes]) : Promise.resolve(new Set<string>()),
     wanted.files.size > 0 ? existingFiles(cwd, [...wanted.files]) : Promise.resolve(new Set<string>()),
+    // The one question here that leaves the machine, so it is asked only of a message that cites a number.
+    numbers.length > 0 ? trackerFor(cwd, webUrl, numbers) : Promise.resolve(null),
   ]);
   const branches = new Set<string>();
   const tags = new Set<string>();
@@ -363,5 +504,5 @@ export async function resolveReferences(cwd: string, text: string): Promise<Refe
     else if (ref.startsWith("refs/tags/")) tags.add(ref.slice("refs/tags/".length));
   }
 
-  return referenceLinks(webUrl, { head, prefix, commits, branches, tags, files });
+  return referenceLinks(webUrl, { head, prefix, commits, branches, tags, files, tracker });
 }

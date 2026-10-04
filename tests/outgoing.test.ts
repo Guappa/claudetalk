@@ -15,6 +15,7 @@ import {
   referenceLinks,
   remoteWebUrl,
   resolveReferences,
+  trackerFrom,
 } from "../src/discord/repoLinks.ts";
 import { execFileSync } from "node:child_process";
 import { convertTables } from "../src/discord/tables.ts";
@@ -799,6 +800,7 @@ describe("repo links", () => {
     branches: new Set(["main", "feat/drain-on-stop"]),
     tags: new Set(["v0.14.0"]),
     files: new Set(["src/discord/turnFlow.ts", "README.md", "pkg/__init__.py"]),
+    tracker: null,
   };
   const links = referenceLinks("https://github.com/someone/project", verified);
   const base = "https://github.com/someone/project";
@@ -822,7 +824,7 @@ describe("repo links", () => {
   });
 
   // "#3" is as often the third point someone raised as a tracker item, and a link to the wrong item misleads.
-  it("links a number only when the words before it name a change request", () => {
+  it("links a number only when the words before it name a change request, where the remote could not be asked", () => {
     expect(linkReferences("Landed as PR #8.", links)).toBe(`Landed as PR [#8](<${base}/issues/8>).`);
     expect(linkReferences("Pull requests #4, #5 and #6 merged.", links)).toBe(
       `Pull requests [#4](<${base}/issues/4>), [#5](<${base}/issues/5>) and [#6](<${base}/issues/6>) merged.`,
@@ -834,6 +836,78 @@ describe("repo links", () => {
       "The PR covers points #1 and #2.",
     ];
     for (const text of plain) expect(linkReferences(text, links)).toBe(text);
+  });
+
+  describe("numbers the remote was asked about", () => {
+    // Change requests 8, 39, 40 and 400 exist; every other number below 400 is an issue, 457 is an issue found by asking for it, and nothing else exists.
+    const tracker = { changes: new Set(["8", "39", "40", "400"]), issues: new Set(["457"]), shared: true, highest: 400 };
+    const known = referenceLinks(base, { ...verified, tracker });
+    const linked = (number: number) => `[#${number}](<${base}/issues/${number}>)`;
+
+    it("links a number the words do not name, once the message names an item or the number is past what a list counts to", () => {
+      expect(linkReferences("PR #40 sits on top of #39, like #8 before them.", known)).toBe(
+        `PR ${linked(40)} sits on top of ${linked(39)}, like ${linked(8)} before them.`,
+      );
+      expect(linkReferences("Merged #39 and tagged it.", known)).toBe(`Merged ${linked(39)} and tagged it.`);
+      expect(linkReferences("Landed as #8.", known)).toBe("Landed as #8.");
+    });
+
+    it("links an issue, named or not, and one too new to be placed by the change requests around it", () => {
+      expect(linkReferences("See issue #12 and #457.", known)).toBe(`See issue ${linked(12)} and ${linked(457)}.`);
+      expect(linkReferences("Reported in #212.", known)).toBe(`Reported in ${linked(212)}.`);
+    });
+
+    it("links nothing the remote does not have, whatever the words call it", () => {
+      for (const text of ["PR #999 is next.", "Tracked in issue #999.", "Merged #458."]) {
+        expect(linkReferences(text, known)).toBe(text);
+      }
+    });
+
+    // The word and the remote disagreeing is the sign of a number that counts something off instead.
+    it("takes the words at their word: a change request called an issue stays text, and so does the reverse", () => {
+      expect(linkReferences("Issue #39: the tests are slow.", known)).toBe("Issue #39: the tests are slow.");
+      expect(linkReferences("PR #12 is next.", known)).toBe("PR #12 is next.");
+    });
+
+    it("never takes a place in a list, a colour or a padded number for an item, however real the number", () => {
+      const plain = [
+        "PR #40 is up. Step #12 comes after it.",
+        "PR #40 covers points #11 and #12.",
+        "Set the text colour #333 on a background #111.",
+        "Agent #007 reporting, with PR #40.",
+      ];
+      for (const text of plain) expect(linkReferences(text, known).replace(linked(40), "#40")).toBe(text);
+    });
+
+    // GitLab counts issues apart from merge requests, and keeps no ref for an issue, so a bare hash number there cannot be placed.
+    it("where issues are counted apart, links only what is named a merge request or written with a bang", () => {
+      const gitlab = referenceLinks("https://gitlab.com/acme/ledger", {
+        ...verified,
+        tracker: { changes: new Set(["7", "12"]), issues: new Set(), shared: false, highest: 12 },
+      });
+      const merge = (text: string, number: number) => `[${text}](<https://gitlab.com/acme/ledger/-/merge_requests/${number}>)`;
+      expect(linkReferences("MR #7 and !12 are up; !13 is not, nor is #12.", gitlab)).toBe(
+        `MR ${merge("#7", 7)} and ${merge("!12", 12)} are up; !13 is not, nor is #12.`,
+      );
+    });
+
+    it("reads the change requests a remote lists, whichever way the forge names their refs", () => {
+      const listed = [
+        "0dd7d6eaee450d8d4076ebfb857dfd49be83cfb5\trefs/pull/39/head",
+        "3823bc0b4bbb36cc7740a48f943016ec5e58925b\trefs/pull/40/head",
+        "3823bc0b4bbb36cc7740a48f943016ec5e58925b\trefs/pull/40/merge",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\trefs/heads/main",
+      ].join("\n");
+      expect(trackerFrom("github.com", listed)).toEqual({
+        changes: new Set(["39", "40"]),
+        issues: new Set(),
+        shared: true,
+        highest: 40,
+      });
+      const merges = trackerFrom("gitlab.example.com", "bbbb\trefs/merge-requests/5/head\n");
+      expect(merges).toMatchObject({ changes: new Set(["5"]), shared: false, highest: 5 });
+      expect(trackerFrom("github.com", "")).toMatchObject({ changes: new Set(), highest: 0 });
+    });
   });
 
   it("sends a named merge request to the host's own page for one", () => {
