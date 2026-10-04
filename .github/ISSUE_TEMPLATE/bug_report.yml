@@ -1,0 +1,61 @@
+name: Bug report
+description: The bridge did something it should not, or did not do something it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security problem goes through private vulnerability reporting instead, as SECURITY.md describes, not here.
+
+        Before pasting anything from Discord or the host log, take out your bot token, Discord ids, real paths and anything from a conversation you would not post publicly.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what the bridge did in return. The exact text of any message it posted helps most.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The commands or messages, in order. Say if it happens every time or only sometimes.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The footer `/whoami` prints, which names the bridge version and the Claude Code version, or both when they differ. If the bridge does not start, the first lines of the host log name them too.
+      placeholder: bridge v0.0.0 · Claude Code 0.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it runs
+      options:
+        - A clone
+        - The container image
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Host operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Host log
+      description: The lines around the problem, with the details above taken out.
+      render: text
