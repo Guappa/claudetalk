@@ -181,6 +181,13 @@ export const en = {
     afterTurns_other: "Restarting once the {{count}} running turns have finished. The bridge says so here once it is back.",
     back: "The bridge is back after its restart, on v{{version}}.",
   },
+  update: {
+    out_one: "**v{{version}}** of the bridge is out, {{count}} version past the v{{current}} running here.",
+    out_other: "**v{{version}}** of the bridge is out, {{count}} versions past the v{{current}} running here.",
+    more_one: "... and {{count}} more change",
+    more_other: "... and {{count}} more changes",
+    how: "Everything in between: <{{url}}>. To update, pull the new code on the host and restart the bridge, or pull the new image. This is said once per version, and no more than once a week.",
+  },
   stop: {
     button: "Stop",
     allButton: "Stop all",

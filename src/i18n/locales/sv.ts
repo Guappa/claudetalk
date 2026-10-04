@@ -183,6 +183,13 @@ export const sv: Catalog = {
     afterTurns_other: "Startar om när de {{count}} pågående omgångarna är klara. Bryggan säger till här när den är tillbaka.",
     back: "Bryggan är tillbaka efter sin omstart, på v{{version}}.",
   },
+  update: {
+    out_one: "**v{{version}}** av bryggan är ute, en version efter v{{current}} som kör här.",
+    out_other: "**v{{version}}** av bryggan är ute, {{count}} versioner efter v{{current}} som kör här.",
+    more_one: "... och {{count}} ändring till",
+    more_other: "... och {{count}} ändringar till",
+    how: "Allt däremellan: <{{url}}>. För att uppdatera, hämta den nya koden på värden och starta om bryggan, eller hämta den nya avbilden. Det här sägs en gång per version, och högst en gång i veckan.",
+  },
   stop: {
     button: "Stoppa",
     allButton: "Stoppa allt",
