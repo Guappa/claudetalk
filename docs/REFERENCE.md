@@ -13,7 +13,7 @@ this covers behaviour.
 | `/resume <name>` | O | Opens an existing conversation: makes a channel, binds it, posts the last exchange. Points at the existing channel if one is already open. Autocompletes to the most recent per name; type a session id to reach an older one. |
 | `/fork [name]` | O | Branches this conversation into a new one in its own channel. The original is untouched. |
 | `/sessions [filter]` | O | Lists conversations on the host: name, transcript size, directory, last activity, whether something is holding it. Ones working inside the temp folder are left out unless a filter is given. |
-| `/whoami` | O | What this channel is bound to, its model and effort, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. The footer names the running version, and a newer one once it has been tagged. |
+| `/whoami` | O | What this channel is bound to, its model and effort, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. The footer names the version the bridge started on, with the commit where the code is not exactly that tagged release, and a newer version once one has been tagged. |
 | `/spend` | O | Plan usage first, the 5-hour and weekly windows as Claude Code reports them with each turn, for the whole account; a window whose reset has passed with nothing reported since is shown as reset, not as the share last seen for it. Then turns and tokens for this conversation and for every conversation the bridge has touched since it last started; a restart resets those, and turns run in a terminal are never counted. The tokens are the session's own and leave out what its agents used, which the cost does include. An API-equivalent cost comes last, only for ranking conversations against each other: a subscription is not billed by it. Named `/spend` so Claude Code's own `/usage` and `/cost` still reach the session. |
 | `/members` | O | The conversation's owner, who else can see its channel, and where it runs. |
 | `/operator <add\|remove\|list> [user]` | H | Who may use the bot, and where each one comes from. |
@@ -631,7 +631,8 @@ the scheduled task's wrapper, the systemd unit, the launchd agent and a
 container with a restart policy all take as a request to start it again.
 
 The bridge that comes back says so where the restart was asked from, naming
-its version and, in a clone, the commit it stands on. After `/restart` that is
+its version, and the commit it stands on wherever the code is not exactly that
+tagged release: a clone following `main` between two tags, or a branch. After `/restart` that is
 the channel the command was run in, with a mention of whoever ran it. After
 `npm run restart` run from inside a turn it is that turn's channel, as a reply
 to the message that started the turn: the turn has ended by then, and the
