@@ -241,6 +241,8 @@ export const es: Catalog = {
   },
   approvals: {
     request: "**{{tool}}** quiere ejecutarse. ¿Lo apruebas?\n```\n{{detail}}\n```",
+    deleteOutside:
+      "Claude quiere borrar algo fuera de la carpeta de esta conversación, lo que el puente rechaza salvo que un propietario lo permita. ¿Permitir este único comando?\n```\n{{detail}}\n```",
     approveOnce: "Aprobar una vez",
     deny: "Denegar",
     approveRest: "Aprobar el resto de este turno",

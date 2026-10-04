@@ -247,6 +247,8 @@ export const de: Catalog = {
   },
   approvals: {
     request: "**{{tool}}** will laufen. Genehmigen?\n```\n{{detail}}\n```",
+    deleteOutside:
+      "Claude will etwas außerhalb des Ordners dieses Gesprächs löschen, was die Brücke ablehnt, solange kein Besitzer es erlaubt. Diesen einen Befehl erlauben?\n```\n{{detail}}\n```",
     approveOnce: "Einmal genehmigen",
     deny: "Ablehnen",
     approveRest: "Für den Rest dieses Durchlaufs genehmigen",

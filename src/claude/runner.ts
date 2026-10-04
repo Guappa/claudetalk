@@ -20,6 +20,7 @@ export interface ChannelSettings {
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };
 export type ApproveTool = (toolName: string, input: Record<string, unknown>) => Promise<ToolDecision>;
+type AskFirst = (toolName: string, input: Record<string, unknown>) => Promise<ToolDecision> | null;
 
 export interface TurnRequest {
   sessionId: string;
@@ -32,6 +33,7 @@ export interface TurnRequest {
   approve?: ApproveTool;
   askQuestions?: AskQuestions;
   deny?: (toolName: string, toolInput: Record<string, unknown>) => string | null;
+  ask?: AskFirst;
   // Told when the turn is run a second time after a login refresh lost to another process, so the trail can say so.
   onRetry?: () => void;
   retryDelayMs?: number;
@@ -131,6 +133,8 @@ interface Gates {
   askQuestions?: AskQuestions;
   // The reason a call is refused outright, before any approval is asked; null lets it through to the rest of the gate.
   deny?: (toolName: string, toolInput: Record<string, unknown>) => string | null;
+  // A call that is refused unless a person lets this one through; null where no such rule applies to it.
+  ask?: AskFirst;
 }
 
 async function decide(
@@ -147,6 +151,12 @@ async function decide(
 
   const refused = gates.deny?.(toolName, toolInput);
   if (refused) return denied(refused);
+  // Let through by name, it is not asked about a second time by the approvals that cover every call.
+  const asked = gates.ask?.(toolName, toolInput);
+  if (asked) {
+    const answer = await asked;
+    return answer.allow ? allowed("Approved from Discord.") : denied(answer.reason);
+  }
   if (!gates.approve || UNGATED_TOOLS.has(toolName)) return { continue: true };
   const decision = await gates.approve(toolName, toolInput);
   return decision.allow ? allowed("Approved from Discord.") : denied(decision.reason);
@@ -315,7 +325,7 @@ interface Attempt {
 
 export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => void): RunningTurn {
   const options = buildOptions(request);
-  if (request.approve || request.askQuestions || request.deny) options.hooks = gate(request);
+  if (request.approve || request.askQuestions || request.deny || request.ask) options.hooks = gate(request);
 
   // Spawning it ourselves is the only way to learn the pid, and stopping a turn means its whole tree.
   let pid: number | undefined;

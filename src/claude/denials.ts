@@ -123,6 +123,24 @@ const REASONS: Record<Denial, string> = {
     "The bridge refused this outright: a command that would stop, restart or reformat the machine. Ask the person in Discord to do this by hand.",
 };
 
+// The one rule an owner may let a single command past: what a turn made outside its folder it has to be able to remove, and only a person can say that this delete is that.
+const ASKED_OF_AN_OWNER: Denial = "deletes";
+
+export function withoutAskable(rules: ReadonlySet<Denial>): Set<Denial> {
+  return new Set([...rules].filter((rule) => rule !== ASKED_OF_AN_OWNER));
+}
+
+// The command an owner is asked about, where that rule is on and applies; null otherwise.
+export function askedOfOwner(
+  rules: ReadonlySet<Denial>,
+  scope: DenialScope,
+  toolName: string,
+  input: Record<string, unknown>,
+): string | null {
+  const command = SHELL_TOOLS.has(toolName) ? text(input.command) : "";
+  return command && rules.has(ASKED_OF_AN_OWNER) && deletesOutside(command, scope.cwd) ? command : null;
+}
+
 // The reason a call is refused, for Claude to read, or null when no rule the bridge runs with applies.
 export function deniedBy(
   rules: ReadonlySet<Denial>,
