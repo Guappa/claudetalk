@@ -3,7 +3,7 @@ import path from "node:path";
 
 const STOP_POLL_MS = 500;
 
-// "drain" lets running turns finish first; "now" cuts them short; "restart" drains and then leaves in a way that asks whatever started the bridge to start it again.
+// "drain" lets running turns finish first; "now" cuts them short; "restart" waits until nothing is running and then leaves in a way that asks whatever started the bridge to start it again.
 export type StopMode = "drain" | "now" | "restart";
 
 // A restart asked for from inside a turn names the conversation, so the bridge that comes back knows where to say so.
@@ -51,4 +51,17 @@ export function watchForStop(lockPath: string, onStop: (request: StopRequest) =>
   }, STOP_POLL_MS);
   timer.unref();
   return timer;
+}
+
+const IDLE_POLL_MS = 250;
+
+// Calls back the first moment nothing is running, and takes nothing from anyone until then: a bridge that drained for a restart would refuse every conversation for as long as the longest turn anywhere ran. The function returned calls the wait off.
+export function whenIdle(activeCount: () => number, onIdle: () => void, pollMs: number = IDLE_POLL_MS): () => void {
+  const timer = setInterval(() => {
+    if (activeCount() > 0) return;
+    clearInterval(timer);
+    onIdle();
+  }, pollMs);
+  timer.unref();
+  return () => clearInterval(timer);
 }

@@ -184,9 +184,10 @@ export const fr: Catalog = {
     checkTimedOut:
       "Pas de redémarrage : vérifier que le code sur l'hôte démarrerait a pris plus d'une minute et a été abandonné. La passerelle continue telle quelle ; le journal sur l'hôte dit peut-être ce qu'elle attendait.",
     now: "Redémarrage immédiat. La passerelle le dira ici une fois revenue.",
-    afterTurns_one: "Redémarrage dès que le {{count}} tour en cours sera terminé. La passerelle le dira ici une fois revenue.",
+    afterTurns_one:
+      "Redémarrage dès que le {{count}} tour en cours sera terminé et que plus rien ne tournera. D'ici là la passerelle fonctionne comme d'habitude, et elle le dira ici une fois revenue.",
     afterTurns_other:
-      "Redémarrage dès que les {{count}} tours en cours seront terminés. La passerelle le dira ici une fois revenue.",
+      "Redémarrage dès que les {{count}} tours en cours seront terminés et que plus rien ne tournera. D'ici là la passerelle fonctionne comme d'habitude, et elle le dira ici une fois revenue.",
     back: "La passerelle est revenue après son redémarrage, en v{{version}}.",
   },
   update: {
