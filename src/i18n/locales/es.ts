@@ -134,6 +134,10 @@ export const es: Catalog = {
       "Tu mensaje no se envió a Claude: la comprobación previa al turno falló con {{error}}. Prueba a enviarlo otra vez; si sigue fallando, el registro del puente en el host tiene los detalles.",
     heldByBackgroundAgent:
       "Esa conversación se está ejecutando como agente en segundo plano (`{{shortId}}`). Ejecuta `/takeover` aquí para detenerlo y continuar, o `claude attach {{shortId}}` en el host.",
+    openInTerminalIdle:
+      "Esa conversación está abierta en una terminal del host (pid {{pid}}, {{cwd}}), donde no hay nada en marcha. Ejecuta `/takeover` aquí para cerrarla allí y continuar, o cierra esa terminal tú mismo.",
+    openInTerminalBusy:
+      "Esa conversación está abierta en una terminal del host (pid {{pid}}, {{cwd}}), y allí hay un turno en marcha. Deja que termine o detenlo allí, y vuelve a intentarlo.",
     openInTerminal:
       "Esa conversación está abierta en una terminal del host (pid {{pid}}, {{cwd}}). Cierra esa terminal o cámbiala a otra conversación, y vuelve a intentarlo.",
     conversationGone:
@@ -328,6 +332,10 @@ export const es: Catalog = {
       "No se pudo eliminar el canal: {{error}}. El bot necesita Gestionar canales; quítalo en la configuración del canal de Discord.",
   },
   takeover: {
+    closedTerminal:
+      "Se cerró Claude Code en la terminal del host (pid {{pid}}). Esta conversación ya está libre: envía tu mensaje. Para abrirla allí otra vez, ejecuta `claude --resume {{sessionId}}` en el host.",
+    notClosed:
+      "Claude Code en la terminal del host (pid {{pid}}) no se cerró en unos segundos, así que no se tomó el control de nada. Cierra esa terminal en el host y vuelve a intentarlo.",
     running: "Ahora mismo hay un turno en marcha aquí. Usa `/stop` para terminarlo.",
     nothingHolding: "Nada retiene esta conversación. Simplemente envía un mensaje.",
     stopped: "Agente en segundo plano `{{shortId}}` detenido.",

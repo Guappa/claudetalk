@@ -32,7 +32,7 @@ this covers behaviour.
 | `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. While agents or a cloud task are running there is also **Stop agents**, which stops them and leaves the turn going. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
 | `/restart` | H | Restarts the bridge once the running turns have finished, after checking that the code on the host would start, and says in this channel when it is back. See [Restarting it](#restarting-it). |
-| `/takeover` | O | Stops a background agent holding this conversation, then continues. |
+| `/takeover` | O | Frees this conversation from what holds it on the host: stops a background agent, or closes Claude Code in a terminal the conversation was left open in, provided nothing is running there. See [Who may drive it](#who-may-drive-it). |
 | `/category [name]` | O | Shows the category this conversation's channel is in, or moves it to one. Creates the category if it does not exist. |
 | `/unbind` | O | Unbinds the channel at once, then offers to delete it or keep it for the history. The conversation stays on the host either way. It refuses while a turn is running or queued here, and says so in a channel that holds no conversation. A channel that only answered when the bot was tagged is unbound without the offer to delete it, and **Delete the channel** does nothing if the channel has been bound again since. |
 
@@ -392,9 +392,21 @@ it is not part of, or as a reply to another person, gets no answer.
 
 A conversation can only be driven by one process at a time. With nothing holding
 it, a turn runs. Held by a background agent, the bridge refuses and offers
-`/takeover`, which stops the agent and continues. Held by an open terminal, it
-refuses naming the pid and directory; close that terminal or switch it to
-another conversation. Every path that spends a turn is checked the same way.
+`/takeover`, which stops the agent and continues.
+
+Held by an open terminal, it refuses naming the pid and directory, and what
+it offers depends on what the terminal is doing, which Claude Code reports for
+each open session. One where nothing is running can be taken over: `/takeover`
+ends Claude Code there, the conversation is free, and your next message runs.
+The terminal is left showing that Claude Code has exited, and
+`claude --resume <id>` reopens the conversation in it, Discord's turns
+included; the reply to `/takeover` gives the command. One where a turn is
+running is left alone, since closing it would cut that turn short: let it
+finish or stop it there. So is one that reports nothing about itself, as an
+older Claude Code does: close that terminal or switch it to another
+conversation. Nothing is ever closed without `/takeover` being run.
+
+Every path that spends a turn is checked the same way.
 Claude Code refuses this itself as well, so a race that gets past the check is
 still caught. A turn this bridge is already running is not a collision: a
 second message sent mid-turn joins it or queues rather than being turned away.

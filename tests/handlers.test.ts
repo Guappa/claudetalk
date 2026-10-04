@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleClear } from "../src/discord/commands/clear.ts";
 import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
-import { handleRestart, handleUnbind } from "../src/discord/commands/control.ts";
+import { handleRestart, handleTakeover, handleUnbind } from "../src/discord/commands/control.ts";
+import { spawn, type ChildProcess } from "node:child_process";
 import { announcement, askerFor } from "../src/discord/restart.ts";
 import { UpdateNotice, describeUpdate } from "../src/discord/updateNotice.ts";
 import { UpdateCheck, type UpdateNews } from "../src/updateCheck.ts";
@@ -1054,5 +1055,58 @@ describe("a newer version of the bridge", () => {
 
     const bare = describeUpdate(say, { ...news, changes: [] }).split("\n");
     expect(bare).toHaveLength(2);
+  });
+});
+
+describe("taking a conversation over from a terminal on the host", () => {
+  const say = sayIn("en");
+  const standIns: ChildProcess[] = [];
+
+  // A real idle process stands in for Claude Code in a terminal, so that closing it is closing something.
+  function terminal(): ChildProcess {
+    const child = spawn(process.execPath, ["-e", "setInterval(() => undefined, 1000)"], { stdio: "ignore" });
+    standIns.push(child);
+    return child;
+  }
+
+  async function held(channelId: string, status: string | undefined, pid: number) {
+    const live = { pid, cwd: os.tmpdir(), kind: "interactive" as const, sessionId: SESSION, status };
+    const bridge = await testBridge([{ ...record({ sessionId: SESSION, name: "Deploy Scripts", cwd: os.tmpdir() }), live }]);
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: os.tmpdir(), channelId, ownerId: OWNER });
+    return bridge;
+  }
+
+  const alive = (child: ChildProcess): boolean => child.exitCode === null && child.signalCode === null;
+
+  it("closes Claude Code there when it is idle, and says how to open the conversation there again", async () => {
+    const child = terminal();
+    const bridge = await held("t1", "idle", child.pid!);
+    const command = fakeCommand(fakeChannel("t1"), OWNER);
+    await handleTakeover(bridge, command.interaction);
+
+    expect(command.replies.at(-1)).toBe(say("takeover.closedTerminal", { pid: child.pid!, sessionId: SESSION }));
+    await vi.waitFor(() => expect(alive(child)).toBe(false));
+  }, 15_000);
+
+  it("leaves a terminal alone while a turn is running in it", async () => {
+    const child = terminal();
+    const bridge = await held("t2", "busy", child.pid!);
+    const command = fakeCommand(fakeChannel("t2"), OWNER);
+    await handleTakeover(bridge, command.interaction);
+
+    expect(command.replies.at(-1)).toContain("a turn is running there");
+    expect(alive(child)).toBe(true);
+    child.kill();
+  });
+
+  it("leaves a terminal alone when it says nothing of whether it is working", async () => {
+    const child = terminal();
+    const bridge = await held("t3", undefined, child.pid!);
+    const command = fakeCommand(fakeChannel("t3"), OWNER);
+    await handleTakeover(bridge, command.interaction);
+
+    expect(command.replies.at(-1)).toContain("Close that terminal");
+    expect(alive(child)).toBe(true);
+    child.kill();
   });
 });
