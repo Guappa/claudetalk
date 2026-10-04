@@ -124,6 +124,10 @@ export const zh: Catalog = {
       "你的消息没有发送给 Claude：轮次前的检查失败，错误为 {{error}}。试着再发一次；如果仍然失败，主机上的桥接日志有详细信息。",
     heldByBackgroundAgent:
       "该对话正作为后台代理运行（`{{shortId}}`）。在这里运行 `/takeover` 来停止它并继续，或在主机上运行 `claude attach {{shortId}}`。",
+    openInTerminalIdle:
+      "该对话在主机的一个终端中打开着（pid {{pid}}，{{cwd}}），那里没有任何东西在运行。在这里运行 `/takeover` 可以在那边关闭它并继续，或者你自己关闭那个终端。",
+    openInTerminalBusy:
+      "该对话在主机的一个终端中打开着（pid {{pid}}，{{cwd}}），那里有一个轮次正在运行。等它结束或在那边停止它，然后再试。",
     openInTerminal: "该对话在主机的一个终端中打开着（pid {{pid}}，{{cwd}}）。关闭那个终端或将其切换到另一个对话，然后再试。",
     conversationGone: "你的消息在途中时，此频道的对话被重新开始或解除绑定了，所以它没有运行。请再发一次。",
     unknownSession:
@@ -301,6 +305,10 @@ export const zh: Catalog = {
     deleteFailed: "无法删除频道：{{error}}。机器人需要“管理频道”权限；请改在 Discord 的频道设置中移除它。",
   },
   takeover: {
+    closedTerminal:
+      "已关闭主机终端中的 Claude Code（pid {{pid}}）。此对话现在空闲了：发送你的消息吧。要在那边重新打开它，请在主机上运行 `claude --resume {{sessionId}}`。",
+    notClosed:
+      "主机终端中的 Claude Code（pid {{pid}}）没有在几秒内关闭，所以没有接管任何东西。请在主机上关闭那个终端，然后再试。",
     running: "这里现在有一个轮次正在运行。用 `/stop` 结束它。",
     nothingHolding: "没有什么在占用此对话。直接发送一条消息即可。",
     stopped: "已停止后台代理 `{{shortId}}`。",

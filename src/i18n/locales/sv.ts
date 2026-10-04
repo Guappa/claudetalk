@@ -133,6 +133,10 @@ export const sv: Catalog = {
       "Ditt meddelande skickades inte till Claude: kontrollen före omgången misslyckades med {{error}}. Skicka det igen; om det fortsätter misslyckas finns detaljerna i bryggans logg på värddatorn.",
     heldByBackgroundAgent:
       "Den konversationen körs som en bakgrundsagent (`{{shortId}}`). Kör `/takeover` här för att stoppa den och fortsätta, eller `claude attach {{shortId}}` på värddatorn.",
+    openInTerminalIdle:
+      "Den konversationen är öppen i en terminal på värddatorn (pid {{pid}}, {{cwd}}), där inget körs just nu. Kör `/takeover` här för att stänga den där och fortsätta, eller stäng den terminalen själv.",
+    openInTerminalBusy:
+      "Den konversationen är öppen i en terminal på värddatorn (pid {{pid}}, {{cwd}}), och en omgång körs där. Låt den bli klar eller stoppa den där, och försök sedan igen.",
     openInTerminal:
       "Den konversationen är öppen i en terminal på värddatorn (pid {{pid}}, {{cwd}}). Stäng den terminalen eller byt den till en annan konversation och försök sedan igen.",
     conversationGone:
@@ -173,11 +177,11 @@ export const sv: Catalog = {
   },
   restart: {
     unsupervised:
-      "Inte omstartad: den här bryggan startades för hand, eller av en tjänst som installerades innan den kunde starta om sig själv, så inget skulle starta den igen. Kör installationsskriptet för autostart från README en gång till, eller stoppa och starta den på värden.",
+      "Inte omstartad: den här bryggan startades för hand, eller av en tjänst som installerades innan den kunde starta om sig själv, så inget skulle starta den igen. Kör installationsskriptet för autostart från README en gång till, eller stoppa och starta den på värddatorn.",
     broken:
-      "Inte omstartad: koden på värden skulle inte starta, så bryggan kör vidare som den är. Rätta det den pekar på och be sedan igen.\n```\n{{error}}\n```",
+      "Inte omstartad: koden på värddatorn skulle inte starta, så bryggan kör vidare som den är. Rätta det den pekar på och be sedan igen.\n```\n{{error}}\n```",
     checkTimedOut:
-      "Inte omstartad: kontrollen av att koden på värden skulle starta tog över en minut och gavs upp. Bryggan kör vidare som den är; loggen på värden kan säga vad den väntade på.",
+      "Inte omstartad: kontrollen av att koden på värddatorn skulle starta tog över en minut och gavs upp. Bryggan kör vidare som den är; loggen på värddatorn kan säga vad den väntade på.",
     now: "Startar om nu. Bryggan säger till här när den är tillbaka.",
     afterTurns_one: "Startar om när den {{count}} pågående omgången är klar. Bryggan säger till här när den är tillbaka.",
     afterTurns_other: "Startar om när de {{count}} pågående omgångarna är klara. Bryggan säger till här när den är tillbaka.",
@@ -188,7 +192,7 @@ export const sv: Catalog = {
     out_other: "**v{{version}}** av bryggan är ute, {{count}} versioner efter v{{current}} som kör här.",
     more_one: "... och {{count}} ändring till",
     more_other: "... och {{count}} ändringar till",
-    how: "Allt däremellan: <{{url}}>. För att uppdatera, hämta den nya koden på värden och starta om bryggan, eller hämta den nya avbilden. Det här sägs en gång per version, och högst en gång i veckan.",
+    how: "Allt däremellan: <{{url}}>. För att uppdatera, hämta den nya koden på värddatorn och starta om bryggan, eller hämta den nya avbilden. Det här sägs en gång per version, och högst en gång i veckan.",
   },
   stop: {
     button: "Stoppa",
@@ -326,6 +330,10 @@ export const sv: Catalog = {
       "Kunde inte ta bort kanalen: {{error}}. Boten behöver behörigheten Hantera kanaler (Manage Channels); ta bort den i Discords kanalinställningar i stället.",
   },
   takeover: {
+    closedTerminal:
+      "Stängde Claude Code i terminalen på värddatorn (pid {{pid}}). Den här konversationen är ledig nu: skicka ditt meddelande. För att öppna den där igen, kör `claude --resume {{sessionId}}` på värddatorn.",
+    notClosed:
+      "Claude Code i terminalen på värddatorn (pid {{pid}}) stängdes inte inom några sekunder, så inget togs över. Stäng den terminalen på värddatorn och försök sedan igen.",
     running: "En omgång körs här just nu. Använd `/stop` för att avsluta den.",
     nothingHolding: "Inget håller den här konversationen. Skicka bara ett meddelande.",
     stopped: "Stoppade bakgrundsagenten `{{shortId}}`.",

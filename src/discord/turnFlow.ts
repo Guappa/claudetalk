@@ -57,6 +57,7 @@ const DRAIN_POLL_MS = 250;
 export type PreflightResult =
   | { kind: "ok" }
   | { kind: "takeover-available"; shortId: string; message: string }
+  | { kind: "terminal-idle"; pid: number; message: string }
   | { kind: "refused"; message: string };
 
 export function preflight(say: Say, record: SessionRecord | null): PreflightResult {
@@ -71,7 +72,10 @@ export function preflight(say: Say, record: SessionRecord | null): PreflightResu
     };
   }
 
-  return { kind: "refused", message: say("turn.openInTerminal", { pid: live.pid, cwd: displayPath(live.cwd) }) };
+  const where = { pid: live.pid, cwd: displayPath(live.cwd) };
+  // Closing a terminal that is working would cut its turn short, so only one that says it is idle may be taken over; one that says nothing of itself is left alone.
+  if (live.status === "idle") return { kind: "terminal-idle", pid: live.pid, message: say("turn.openInTerminalIdle", where) };
+  return { kind: "refused", message: say(live.status ? "turn.openInTerminalBusy" : "turn.openInTerminal", where) };
 }
 
 export interface TurnOptions {
