@@ -583,6 +583,14 @@ describe("describeToolUse", () => {
     expect(describeToolUse(say, "AskUserQuestion", { questions: [] })).toBeNull();
   });
 
+  // Tool names carry double underscores in pairs, which Discord reads as underline and takes out of the text.
+  it("draws a tool search as code, so the names searched for arrive as they were written", () => {
+    const shown = describeToolUse(say, "ToolSearch", { query: "select:mcp__notes__add_entry,mcp__notes__list_entries" });
+    expect(shown).toBe("**Tool search** `select:mcp__notes__add_entry,mcp__notes__list_entries`");
+    expect(forDiscord(shown!)).toBe(shown);
+    expect(describeToolUse(say, "ToolSearch", { query: "a `quoted` name" })).toBe("**Tool search** `a 'quoted' name`");
+  });
+
   it("lists the todos a turn keeps, ticked as they are, and caps a long list", () => {
     const todos = [
       { content: "Read the spec", status: "completed" },
