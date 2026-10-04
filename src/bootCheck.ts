@@ -38,15 +38,16 @@ export function checkBoot(cwd: string = root, env: NodeJS.ProcessEnv = process.e
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const said = { tail: "" };
+  // The start is kept, not the end: Node says what went wrong first and follows it with a stack nobody needs.
+  const said = { start: "" };
   const keep = (chunk: Buffer): void => {
-    said.tail = `${said.tail}${chunk.toString("utf8")}`.slice(-SHOWN_CHARS);
+    said.start = `${said.start}${chunk.toString("utf8")}`.slice(0, SHOWN_CHARS);
   };
   child.stdout.on("data", keep);
   child.stderr.on("data", keep);
   const timer = setTimeout(() => {
     child.kill();
-    resolve({ ok: false, timedOut: true, output: said.tail.trim() });
+    resolve({ ok: false, timedOut: true, output: said.start.trim() });
   }, CHECK_TIMEOUT_MS);
   child.on("error", (error) => {
     clearTimeout(timer);
@@ -54,7 +55,7 @@ export function checkBoot(cwd: string = root, env: NodeJS.ProcessEnv = process.e
   });
   child.on("close", (code) => {
     clearTimeout(timer);
-    resolve(code === 0 ? { ok: true } : { ok: false, timedOut: false, output: said.tail.trim() });
+    resolve(code === 0 ? { ok: true } : { ok: false, timedOut: false, output: said.start.trim() });
   });
   return promise;
 }
