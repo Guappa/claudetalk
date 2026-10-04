@@ -199,6 +199,8 @@ describe("docs follow code", () => {
       "CONTRIBUTING.md",
       "SECURITY.md",
       ".env.example",
+      ".github/ISSUE_TEMPLATE/bug_report.yml",
+      ".github/ISSUE_TEMPLATE/config.yml",
     ];
     const leaks = [...SHAPES, ...DOC_ONLY] as Array<[string, RegExp]>;
 
