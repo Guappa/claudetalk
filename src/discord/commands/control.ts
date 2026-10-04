@@ -6,7 +6,9 @@ import { requireConversation } from "../binding.ts";
 import { describeStop, describeStopTurn, preflight } from "../turnFlow.ts";
 import { describeDepth } from "../turnQueue.ts";
 import { respond } from "../respond.ts";
-import { lockPathBeside } from "../../instanceLock.ts";
+import { isProcessAlive, lockPathBeside } from "../../instanceLock.ts";
+import { killTree } from "../../platform.ts";
+import { setTimeout as wait } from "node:timers/promises";
 import { requestStop } from "../../stopSignal.ts";
 
 export async function handleStop(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
@@ -72,6 +74,18 @@ export async function handleUnbind(bridge: Bridge, interaction: ChatInputCommand
   await respond(interaction, { content: say("unbind.done"), components: [row] });
 }
 
+// Ending a process takes a moment to show, and a conversation is only free once its holder is gone.
+const CLOSE_WAIT_MS = 5000;
+const CLOSE_POLL_MS = 100;
+
+async function goneWithin(pid: number, waitMs: number): Promise<boolean> {
+  for (let waited = 0; waited < waitMs; waited += CLOSE_POLL_MS) {
+    if (!isProcessAlive(pid)) return true;
+    await wait(CLOSE_POLL_MS);
+  }
+  return !isProcessAlive(pid);
+}
+
 export async function handleTakeover(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
@@ -82,6 +96,8 @@ export async function handleTakeover(bridge: Bridge, interaction: ChatInputComma
     return;
   }
 
+  // Asked afresh: what was listed a moment ago may name a terminal that has since started a turn, or a pid that is someone else's by now.
+  bridge.sessions.forgetLive();
   const check = preflight(say, await bridge.sessions.find(conversation.sessionId));
 
   if (check.kind === "ok") {
@@ -90,6 +106,16 @@ export async function handleTakeover(bridge: Bridge, interaction: ChatInputComma
   }
   if (check.kind === "refused") {
     await respond(interaction, check.message);
+    return;
+  }
+  if (check.kind === "terminal-idle") {
+    killTree(check.pid);
+    const closed = await goneWithin(check.pid, CLOSE_WAIT_MS);
+    bridge.sessions.forgetLive();
+    const outcome = closed
+      ? say("takeover.closedTerminal", { pid: check.pid, sessionId: conversation.sessionId })
+      : say("takeover.notClosed", { pid: check.pid });
+    await respond(interaction, outcome);
     return;
   }
 

@@ -134,6 +134,10 @@ export const fr: Catalog = {
       "Ton message n'a pas été envoyé à Claude : la vérification avant le tour a échoué avec {{error}}. Essaie de le renvoyer ; si ça continue d'échouer, le journal de la passerelle sur l'hôte a les détails.",
     heldByBackgroundAgent:
       "Cette conversation tourne comme agent en arrière-plan (`{{shortId}}`). Lance `/takeover` ici pour l'arrêter et continuer, ou `claude attach {{shortId}}` sur l'hôte.",
+    openInTerminalIdle:
+      "Cette conversation est ouverte dans un terminal sur l'hôte (pid {{pid}}, {{cwd}}), où rien n'est en cours. Lance `/takeover` ici pour la fermer là-bas et continuer, ou ferme ce terminal toi-même.",
+    openInTerminalBusy:
+      "Cette conversation est ouverte dans un terminal sur l'hôte (pid {{pid}}, {{cwd}}), et un tour y est en cours. Laisse-le finir ou arrête-le là-bas, puis réessaie.",
     openInTerminal:
       "Cette conversation est ouverte dans un terminal sur l'hôte (pid {{pid}}, {{cwd}}). Ferme ce terminal ou passe-le à une autre conversation, puis réessaie.",
     conversationGone:
@@ -330,6 +334,10 @@ export const fr: Catalog = {
       "Impossible de supprimer le salon : {{error}}. Le bot a besoin de Gérer les salons ; retire-le plutôt dans les paramètres du salon de Discord.",
   },
   takeover: {
+    closedTerminal:
+      "Claude Code a été fermé dans le terminal sur l'hôte (pid {{pid}}). Cette conversation est libre maintenant : envoie ton message. Pour la rouvrir là-bas, lance `claude --resume {{sessionId}}` sur l'hôte.",
+    notClosed:
+      "Claude Code dans le terminal sur l'hôte (pid {{pid}}) ne s'est pas fermé en quelques secondes, donc rien n'a été repris. Ferme ce terminal sur l'hôte, puis réessaie.",
     running: "Un tour est en cours ici en ce moment. Utilise `/stop` pour le finir.",
     nothingHolding: "Rien ne retient cette conversation. Envoie simplement un message.",
     stopped: "Agent en arrière-plan `{{shortId}}` arrêté.",
