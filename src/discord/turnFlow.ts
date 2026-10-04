@@ -34,7 +34,7 @@ import type { ApprovalPrompts } from "./approvals.ts";
 import type { QuestionPrompts } from "./questions.ts";
 import type { Config } from "../config.ts";
 import type { SessionRecord } from "../sessions/index.ts";
-import type { AskHandle, MessageSink, SinkAction } from "./messageSink.ts";
+import type { AskHandle, Delivery, MessageSink, SinkAction } from "./messageSink.ts";
 import { StatusMessage } from "./statusMessage.ts";
 import { splitForDiscord } from "./outgoing.ts";
 import { displayPath } from "../displayPath.ts";
@@ -48,6 +48,9 @@ import type { OutboxDelivery } from "./outboxDelivery.ts";
 import type { StateMarker } from "./reactions.ts";
 import type { Mood } from "./statusMessage.ts";
 import type { ActiveTurns } from "./activeTurns.ts";
+import { Attention } from "./attention.ts";
+import { APPROVAL_REFUSED, QUESTIONS_UNANSWERED } from "../claude/prompts.ts";
+import type { QuestionOutcome } from "../claude/questions.ts";
 
 const DRAIN_POLL_MS = 250;
 
@@ -111,6 +114,16 @@ interface TurnScope {
   status: StatusMessage;
   board: AgentBoard;
   tracker: ContextTracker;
+  attention: Attention;
+}
+
+// A skip and a denial are a person's doing as much as an answer is; a prompt that expired or died with its turn is nobody's.
+function answeredByPerson(outcome: QuestionOutcome): boolean {
+  return outcome.answered || outcome.reason === QUESTIONS_UNANSWERED.skipped;
+}
+
+function decidedByPerson(decision: ToolDecision): boolean {
+  return decision.allow || decision.reason === APPROVAL_REFUSED.denied;
 }
 
 export type SendNowOutcome = "sent" | "nothing-waiting" | "not-running" | "not-interrupted";
@@ -198,15 +211,18 @@ async function postAnswer(
   cwd: string,
   text: string,
   compacted: boolean,
+  notify: boolean,
 ): Promise<void> {
   const raw = text.trim() ? text : say(compacted ? "trail.answerCompacted" : "trail.answerDoneNoText");
   // The echo is matched against what the model said, before any rewriting of it.
   if (status.dropEcho(raw) === "shown") {
     await status.settle("done");
+    // The answer stands in the trail already and an edit reaches nobody, so the end is said in a message that can.
+    if (notify) await sink.send(say("trail.answerDone"), { notify });
     return;
   }
   const linked = await linkEverything(cwd, convertTables(raw));
-  await conclude(say, status, sink, splitForDiscord(linked, status.roomForOutcome("done")), "done");
+  await conclude(say, status, sink, splitForDiscord(linked, status.roomForOutcome("done")), "done", notify);
 }
 
 async function linkEverything(cwd: string, text: string): Promise<string> {
@@ -215,17 +231,25 @@ async function linkEverything(cwd: string, text: string): Promise<string> {
 }
 
 // The outcome replaces the progress message only when nothing lasting was posted beneath it since.
-async function conclude(say: Say, status: StatusMessage, sink: MessageSink, chunks: string[], mood: Mood): Promise<void> {
+async function conclude(
+  say: Say,
+  status: StatusMessage,
+  sink: MessageSink,
+  chunks: string[],
+  mood: Mood,
+  notify = false,
+): Promise<void> {
   const first = chunks[0] ?? say("trail.answerDone");
-  // The progress message can be gone by now, purged or deleted by hand; what it could not be given is then said beneath where it was.
-  const inPlace = await concludeInPlace(status, sink, first, mood).catch(() => false);
+  // An edit reaches nobody, so an outcome for someone who is away is never put into the progress message.
+  const inPlace = !notify && (await concludeInPlace(status, sink, first, mood).catch(() => false));
   if (inPlace) {
     for (const chunk of chunks.slice(1)) await sink.send(chunk);
     return;
   }
   // Settled whatever kept the outcome out of it, or the trail would go on reading as live work under a Stop button that no longer belongs to this turn.
   await status.settle(mood).catch(() => undefined);
-  for (const chunk of chunks.length > 0 ? chunks : [first]) await sink.send(chunk);
+  await sink.send(first, { notify });
+  for (const chunk of chunks.slice(1)) await sink.send(chunk);
 }
 
 // A turn that ran must still end properly when its channel cannot be written to: the state is set, the queue moves on, and the host log says why nothing was posted.
@@ -261,6 +285,8 @@ export class TurnFlow {
   // The language each running turn was started in, which a message joining it is told about in too.
   private readonly spoken = new Map<string, Say>();
   private readonly boards = new Map<string, AgentBoard>();
+  // How long the person each running turn works for has been away from it.
+  private readonly attention = new Map<string, Attention>();
   private readonly folded = new Map<string, Map<string, Folded>>();
   private readonly queue = new TurnQueue();
   private readonly capabilities: CapabilityCache;
@@ -425,6 +451,8 @@ export class TurnFlow {
       await sink.notice(describeFull(say)).catch(reportUnposted(sessionId));
       return false;
     }
+    // Counted from when the message was sent, not from when its turn came up: the wait behind another turn is time away too.
+    const attention = new Attention(this.config.pingAfterMs);
     // The place in the lane is taken before anything is awaited, so whatever arrives or is dropped meanwhile counts this message too.
     const announced = Promise.withResolvers<void>();
     let refused = false;
@@ -434,7 +462,7 @@ export class TurnFlow {
       try {
         const refusal = await this.check(say, sessionId, options);
         refused = refusal !== undefined;
-        if (refusal === undefined) await this.runNow(sessionId, cwd, prompt, settings, sink, options);
+        if (refusal === undefined) await this.runNow(sessionId, cwd, prompt, settings, sink, options, attention);
         else await this.refuse(sink, refusal, options);
       } finally {
         // Cleared before the hook that follows: a stop that lands while the turn is only being marked as seen has nothing to stop, and must not end the next turn.
@@ -483,6 +511,7 @@ export class TurnFlow {
     const uuid = turn.handOver(prompt);
     if (!uuid) return null;
     this.approvals.revoke(sessionId);
+    this.attention.get(sessionId)?.seen();
 
     const entry: Folded = {
       onState: options.onState,
@@ -542,6 +571,7 @@ export class TurnFlow {
     settings: ChannelSettings,
     sink: MessageSink,
     options: TurnOptions,
+    attention: Attention,
   ): Promise<void> {
     // Read once, so a turn finishes in the language it started in even if another is picked while it runs.
     const say = this.say();
@@ -565,6 +595,7 @@ export class TurnFlow {
       void this.running.get(sessionId)?.stopTasks([taskId]);
     });
     this.boards.set(sessionId, board);
+    this.attention.set(sessionId, attention);
     const status = new StatusMessage(
       say,
       sink,
@@ -586,6 +617,7 @@ export class TurnFlow {
       status,
       board,
       tracker: this.trackerFor(sessionId),
+      attention,
     };
 
     try {
@@ -614,6 +646,7 @@ export class TurnFlow {
       await this.settleFolded(sessionId, "stopped");
       this.spoken.delete(sessionId);
       this.boards.delete(sessionId);
+      this.attention.delete(sessionId);
       this.stopping.delete(sessionId);
       this.finishing.delete(sessionId);
     }
@@ -621,7 +654,7 @@ export class TurnFlow {
 
   // The part of a turn during which Claude Code runs, and the posting of what it came to.
   private async live(scope: TurnScope): Promise<void> {
-    const { sessionId, cwd, prompt, settings, sink, options, resume, say, status, board, tracker } = scope;
+    const { sessionId, cwd, prompt, settings, sink, options, resume, say, status, board, tracker, attention } = scope;
     // True once Claude Code's process has ended, which is before the answer is posted and the turn is cleared away.
     let over = false;
     const stillRunning = (): boolean => !over;
@@ -637,11 +670,13 @@ export class TurnFlow {
         resume,
         name: options.name,
         fork: options.fork,
-        approve: this.approvalGate(say, sessionId, sink, stillRunning, options.onState),
+        approve: this.approvalGate(say, sessionId, sink, stillRunning, attention, options.onState),
         deny: this.denialGate(cwd),
         onRetry: () => status.note(say("trail.retryingRefresh")),
         askQuestions: (questions) =>
-          whileWaiting(options.onState, stillRunning, () => this.questions.ask(say, sessionId, sink, questions)),
+          whileWaiting(options.onState, stillRunning, () =>
+            attention.calling((delivery) => this.questions.ask(say, sessionId, sink, questions, delivery), answeredByPerson),
+          ),
       },
       (event) => {
         const noteCompaction = (): void => {
@@ -663,6 +698,8 @@ export class TurnFlow {
     this.recordSpend(sessionId, result, options, resume);
     await Promise.allSettled(pending);
     board.end();
+    // Whoever stopped the turn is here; one that ended on its own may have nobody watching.
+    const notify = !this.stopping.has(sessionId) && attention.away();
 
     if (!result.ok) {
       // Windows has no signals, so a killed turn looks like any other non-zero exit from here.
@@ -673,16 +710,16 @@ export class TurnFlow {
       const mood = stopped ? "stopped" : "failed";
       // Split like an answer: the reason Claude Code gives for failing can run past one message, and one that does not fit is never shown.
       const ended =
-        echo === "shown" && !stopped
+        echo === "shown" && !stopped && !notify
           ? status.settle(mood)
-          : conclude(say, status, sink, splitForDiscord(outcome, status.roomForOutcome(mood)), mood);
+          : conclude(say, status, sink, splitForDiscord(outcome, status.roomForOutcome(mood)), mood, notify);
       await ended.catch(reportUnposted(sessionId));
       await options.onState?.(mood);
       await this.settleFolded(sessionId, stopped ? "stopped" : "failed");
       return;
     }
 
-    await postAnswer(say, status, sink, cwd, result.text, compaction.happened).catch(reportUnposted(sessionId));
+    await postAnswer(say, status, sink, cwd, result.text, compaction.happened, notify).catch(reportUnposted(sessionId));
     await options.onState?.("done");
     await this.settleFolded(sessionId, "done");
     await this.deliverFiles(say, cwd, sessionId, sink);
@@ -717,14 +754,19 @@ export class TurnFlow {
     sessionId: string,
     sink: MessageSink,
     stillRunning: () => boolean,
+    attention: Attention,
     onState?: StateMarker,
   ): ApproveTool | undefined {
     if (!this.config.toolApprovals) return undefined;
-    const ask = (toolName: string, input: Record<string, unknown>): Promise<ToolDecision> =>
-      this.approvals.ask(say, sessionId, sink, this.config.ownerIds, toolName, input);
+    const ask = (toolName: string, input: Record<string, unknown>, delivery?: Delivery): Promise<ToolDecision> =>
+      this.approvals.ask(say, sessionId, sink, this.config.ownerIds, toolName, input, delivery);
     // Once the rest of the turn is approved nobody is asked, and the eyes would flip to the question mark and back for nothing.
     return (toolName, input) =>
-      this.approvals.covers(sessionId) ? ask(toolName, input) : whileWaiting(onState, stillRunning, () => ask(toolName, input));
+      this.approvals.covers(sessionId)
+        ? ask(toolName, input)
+        : whileWaiting(onState, stillRunning, () =>
+            attention.calling((delivery) => ask(toolName, input, delivery), decidedByPerson),
+          );
   }
 
   private recordSpend(sessionId: string, result: TurnResult, options: TurnOptions, resume: boolean): void {

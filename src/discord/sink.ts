@@ -8,7 +8,7 @@ import {
   StringSelectMenuOptionBuilder,
   ThreadAutoArchiveDuration,
 } from "discord.js";
-import type { AskHandle, DetailSink, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
+import type { AskHandle, Delivery, DetailSink, MessageSink, SinkAction, SinkAnchor, SinkFile, SinkMenu } from "./messageSink.ts";
 import { truncate } from "../text.ts";
 import { sendNotice } from "./notice.ts";
 import { forDiscord, nameForDiscord } from "./outgoing.ts";
@@ -93,6 +93,16 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
         }
       : { content, allowedMentions };
 
+  // A reply that pings is how Discord tells the person who asked; a turn no message started has nobody to tell.
+  const addressed = (payload: MessageCreateOptions, delivery?: Delivery): MessageCreateOptions =>
+    delivery?.notify && options.replyToMessageId
+      ? {
+          ...payload,
+          allowedMentions: { ...allowedMentions, repliedUser: true },
+          reply: { messageReference: options.replyToMessageId, failIfNotExists: false },
+        }
+      : payload;
+
   const post = async (payload: MessageCreateOptions): Promise<Message> => {
     const sent = await channel.send(payload);
     latestPosts.set(channel.id, sent.id);
@@ -100,9 +110,9 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
   };
 
   return {
-    async send(text: string): Promise<void> {
+    async send(text: string, delivery?: Delivery): Promise<void> {
       const shown = forDiscord(text);
-      const sent = await post(owned ? { content: shown, allowedMentions } : firstSendOptions(shown));
+      const sent = await post(addressed(owned ? { content: shown, allowedMentions } : firstSendOptions(shown), delivery));
       owned ??= sent;
     },
     async edit(text: string, actions: SinkAction[] = []): Promise<void> {
@@ -136,16 +146,16 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
     anchor(): SinkAnchor | null {
       return owned ? { channelId: owned.channelId, messageId: owned.id } : null;
     },
-    async ask(text: string, actions: SinkAction[]): Promise<AskHandle> {
+    async ask(text: string, actions: SinkAction[], delivery?: Delivery): Promise<AskHandle> {
       const shown = forDiscord(text);
-      const sent = await post({ content: shown, allowedMentions, components: buttonRow(actions) });
+      const sent = await post(addressed({ content: shown, allowedMentions, components: buttonRow(actions) }, delivery));
       return closable(sent, shown);
     },
     // Five rows to a message: the tool asks at most four questions, and the buttons take the fifth.
-    async askWithMenus(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle> {
+    async askWithMenus(text: string, menus: SinkMenu[], actions: SinkAction[], delivery?: Delivery): Promise<AskHandle> {
       const shown = forDiscord(text);
       const components: AnyRow[] = [...menus.slice(0, 4).map(menuRow), ...buttonRow(actions)];
-      const sent = await post({ content: shown, allowedMentions, components });
+      const sent = await post(addressed({ content: shown, allowedMentions, components }, delivery));
       return closable(sent, shown);
     },
     // Refused where Discord has no threads, or the bot may not create one; the caller then does without.

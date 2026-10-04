@@ -4,7 +4,7 @@ import type { ToolDecision } from "../claude/runner.ts";
 import { displayPath, redactHome } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
-import type { MessageSink, SinkAction } from "./messageSink.ts";
+import type { Delivery, MessageSink, SinkAction } from "./messageSink.ts";
 import { approvalActionId, type ApprovalChoice } from "./menus.ts";
 
 export type { ApprovalChoice } from "./menus.ts";
@@ -89,6 +89,7 @@ export class ApprovalPrompts {
     ownerIds: string[],
     toolName: string,
     input: Record<string, unknown>,
+    delivery?: Delivery,
   ): Promise<ToolDecision> {
     if (this.approveAll.has(turnId)) return { allow: true };
     // Without a way to ask, the safe answer is the one that does not act.
@@ -104,7 +105,7 @@ export class ApprovalPrompts {
     timer.unref();
 
     // A prompt that never reached Discord can never be answered, so it is refused now and nothing is left waiting on it.
-    const handle = await sink.ask(describeRequest(say, toolName, input), approvalActions(say, id)).catch(() => null);
+    const handle = await sink.ask(describeRequest(say, toolName, input), approvalActions(say, id), delivery).catch(() => null);
     if (!handle) {
       this.pending.delete(id);
       clearTimeout(timer);

@@ -19,6 +19,8 @@ export interface RecordingSink extends MessageSink {
   // What was posted into the side room, in order; a revised post is replaced where it stands.
   details: string[];
   detailTitles: string[];
+  // What was sent as a message meant to reach the person, not only to be shown.
+  notified: string[];
 }
 
 export function recordingSink(): RecordingSink {
@@ -27,8 +29,10 @@ export function recordingSink(): RecordingSink {
   const messages: string[] = [];
   const details: string[] = [];
   const detailTitles: string[] = [];
+  const notified: string[] = [];
   let owned = -1;
   const sink: RecordingSink = {
+    notified,
     written,
     files,
     messages,
@@ -48,9 +52,10 @@ export function recordingSink(): RecordingSink {
         },
       };
     },
-    send: async (text) => {
+    send: async (text, delivery) => {
       written.push(text);
       messages.push(text);
+      if (delivery?.notify) notified.push(text);
       if (owned < 0) owned = messages.length - 1;
     },
     notice: async (text) => void written.push(text),

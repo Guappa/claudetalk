@@ -251,6 +251,50 @@ describe("a channel sink whose message is gone", () => {
   });
 });
 
+describe("a channel sink asked to reach the person", () => {
+  interface Sent {
+    reply?: { messageReference: string };
+    allowedMentions?: { repliedUser?: boolean };
+  }
+
+  function capturing(name: string): { fake: ReturnType<typeof fakeDiscordChannel>; sent: Sent[] } {
+    const fake = fakeDiscordChannel(name);
+    const send = fake.channel.send.bind(fake.channel);
+    const sent: Sent[] = [];
+    fake.channel.send = (async (payload: unknown) => {
+      sent.push(payload as Sent);
+      return await send(payload as never);
+    }) as unknown as typeof fake.channel.send;
+    return { fake, sent };
+  }
+
+  it("replies to the message that started the turn with the ping on, for an answer and for a prompt alike", async () => {
+    const { fake, sent } = capturing("reached");
+    const sink = channelSink(fake.channel, { replyToMessageId: "prompt-1" });
+    await sink.edit("Working 1s", []);
+    await sink.send("the answer", { notify: true });
+    await sink.ask!("May I?", [], { notify: true });
+    await sink.send("the rest of it");
+
+    expect(sent[0]!.allowedMentions!.repliedUser).toBe(false);
+    for (const reaching of [sent[1]!, sent[2]!]) {
+      expect(reaching.reply!.messageReference).toBe("prompt-1");
+      expect(reaching.allowedMentions!.repliedUser).toBe(true);
+    }
+    expect(sent[3]!.reply).toBeUndefined();
+  });
+
+  // A turn a command started has no message of the person's to reply to, and a reply is the only ping there is.
+  it("posts plainly when no message started the turn", async () => {
+    const { fake, sent } = capturing("nobody");
+    const sink = channelSink(fake.channel);
+    await sink.send("the answer", { notify: true });
+
+    expect(sent[0]!.reply).toBeUndefined();
+    expect(sent[0]!.allowedMentions!.repliedUser).toBe(false);
+  });
+});
+
 describe("fitForDiscord", () => {
   it("fits the start of a text made of nothing but markers, with the mark that says it was cut", () => {
     const first = fitForDiscord("_".repeat(5000), 1000);
