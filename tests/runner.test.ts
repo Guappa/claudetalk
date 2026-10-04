@@ -152,13 +152,13 @@ describe("a turn around an Agent SDK session", () => {
       result: "Failed to refresh OAuth token: another Claude Code process is refreshing it or exited mid-refresh.",
       usage: { input_tokens: 1 },
     } as unknown as ClaudeEvent;
-    let retries = 0;
+    const onRetry = vi.fn();
     sessions.scripts.push(async function* () {
       yield lost;
     }, answers("clean"));
-    const first = await runTurn({ ...request(), retryDelayMs: 5, onRetry: () => void (retries += 1) }, () => undefined).done;
+    const first = await runTurn({ ...request(), retryDelayMs: 5, onRetry }, () => undefined).done;
     expect(first).toMatchObject({ ok: true, text: "clean" });
-    expect(retries).toBe(1);
+    expect(onRetry).toHaveBeenCalledTimes(1);
     expect(sessions.options).toHaveLength(2);
 
     sessions.scripts.push(
