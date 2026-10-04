@@ -15,6 +15,7 @@ import {
 import { bindingsPathFrom, loadConfig } from "../src/config.ts";
 import { UpdateCheck, githubSlug, isNewer, newestVersion } from "../src/updateCheck.ts";
 import { checkBoot } from "../src/bootCheck.ts";
+import { buildName } from "../src/version.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
 import { execFile, spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -525,4 +526,18 @@ describe("the check that the bridge would start", () => {
     const check = await checkBoot(dir, { ...env, PING_AFTER_SECONDS: "120" });
     expect(check.ok ? "" : check.output).toContain('PING_AFTER_SECONDS is "2m"');
   }, 60_000);
+});
+
+describe("what a running bridge calls its build", () => {
+  // Fixes land on main between two tags without the version moving, so there the version alone names two different builds.
+  it("is the version alone on the tagged release, and names the commit anywhere else", () => {
+    expect(buildName("1.2.3", "v1.2.3", "abc1234")).toBe("1.2.3");
+    expect(buildName("1.2.3", null, "abc1234")).toBe("1.2.3 (abc1234)");
+    expect(buildName("1.2.3", "v1.2.2", "abc1234")).toBe("1.2.3 (abc1234)");
+  });
+
+  it("is the version alone where git has no answer, as in the image", () => {
+    expect(buildName("1.2.3", null, null)).toBe("1.2.3");
+    expect(buildName("1.2.3", null, "fatal: not a git repository")).toBe("1.2.3");
+  });
 });
