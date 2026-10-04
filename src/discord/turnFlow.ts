@@ -1,4 +1,4 @@
-import { deniedBy } from "../claude/denials.ts";
+import { askedOfOwner, deniedBy, withoutAskable } from "../claude/denials.ts";
 import {
   runTurn,
   type ApproveTool,
@@ -675,7 +675,8 @@ export class TurnFlow {
         name: options.name,
         fork: options.fork,
         approve: this.approvalGate(say, sessionId, sink, stillRunning, attention, options.onState),
-        deny: this.denialGate(cwd),
+        deny: this.denialGate(cwd, sink),
+        ask: this.ownerGate(say, sessionId, cwd, sink, stillRunning, attention, options.onState),
         onRetry: () => status.note(say("trail.retryingRefresh")),
         askQuestions: (questions) =>
           whileWaiting(options.onState, stillRunning, () =>
@@ -747,10 +748,36 @@ export class TurnFlow {
   }
 
   // Rules the host set in TOOL_DENIALS, judged against the folder this turn works in.
-  private denialGate(cwd: string): TurnRequest["deny"] {
+  private denialGate(cwd: string, sink: MessageSink): TurnRequest["deny"] {
     if (this.config.toolDenials.size === 0) return undefined;
     const scope = { cwd, dataDir: this.config.dataDir };
-    return (toolName, toolInput) => deniedBy(this.config.toolDenials, scope, toolName, toolInput);
+    // What an owner can be asked about is asked, not refused; with no way to ask, it is refused like the rest.
+    const rules = sink.ask ? withoutAskable(this.config.toolDenials) : this.config.toolDenials;
+    return (toolName, toolInput) => deniedBy(rules, scope, toolName, toolInput);
+  }
+
+  // A turn can make a folder anywhere and could then never remove it, so a delete outside its own is put to an owner one command at a time.
+  private ownerGate(
+    say: Say,
+    sessionId: string,
+    cwd: string,
+    sink: MessageSink,
+    stillRunning: () => boolean,
+    attention: Attention,
+    onState?: StateMarker,
+  ): TurnRequest["ask"] {
+    if (!sink.ask) return undefined;
+    const scope = { cwd, dataDir: this.config.dataDir };
+    return (toolName, input) => {
+      const command = askedOfOwner(this.config.toolDenials, scope, toolName, input);
+      if (!command) return null;
+      return whileWaiting(onState, stillRunning, () =>
+        attention.calling(
+          (delivery) => this.approvals.askAboutDelete(say, sessionId, sink, this.config.ownerIds, command, delivery),
+          decidedByPerson,
+        ),
+      );
+    };
   }
 
   private approvalGate(

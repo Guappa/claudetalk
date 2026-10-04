@@ -33,6 +33,14 @@ export function describeRequest(say: Say, toolName: string, input: Record<string
   return say("approvals.request", { tool: toolName, detail: detail(input) });
 }
 
+// No offer to approve the rest of the turn: a delete outside the folder is let through one command at a time or not at all.
+function onceActions(say: Say, id: string): SinkAction[] {
+  return [
+    { id: approvalActionId("approve", id), label: say("approvals.approveOnce") },
+    { id: approvalActionId("deny", id), label: say("approvals.deny"), tone: "danger" },
+  ];
+}
+
 function approvalActions(say: Say, id: string): SinkAction[] {
   return [
     { id: approvalActionId("approve", id), label: say("approvals.approveOnce") },
@@ -92,6 +100,31 @@ export class ApprovalPrompts {
     delivery?: Delivery,
   ): Promise<ToolDecision> {
     if (this.approveAll.has(turnId)) return { allow: true };
+    return await this.put(say, turnId, sink, ownerIds, describeRequest(say, toolName, input), approvalActions, delivery);
+  }
+
+  // Asked whatever the turn was approved for: approving the rest of a turn was said of ordinary calls, never of a delete outside its folder.
+  async askAboutDelete(
+    say: Say,
+    turnId: string,
+    sink: MessageSink,
+    ownerIds: string[],
+    command: string,
+    delivery?: Delivery,
+  ): Promise<ToolDecision> {
+    const request = say("approvals.deleteOutside", { detail: detail({ command }) });
+    return await this.put(say, turnId, sink, ownerIds, request, onceActions, delivery);
+  }
+
+  private async put(
+    say: Say,
+    turnId: string,
+    sink: MessageSink,
+    ownerIds: string[],
+    request: string,
+    actionsFor: (say: Say, id: string) => SinkAction[],
+    delivery?: Delivery,
+  ): Promise<ToolDecision> {
     // Without a way to ask, the safe answer is the one that does not act.
     if (!sink.ask) return { allow: false, reason: APPROVAL_REFUSED.unaskable };
 
@@ -105,7 +138,7 @@ export class ApprovalPrompts {
     timer.unref();
 
     // A prompt that never reached Discord can never be answered, so it is refused now and nothing is left waiting on it.
-    const handle = await sink.ask(describeRequest(say, toolName, input), approvalActions(say, id), delivery).catch(() => null);
+    const handle = await sink.ask(request, actionsFor(say, id), delivery).catch(() => null);
     if (!handle) {
       this.pending.delete(id);
       clearTimeout(timer);

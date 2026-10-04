@@ -238,6 +238,8 @@ export const en = {
   },
   approvals: {
     request: "**{{tool}}** wants to run. Approve it?\n```\n{{detail}}\n```",
+    deleteOutside:
+      "Claude wants to delete something outside this conversation's folder, which the bridge refuses unless an owner allows it. Allow this one command?\n```\n{{detail}}\n```",
     approveOnce: "Approve once",
     deny: "Deny",
     approveRest: "Approve the rest of this turn",

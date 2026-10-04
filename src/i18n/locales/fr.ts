@@ -241,6 +241,8 @@ export const fr: Catalog = {
   },
   approvals: {
     request: "**{{tool}}** veut s'exécuter. L'approuver ?\n```\n{{detail}}\n```",
+    deleteOutside:
+      "Claude veut supprimer quelque chose hors du dossier de cette conversation, ce que la passerelle refuse sauf si un propriétaire l'autorise. Autoriser cette seule commande ?\n```\n{{detail}}\n```",
     approveOnce: "Approuver une fois",
     deny: "Refuser",
     approveRest: "Approuver le reste de ce tour",
