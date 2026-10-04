@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { UsageLedger } from "../src/claude/usageLedger.ts";
 import { PlanUsage, describePlanUsage, parsePlanUsage } from "../src/claude/planUsage.ts";
 import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
-import { deniedBy, parseDenials } from "../src/claude/denials.ts";
+import { askedOfOwner, deniedBy, parseDenials, withoutAskable } from "../src/claude/denials.ts";
 import { describeClaudeVersions, parseVersion } from "../src/claude/versions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
 import { takenUp, type ClaudeEvent } from "../src/claude/events.ts";
@@ -599,6 +599,21 @@ describe("what a turn is refused outright", () => {
     const few = parseDenials("machine");
     expect(deniedBy(few, scope, "Bash", { command: "rm -rf /" })).toBeNull();
     expect(deniedBy(few, scope, "Bash", { command: "reboot" })).toContain("machine");
+  });
+
+  // A turn can make a folder anywhere, and a rule that only refused would leave it unable to remove what it made.
+  it("puts a recursive delete outside the folder to an owner, and nothing else, where that rule is on", () => {
+    const outside = path.join(os.tmpdir(), "denials-elsewhere");
+    expect(askedOfOwner(all, scope, "Bash", { command: `rm -rf ${outside}` })).toBe(`rm -rf ${outside}`);
+    expect(askedOfOwner(all, scope, "Bash", { command: "rm -rf build" })).toBeNull();
+    expect(askedOfOwner(all, scope, "Bash", { command: "reboot" })).toBeNull();
+    expect(askedOfOwner(all, scope, "Edit", { file_path: outside })).toBeNull();
+    expect(askedOfOwner(parseDenials("machine"), scope, "Bash", { command: `rm -rf ${outside}` })).toBeNull();
+
+    const refusedOutright = withoutAskable(all);
+    expect(deniedBy(refusedOutright, scope, "Bash", { command: `rm -rf ${outside}` })).toBeNull();
+    expect(deniedBy(refusedOutright, scope, "Bash", { command: "reboot" })).toContain("machine");
+    expect(deniedBy(all, scope, "Bash", { command: `rm -rf ${outside}` })).toContain("recursive delete");
   });
 });
 

@@ -4,6 +4,7 @@ import { wait } from "./helpers/records.ts";
 import os from "node:os";
 import path from "node:path";
 import { gate } from "../src/claude/runner.ts";
+import type { SinkAction } from "../src/discord/messageSink.ts";
 import { ApprovalPrompts, describeRequest } from "../src/discord/approvals.ts";
 import { OTHER_VALUE, QUESTION_TIMEOUT_MS, QuestionPrompts, describeQuestions, menusFor } from "../src/discord/questions.ts";
 import { parseQuestions, type Question } from "../src/claude/questions.ts";
@@ -169,6 +170,68 @@ describe("ApprovalPrompts", () => {
     expect(await decide("AskUserQuestion", questions)).toMatchObject({
       hookSpecificOutput: { permissionDecision: "allow", updatedInput: { ...questions, answers: { "Which?": "One" } } },
     });
+  });
+
+  // What a person let through by name is not put to them a second time by the approvals that cover every call.
+  it("lets a call past that a person allowed by name, without asking about it again, and refuses it with their reason", async () => {
+    const approvals: string[] = [];
+    const answers = [{ allow: true as const }, { allow: false as const, reason: "Denied from Discord." }];
+    const hooks = gate({
+      approve: async (toolName) => {
+        approvals.push(toolName);
+        return { allow: true };
+      },
+      ask: (_toolName, input) => (String(input.command).startsWith("rm") ? Promise.resolve(answers.shift()!) : null),
+    });
+    const hook = hooks.PreToolUse![0]!.hooks[0]!;
+    const decide = (command: string) =>
+      hook({ tool_name: "Bash", tool_input: { command } } as never, undefined, { signal: new AbortController().signal });
+
+    expect(await decide("rm -rf /srv/elsewhere")).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow" } });
+    expect(await decide("rm -rf /srv/elsewhere")).toMatchObject({
+      hookSpecificOutput: { permissionDecision: "deny", permissionDecisionReason: "Denied from Discord." },
+    });
+    expect(approvals).toEqual([]);
+    expect(await decide("ls")).toMatchObject({ hookSpecificOutput: { permissionDecision: "allow" } });
+    expect(approvals).toEqual(["Bash"]);
+  });
+
+  // Approving the rest of a turn was said of ordinary calls; a delete outside the folder is let through one command at a time.
+  it("asks an owner about a delete outside the folder even when the rest of the turn is approved, offering once or not at all", async () => {
+    const prompts = new ApprovalPrompts();
+    await prompts.ask(
+      say,
+      "turn-1",
+      askingSink((actions) => {
+        prompts.decide(say, actionId(actions, "approve-all"), OWNER, "approve-all");
+      }),
+      [OWNER],
+      "Bash",
+      { command: "ls" },
+    );
+    expect(await prompts.ask(say, "turn-1", quietSink(), [OWNER], "Bash", { command: "pwd" })).toEqual({ allow: true });
+
+    const shown: { text: string; actions: string[] } = { text: "", actions: [] };
+    const sink = {
+      ...quietSink(),
+      ask: async (text: string, actions: SinkAction[]) => {
+        shown.text = text;
+        shown.actions = actions.map((action) => action.id.split(":")[0]!);
+        prompts.decide(say, actionId(actions, "approve"), OWNER, "approve");
+        return { close: async () => undefined };
+      },
+    };
+    const decision = await prompts.askAboutDelete(say, "turn-1", sink, [OWNER], "rm -rf /srv/elsewhere");
+
+    expect(decision).toEqual({ allow: true });
+    expect(shown.text).toContain("rm -rf /srv/elsewhere");
+    expect(shown.text).toContain("outside this conversation's folder");
+    expect(shown.actions).toEqual(["approve", "deny"]);
+  });
+
+  it("refuses a delete outside the folder where nobody can be asked", async () => {
+    const decision = await new ApprovalPrompts().askAboutDelete(say, "turn-1", quietSink(), [OWNER], "rm -rf /srv/elsewhere");
+    expect(decision).toEqual({ allow: false, reason: "This conversation cannot show approval buttons." });
   });
 
   it("refuses a tool when the gate itself fails, whatever failed inside it", async () => {
