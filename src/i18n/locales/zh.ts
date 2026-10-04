@@ -168,6 +168,13 @@ export const zh: Catalog = {
     afterTurns_other: "等 {{count}} 个正在运行的轮次结束后重启。桥接回来后会在这里说明。",
     back: "桥接已在重启后回来，版本为 v{{version}}。",
   },
+  update: {
+    out_one: "桥接的 **v{{version}}** 已发布，比这里运行的 v{{current}} 新 {{count}} 个版本。",
+    out_other: "桥接的 **v{{version}}** 已发布，比这里运行的 v{{current}} 新 {{count}} 个版本。",
+    more_one: "……以及另外 {{count}} 项更改",
+    more_other: "……以及另外 {{count}} 项更改",
+    how: "两者之间的全部内容：<{{url}}>。要更新，请在主机上拉取新代码并重启桥接，或拉取新镜像。每个版本只说一次，且最多每周一次。",
+  },
   stop: {
     button: "停止",
     allButton: "全部停止",

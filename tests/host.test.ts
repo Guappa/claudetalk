@@ -13,7 +13,7 @@ import {
   turnSpawnOptions,
 } from "../src/platform.ts";
 import { bindingsPathFrom, loadConfig } from "../src/config.ts";
-import { UpdateCheck, githubSlug, isNewer, newestVersion } from "../src/updateCheck.ts";
+import { UpdateCheck, changesIn, githubSlug, isNewer, newestVersion } from "../src/updateCheck.ts";
 import { checkBoot } from "../src/bootCheck.ts";
 import { buildName } from "../src/version.ts";
 import { acquireInstanceLock, isLockHeld, lockPathBeside, STALE_AFTER_MS } from "../src/instanceLock.ts";
@@ -401,6 +401,9 @@ describe("isWithin", () => {
 });
 
 describe("the check for a newer version", () => {
+  // Given wherever a newer version is found, so that no test asks GitHub what changed.
+  const nothingChanged = async (): Promise<string[]> => [];
+
   it("finds the repository in the address package.json gives, and none in an address that is not GitHub's", () => {
     expect(githubSlug("git+https://github.com/someone/some-bridge.git")).toBe("someone/some-bridge");
     expect(githubSlug("git@github.com:someone/some.bridge.git")).toBe("someone/some.bridge");
@@ -425,7 +428,7 @@ describe("the check for a newer version", () => {
   });
 
   it("names a newer version, and none while the running one is the newest tagged or ahead of the tags", async () => {
-    const behind = new UpdateCheck("0.9.0", "someone/some-bridge", async () => ["v0.9.0", "v0.10.0"]);
+    const behind = new UpdateCheck("0.9.0", "someone/some-bridge", async () => ["v0.9.0", "v0.10.0"], nothingChanged);
     await behind.refresh();
     expect(behind.newer()).toBe("0.10.0");
 
@@ -436,6 +439,58 @@ describe("the check for a newer version", () => {
     }
   });
 
+  // There is no changelog to read from: the commits are the record, and housekeeping among them is nothing a person running the bridge would notice.
+  it("takes what changed from the subjects of the commits that add or mend something, what was added first", () => {
+    expect(
+      changesIn([
+        "feat(discord): add a thing\n\nA body that explains it.",
+        "chore: bump version to 0.10.0",
+        "fix: mend a thing",
+        "docs: describe the thing",
+        "feat!: change a thing's shape",
+        "not a conventional subject",
+      ]),
+    ).toEqual(["add a thing", "change a thing's shape", "mend a thing"]);
+  });
+
+  it("says how far ahead the newest version is and what changed on the way, asking for that once per version", async () => {
+    const asked: string[] = [];
+    const check = new UpdateCheck(
+      "0.9.0",
+      "someone/some-bridge",
+      async () => ["v0.9.0", "v0.11.0", "v0.10.0", "v0.8.0"],
+      async (_slug, from, to) => {
+        asked.push(`${from}...${to}`);
+        return ["feat: add a thing", "test: cover the thing"];
+      },
+    );
+    await check.refresh();
+    await check.refresh();
+
+    expect(check.news()).toEqual({
+      version: "0.11.0",
+      current: "0.9.0",
+      behind: 2,
+      changes: ["add a thing"],
+      url: "https://github.com/someone/some-bridge/compare/v0.9.0...v0.11.0",
+    });
+    expect(asked).toEqual(["0.9.0...0.11.0"]);
+  });
+
+  // A running version that was never tagged has nothing to be compared from, and the newer version is no less out for that.
+  it("still names the newer version when what changed cannot be read", async () => {
+    const check = new UpdateCheck(
+      "0.9.0",
+      "someone/some-bridge",
+      async () => ["v0.10.0"],
+      async () => {
+        throw new Error("GitHub answered 404");
+      },
+    );
+    await check.refresh();
+    expect(check.news()).toMatchObject({ version: "0.10.0", behind: 1, changes: [] });
+  });
+
   // Being offline is no reason to stop, or to forget a version already heard of.
   it("keeps what it knew and carries on when the check does not get through", async () => {
     const answers: Array<() => Promise<string[]>> = [
@@ -444,7 +499,7 @@ describe("the check for a newer version", () => {
         throw new Error("offline");
       },
     ];
-    const check = new UpdateCheck("0.9.0", "someone/some-bridge", () => answers.shift()!());
+    const check = new UpdateCheck("0.9.0", "someone/some-bridge", () => answers.shift()!(), nothingChanged);
     const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       await check.refresh();
@@ -473,7 +528,7 @@ describe("the check for a newer version", () => {
     const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {
       const tags = ["v0.10.0"];
-      new UpdateCheck("0.9.0", "someone/some-bridge", async () => [...tags]).watch();
+      new UpdateCheck("0.9.0", "someone/some-bridge", async () => [...tags], nothingChanged).watch();
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000);
       expect(logged).toHaveBeenCalledTimes(1);

@@ -7,6 +7,8 @@ import { handleClear } from "../src/discord/commands/clear.ts";
 import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
 import { handleRestart, handleUnbind } from "../src/discord/commands/control.ts";
 import { announcement, askerFor } from "../src/discord/restart.ts";
+import { UpdateNotice, describeUpdate } from "../src/discord/updateNotice.ts";
+import { UpdateCheck, type UpdateNews } from "../src/updateCheck.ts";
 import { canRunCommand } from "../src/access.ts";
 import { lockPathBeside } from "../src/instanceLock.ts";
 import { takeStopRequest } from "../src/stopSignal.ts";
@@ -956,5 +958,101 @@ describe("a restart asked for from Discord", () => {
       content: "back",
       allowedMentions: { parse: [], users: [], roles: [] },
     });
+  });
+});
+
+describe("a newer version of the bridge", () => {
+  const say = sayIn("en");
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+
+  async function checkThatFound(tags: string[]): Promise<{ updates: UpdateCheck; tags: string[] }> {
+    const updates = new UpdateCheck(
+      "0.9.0",
+      "someone/some-bridge",
+      async () => [...tags],
+      async () => ["feat: add a thing", "fix: mend a thing"],
+    );
+    await updates.refresh();
+    return { updates, tags };
+  }
+
+  async function scratchFile(): Promise<string> {
+    return path.join(await fs.mkdtemp(path.join(os.tmpdir(), "update-notice-")), "update.json");
+  }
+
+  it("is said to an owner who sends the bridge a message, in that channel, and not said twice", async () => {
+    const bridge = await testBridge();
+    const { updates } = await checkThatFound(["v0.10.0"]);
+    bridge.updateNotice = new UpdateNotice(await scratchFile(), updates);
+    const place = fakeChannel("u1");
+
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "hello", mentionsBot: true }).message);
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "hello again", mentionsBot: true }).message);
+
+    const said = place.posted.filter((text) => text.includes("of the bridge is out"));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain("**v0.10.0** of the bridge is out, 1 version past the v0.9.0 running here.");
+    expect(said[0]).toContain("- add a thing\n- mend a thing");
+    expect(said[0]).toContain("<https://github.com/someone/some-bridge/compare/v0.9.0...v0.10.0>");
+  });
+
+  // An operator cannot update the bridge, so there is nothing for one to do about it.
+  it("is not said to an operator", async () => {
+    const bridge = await testBridge();
+    const { updates } = await checkThatFound(["v0.10.0"]);
+    bridge.updateNotice = new UpdateNotice(await scratchFile(), updates);
+    const place = fakeChannel("u2");
+    await bridge.store.bindNew({ sessionId: "s-update", cwd: os.tmpdir(), channelId: "u2", ownerId: OPERATOR });
+
+    await handleMessage(bridge, fakeMessage(place, { authorId: OPERATOR, content: "hello" }).message);
+
+    expect(asked).toHaveLength(1);
+    expect(place.posted.join("\n")).not.toContain("of the bridge is out");
+  });
+
+  // Versions can come several to a day, and a notice for each would be the noisiest thing the bridge does.
+  it("is said at most once a week however many versions come out, and then names the newest", async () => {
+    const clock = { now: Date.parse("2026-01-01T00:00:00Z") };
+    const { updates, tags } = await checkThatFound(["v0.10.0"]);
+    const notice = new UpdateNotice(await scratchFile(), updates, () => clock.now);
+    expect(notice.take()?.version).toBe("0.10.0");
+
+    tags.push("v0.11.0", "v0.12.0");
+    await updates.refresh();
+    clock.now += WEEK - 1000;
+    expect(notice.take()).toBeNull();
+
+    clock.now += 1000;
+    expect(notice.take()).toMatchObject({ version: "0.12.0", behind: 3 });
+    clock.now += 10 * WEEK;
+    expect(notice.take()).toBeNull();
+  });
+
+  it("stays said across a restart", async () => {
+    const file = await scratchFile();
+    const { updates } = await checkThatFound(["v0.10.0"]);
+    expect(new UpdateNotice(file, updates).take()?.version).toBe("0.10.0");
+    await vi.waitFor(async () => expect(JSON.parse(await fs.readFile(file, "utf8")).version).toBe("0.10.0"));
+
+    const afterRestart = new UpdateNotice(file, updates);
+    await afterRestart.load();
+    expect(afterRestart.take()).toBeNull();
+  });
+
+  it("lists a handful of changes and counts the rest", () => {
+    const news: UpdateNews = {
+      version: "0.12.0",
+      current: "0.9.0",
+      behind: 3,
+      changes: ["one", "two", "three", "four", "five", "six", "seven"],
+      url: "https://github.com/someone/some-bridge/compare/v0.9.0...v0.12.0",
+    };
+    const shown = describeUpdate(say, news).split("\n");
+    expect(shown[0]).toBe("**v0.12.0** of the bridge is out, 3 versions past the v0.9.0 running here.");
+    expect(shown.slice(1, 7)).toEqual(["- one", "- two", "- three", "- four", "- five", "... and 2 more changes"]);
+    expect(shown).toHaveLength(8);
+
+    const bare = describeUpdate(say, { ...news, changes: [] }).split("\n");
+    expect(bare).toHaveLength(2);
   });
 });

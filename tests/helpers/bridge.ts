@@ -18,6 +18,7 @@ import { LanguageChoice } from "../../src/i18n/languageChoice.ts";
 import { OperatorStore } from "../../src/operators.ts";
 import { UpdateCheck } from "../../src/updateCheck.ts";
 import { RestartNote } from "../../src/discord/restart.ts";
+import { UpdateNotice } from "../../src/discord/updateNotice.ts";
 import type { SessionIndex, SessionRecord } from "../../src/sessions/index.ts";
 import { newestCopy } from "../../src/sessions/resolve.ts";
 
@@ -58,6 +59,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
   const questions = new QuestionPrompts();
   const activeTurns = new ActiveTurns(path.join(dir, "turns.json"));
   const outbox = new OutboxDelivery();
+  const updates = new UpdateCheck("0.0.0", null);
   const sessions = {
     build: async () => records,
     find: async (sessionId: string) => newestCopy(records, sessionId),
@@ -78,7 +80,8 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     latestPosts: new Map<string, string>(),
     heldAttachments: new Set<string>(),
     claude: { bundled: "2.1.9", host: "2.1.9" },
-    updates: new UpdateCheck("0.0.0", null),
+    updates,
+    updateNotice: new UpdateNotice(path.join(dir, "update.json"), updates),
     build: "0.0.0 (abc1234)",
     supervised: true,
     restartNote: new RestartNote(path.join(dir, "restart.json")),

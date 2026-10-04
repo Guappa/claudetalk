@@ -18,6 +18,7 @@ import { ActiveTurns } from "./discord/activeTurns.ts";
 import { LanguageChoice } from "./i18n/languageChoice.ts";
 import { UpdateCheck, githubSlug } from "./updateCheck.ts";
 import { RestartNote } from "./discord/restart.ts";
+import { UpdateNotice } from "./discord/updateNotice.ts";
 import { checkBoot, type BootCheck } from "./bootCheck.ts";
 import { bridgeRepository, bridgeVersion, describeBuild } from "./version.ts";
 import path from "node:path";
@@ -45,6 +46,7 @@ export interface Bridge {
   // Read once at start-up: the Claude Code turns run on, and the one the host's side jobs run on.
   claude: ClaudeVersions;
   updates: UpdateCheck;
+  updateNotice: UpdateNotice;
   // The version and commit this process started on: the manifest on disk can move on under a bridge that is still running.
   build: string;
   // Whether something starts the bridge again when it leaves asking for that.
@@ -79,6 +81,9 @@ export async function createBridge(config: Config, supervised: boolean): Promise
   const activeTurns = new ActiveTurns(path.join(config.dataDir, "turns.json"));
   await activeTurns.load();
   const outbox = new OutboxDelivery();
+  const updates = new UpdateCheck(bridgeVersion(), config.updateCheck ? githubSlug(bridgeRepository()) : null);
+  const updateNotice = new UpdateNotice(path.join(config.dataDir, "update.json"), updates);
+  await updateNotice.load();
   const trackers = new Map<string, ContextTracker>();
   const trackerFor = (sessionId: string): ContextTracker => {
     const existing = trackers.get(sessionId);
@@ -106,7 +111,8 @@ export async function createBridge(config: Config, supervised: boolean): Promise
     supervised,
     checkBoot: () => checkBoot(),
     restartNote: new RestartNote(path.join(config.dataDir, "restart.json")),
-    updates: new UpdateCheck(bridgeVersion(), config.updateCheck ? githubSlug(bridgeRepository()) : null),
+    updates,
+    updateNotice,
     outbox,
     flow: new TurnFlow(
       capabilities,

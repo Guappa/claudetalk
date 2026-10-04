@@ -190,6 +190,13 @@ export const de: Catalog = {
       "Neustart, sobald die {{count}} laufenden Durchläufe fertig sind. Die Brücke sagt es hier, sobald sie wieder da ist.",
     back: "Die Brücke ist nach ihrem Neustart wieder da, auf v{{version}}.",
   },
+  update: {
+    out_one: "**v{{version}}** der Brücke ist erschienen, eine Version nach der v{{current}}, die hier läuft.",
+    out_other: "**v{{version}}** der Brücke ist erschienen, {{count}} Versionen nach der v{{current}}, die hier läuft.",
+    more_one: "... und {{count}} weitere Änderung",
+    more_other: "... und {{count}} weitere Änderungen",
+    how: "Alles dazwischen: <{{url}}>. Zum Aktualisieren hol den neuen Code auf dem Host und starte die Brücke neu, oder hol das neue Image. Das wird einmal pro Version gesagt, und höchstens einmal pro Woche.",
+  },
   stop: {
     button: "Stopp",
     allButton: "Alles stoppen",
