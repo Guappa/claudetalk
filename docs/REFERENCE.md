@@ -419,7 +419,8 @@ that started the turn carries one reaction from the bot, changed as the turn
 moves: eyes while it works, a clock while it waits on another turn, a
 question mark while it waits on you, then a tick, a stop sign or a cross for
 finished, stopped or failed. The heading carries the same state in front of the
-verb, an hourglass while working. Those are the only emoji the bridge uses.
+verb, an hourglass while working. Those, and the circle in front of an agent
+that has come back, are the only emoji the bridge uses.
 
 ```
 ⏳ **Working** 1m 12s · 3 steps
@@ -453,7 +454,8 @@ in the background reads as waiting on it, not as done. The trail stays the
 session's own: nothing of an agent's work appears in it, not its edits, its
 commands, its report or a count, and the session relays what its agents found
 in its own words. The one line an agent gets in the trail is its end, named and
-timed, as the terminal reports one coming back: **reviewer** finished · 2m 10s. A task Claude Code runs in the
+timed, as the terminal reports one coming back, behind a circle that is green
+for finished, red for failed and white for stopped: 🟢 **reviewer** finished · 2m 10s. A task Claude Code runs in the
 cloud, a cloud review for one, is listed the same way with the type `cloud`.
 
 While any of them is running the progress message carries a **Stop agents**
