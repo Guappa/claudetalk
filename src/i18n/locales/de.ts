@@ -189,9 +189,9 @@ export const de: Catalog = {
       "Nicht neu gestartet: Die Prüfung, ob der Code auf dem Host starten würde, dauerte über eine Minute und wurde aufgegeben. Die Brücke läuft weiter, wie sie ist; das Log auf dem Host sagt vielleicht, worauf sie gewartet hat.",
     now: "Neustart jetzt. Die Brücke sagt es hier, sobald sie wieder da ist.",
     afterTurns_one:
-      "Neustart, sobald der {{count}} laufende Durchlauf fertig ist. Die Brücke sagt es hier, sobald sie wieder da ist.",
+      "Neustart, sobald der {{count}} laufende Durchlauf fertig ist und sonst nichts läuft. Bis dahin arbeitet die Brücke wie gewohnt, und sie sagt es hier, sobald sie wieder da ist.",
     afterTurns_other:
-      "Neustart, sobald die {{count}} laufenden Durchläufe fertig sind. Die Brücke sagt es hier, sobald sie wieder da ist.",
+      "Neustart, sobald die {{count}} laufenden Durchläufe fertig sind und sonst nichts läuft. Bis dahin arbeitet die Brücke wie gewohnt, und sie sagt es hier, sobald sie wieder da ist.",
     back: "Die Brücke ist nach ihrem Neustart wieder da, auf v{{version}}.",
   },
   update: {
