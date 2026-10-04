@@ -17,6 +17,7 @@ import { TurnFlow } from "../../src/discord/turnFlow.ts";
 import { LanguageChoice } from "../../src/i18n/languageChoice.ts";
 import { OperatorStore } from "../../src/operators.ts";
 import { UpdateCheck } from "../../src/updateCheck.ts";
+import { RestartNote } from "../../src/discord/restart.ts";
 import type { SessionIndex, SessionRecord } from "../../src/sessions/index.ts";
 import { newestCopy } from "../../src/sessions/resolve.ts";
 
@@ -78,6 +79,10 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     heldAttachments: new Set<string>(),
     claude: { bundled: "2.1.9", host: "2.1.9" },
     updates: new UpdateCheck("0.0.0", null),
+    build: "0.0.0 (abc1234)",
+    supervised: true,
+    restartNote: new RestartNote(path.join(dir, "restart.json")),
+    checkBoot: async () => ({ ok: true }),
     outbox,
     flow: new TurnFlow(
       capabilities,

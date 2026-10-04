@@ -17,7 +17,9 @@ import { QuestionPrompts } from "./discord/questions.ts";
 import { ActiveTurns } from "./discord/activeTurns.ts";
 import { LanguageChoice } from "./i18n/languageChoice.ts";
 import { UpdateCheck, githubSlug } from "./updateCheck.ts";
-import { bridgeRepository, bridgeVersion } from "./version.ts";
+import { RestartNote } from "./discord/restart.ts";
+import { checkBoot, type BootCheck } from "./bootCheck.ts";
+import { bridgeRepository, bridgeVersion, describeBuild } from "./version.ts";
 import path from "node:path";
 
 export interface Bridge {
@@ -43,9 +45,16 @@ export interface Bridge {
   // Read once at start-up: the Claude Code turns run on, and the one the host's side jobs run on.
   claude: ClaudeVersions;
   updates: UpdateCheck;
+  // The version and commit this process started on: the manifest on disk can move on under a bridge that is still running.
+  build: string;
+  // Whether something starts the bridge again when it leaves asking for that.
+  supervised: boolean;
+  restartNote: RestartNote;
+  // Whether the code on disk would start, asked before a restart is.
+  checkBoot: () => Promise<BootCheck>;
 }
 
-export async function createBridge(config: Config): Promise<Bridge> {
+export async function createBridge(config: Config, supervised: boolean): Promise<Bridge> {
   assertSpawnable(resolveClaudeBin());
 
   // Being signed out fails every turn the same way, so it is worth catching before the bot connects.
@@ -93,6 +102,10 @@ export async function createBridge(config: Config): Promise<Bridge> {
     latestPosts: new Map<string, string>(),
     heldAttachments: new Set<string>(),
     claude: readClaudeVersions(),
+    build: describeBuild(),
+    supervised,
+    checkBoot: () => checkBoot(),
+    restartNote: new RestartNote(path.join(config.dataDir, "restart.json")),
     updates: new UpdateCheck(bridgeVersion(), config.updateCheck ? githubSlug(bridgeRepository()) : null),
     outbox,
     flow: new TurnFlow(

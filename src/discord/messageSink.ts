@@ -18,6 +18,8 @@ export interface AskHandle {
 export interface SinkAnchor {
   channelId: string;
   messageId: string;
+  // The message that started the turn, where one did: what a word for whoever asked is sent as a reply to.
+  promptId?: string;
 }
 
 interface SinkMenuOption {

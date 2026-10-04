@@ -73,9 +73,12 @@ StartLimitBurst=5
 Type=simple
 WorkingDirectory=$unit_root
 # Quoted, or a node installed under a folder with a space in its name is split into a command and an argument.
-ExecStart="$unit_node" --env-file-if-exists=.env --experimental-strip-types src/index.ts
+ExecStart="$unit_node" --env-file-if-exists=.env --experimental-strip-types src/index.ts --supervised
 Restart=on-failure
 RestartSec=10
+# 75 is the bridge asking to be started again after a restart it was asked for: started again, and not counted as a failure.
+RestartForceExitStatus=75
+SuccessExitStatus=75
 # A stop waits for the turn in flight; a turn can run for many minutes, and a kill would cut it short.
 TimeoutStopSec=1800
 # Only the bridge is told to stop. Signalled along with it, the Claude Code process running the turn would end at once and leave nothing to wait for.
