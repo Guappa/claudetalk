@@ -31,7 +31,7 @@ this covers behaviour.
 | `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, with none of what was said before. The previous conversation stays on the host. The channel's messages are kept. |
 | `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. While agents or a cloud task are running there is also **Stop agents**, which stops them and leaves the turn going. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
-| `/restart` | H | Restarts the bridge once the running turns have finished, after checking that the code on the host would start, and says in this channel when it is back. See [Restarting it](#restarting-it). |
+| `/restart` | H | Restarts the bridge as soon as nothing is running, after checking that the code on the host would start, and says in this channel when it is back. See [Restarting it](#restarting-it). |
 | `/takeover` | O | Frees this conversation from what holds it on the host: stops a background agent, or closes Claude Code in a terminal the conversation was left open in, provided nothing is running there. See [Who may drive it](#who-may-drive-it). |
 | `/category [name]` | O | Shows the category this conversation's channel is in, or moves it to one. Creates the category if it does not exist. |
 | `/unbind` | O | Unbinds the channel at once, then offers to delete it or keep it for the history. The conversation stays on the host either way. It refuses while a turn is running or queued here, and says so in a channel that holds no conversation. A channel that only answered when the bot was tagged is unbound without the offer to delete it, and **Delete the channel** does nothing if the channel has been bound again since. |
@@ -661,10 +661,16 @@ the bridge keeps running as it is, and what the start said is shown. The check
 proves the bridge starts. It does not prove that what it does once started is
 right.
 
-Then the bridge drains the way `npm run stop` has it drain: running and queued
-turns finish and nothing new is admitted. It leaves with exit code 75, which
-the scheduled task's wrapper, the systemd unit, the launchd agent and a
-container with a restart policy all take as a request to start it again.
+Then the bridge waits until nothing is running, in any conversation, and goes
+on working as usual until then: a restart asked for in one conversation takes
+nothing from another, whose turn runs to its end and whose messages are taken
+as before. It does not drain the way `npm run stop` does, since refusing
+everything until the longest turn anywhere had finished could shut every
+conversation out for an hour. The price is that a bridge with always
+something running restarts late. At the first idle moment it leaves with exit
+code 75, which the scheduled task's wrapper, the systemd unit, the launchd
+agent and a container with a restart policy all take as a request to start it
+again.
 
 The bridge that comes back says so where the restart was asked from, naming
 its version, and the commit it stands on wherever the code is not exactly that
@@ -676,8 +682,8 @@ conversation carries on with your next message. Run in a terminal with no
 conversation behind it, the restart is noted in the host log only.
 
 `npm run restart` returns at once and waits for nothing, because run from a
-turn it would be waiting on itself. A `npm run stop` given while the bridge
-drains for a restart makes it a plain stop.
+turn it would be waiting on itself. A `npm run stop` given while a restart is
+waiting calls the restart off and stops the bridge.
 
 A bridge started by hand, with `npm run dev`, has nothing to start it again,
 so both refuse there and say so. The same goes for a systemd unit or a launchd

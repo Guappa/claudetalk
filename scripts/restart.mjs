@@ -52,5 +52,5 @@ if (!check.ok) {
 // Run from inside a turn, this names the conversation, so the bridge that comes back says so in its channel.
 await requestStop(lockPath, "restart", process.env.CLAUDE_CODE_SESSION_ID);
 console.log(
-  `Restart asked of bridge pid ${lock.pid}. It restarts once the running turns have finished, a turn this was run from included, so there is nothing to wait for here.`,
+  `Restart asked of bridge pid ${lock.pid}. It restarts as soon as nothing is running, a turn this was run from included, and works as usual until then, so there is nothing to wait for here.`,
 );

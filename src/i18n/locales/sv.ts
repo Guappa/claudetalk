@@ -183,8 +183,10 @@ export const sv: Catalog = {
     checkTimedOut:
       "Inte omstartad: kontrollen av att koden på värddatorn skulle starta tog över en minut och gavs upp. Bryggan kör vidare som den är; loggen på värddatorn kan säga vad den väntade på.",
     now: "Startar om nu. Bryggan säger till här när den är tillbaka.",
-    afterTurns_one: "Startar om när den {{count}} pågående omgången är klar. Bryggan säger till här när den är tillbaka.",
-    afterTurns_other: "Startar om när de {{count}} pågående omgångarna är klara. Bryggan säger till här när den är tillbaka.",
+    afterTurns_one:
+      "Startar om så snart den {{count}} pågående omgången är klar och inget annat körs. Till dess fungerar bryggan som vanligt, och den säger till här när den är tillbaka.",
+    afterTurns_other:
+      "Startar om så snart de {{count}} pågående omgångarna är klara och inget annat körs. Till dess fungerar bryggan som vanligt, och den säger till här när den är tillbaka.",
     back: "Bryggan är tillbaka efter sin omstart, på v{{version}}.",
   },
   update: {
