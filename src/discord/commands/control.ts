@@ -6,6 +6,8 @@ import { requireConversation } from "../binding.ts";
 import { describeStop, describeStopTurn, preflight } from "../turnFlow.ts";
 import { describeDepth } from "../turnQueue.ts";
 import { respond } from "../respond.ts";
+import { lockPathBeside } from "../../instanceLock.ts";
+import { requestStop } from "../../stopSignal.ts";
 
 export async function handleStop(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const say = bridge.language.say;
@@ -17,6 +19,28 @@ export async function handleStop(bridge: Bridge, interaction: ChatInputCommandIn
   }
   const outcome = conversation ? bridge.flow.stopTurn(conversation.sessionId) : { stopped: false, queued: 0 };
   await respond(interaction, describeStopTurn(say, outcome));
+}
+
+// Checked before anything is asked of the bridge: a restart onto code that will not start is a bridge that is gone, and whoever asked may be nowhere near the host.
+export async function handleRestart(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
+  const say = bridge.language.say;
+  if (!bridge.supervised) {
+    await respond(interaction, say("restart.unsupervised"));
+    return;
+  }
+  const check = await bridge.checkBoot();
+  if (!check.ok) {
+    const refusal = check.timedOut
+      ? say("restart.checkTimedOut")
+      : say("restart.broken", { error: check.output || say("common.unknown") });
+    await respond(interaction, refusal);
+    return;
+  }
+  await bridge.restartNote.add({ channelId: interaction.channelId, userId: interaction.user.id });
+  const turns = bridge.flow.activeCount();
+  // Answered before it is asked for: with nothing running the bridge is gone within the second, and a reply sent after that never arrives.
+  await respond(interaction, turns === 0 ? say("restart.now") : say("restart.afterTurns", { count: turns }));
+  await requestStop(lockPathBeside(bridge.config.bindingsPath), "restart");
 }
 
 export async function handleQueue(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {

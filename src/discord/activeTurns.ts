@@ -27,6 +27,10 @@ export class ActiveTurns {
     return this.save();
   }
 
+  anchorOf(sessionId: string): SinkAnchor | undefined {
+    return this.anchors[sessionId];
+  }
+
   async clear(sessionId: string): Promise<void> {
     if (!(sessionId in this.anchors)) return;
     delete this.anchors[sessionId];

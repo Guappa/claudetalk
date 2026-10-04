@@ -29,10 +29,14 @@ if (-not $node) {
     exit 1
 }
 
-Write-BridgeLog "$(Get-Date -Format o)  starting bridge"
+# 75 is the bridge asking to be started again, after a restart asked for from Discord or with npm run restart; any other code ends the task.
+$restartCode = 75
+do {
+    Write-BridgeLog "$(Get-Date -Format o)  starting bridge"
 
-& cmd.exe /c "`"$node`" --env-file-if-exists=.env --experimental-strip-types src/index.ts >> `"$logPath`" 2>&1"
-$code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    & cmd.exe /c "`"$node`" --env-file-if-exists=.env --experimental-strip-types src/index.ts --supervised >> `"$logPath`" 2>&1"
+    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 
-Write-BridgeLog "$(Get-Date -Format o)  bridge exited with code $code"
+    Write-BridgeLog "$(Get-Date -Format o)  bridge exited with code $code"
+} while ($code -eq $restartCode)
 exit $code

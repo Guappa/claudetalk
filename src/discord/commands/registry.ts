@@ -118,6 +118,10 @@ export function bridgeCommandDefinitions() {
 
     new SlashCommandBuilder().setName("plugins").setDescription("List Claude Code plugins and toggle one"),
 
+    new SlashCommandBuilder()
+      .setName("restart")
+      .setDescription("Restart the bridge once running turns have finished, after checking that it would start"),
+
     new SlashCommandBuilder().setName("skills").setDescription("List the skills this conversation has and run one"),
 
     new SlashCommandBuilder()

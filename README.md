@@ -201,6 +201,12 @@ system kills the bridge; the Windows task's own stop kills it at once, so use
 `npm run stop` there. If the bridge is killed anyway, a progress message it left
 mid-turn is marked as interrupted the next time it starts.
 
+`npm run restart`, or `/restart` from Discord, restarts a bridge that a
+service runs: it checks that the code and `.env` on disk would start, lets the
+running turns finish, and has the service start the bridge again, which then
+says in Discord that it is back. See
+[Restarting it](docs/REFERENCE.md#restarting-it).
+
 Both platforms run the bridge straight from `src/`. Node strips the types, so
 there is no build step.
 
