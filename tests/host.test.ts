@@ -71,6 +71,13 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...valid, DISCORD_OWNER_IDS: " , " })).toThrow(/DISCORD_OWNER_IDS/);
   });
 
+  it("pings after two minutes away unless PING_AFTER_SECONDS says otherwise, and refuses what is not a count of seconds", () => {
+    expect(loadConfig(valid).pingAfterMs).toBe(120_000);
+    expect(loadConfig({ ...valid, PING_AFTER_SECONDS: "0" }).pingAfterMs).toBe(0);
+    expect(loadConfig({ ...valid, PING_AFTER_SECONDS: " 45 " }).pingAfterMs).toBe(45_000);
+    expect(() => loadConfig({ ...valid, PING_AFTER_SECONDS: "2m" })).toThrow(/PING_AFTER_SECONDS is "2m"/);
+  });
+
   it("takes the denial rules from TOOL_DENIALS, and names them all when one is wrong", () => {
     expect([...loadConfig(valid).toolDenials]).toHaveLength(6);
     expect([...loadConfig({ ...valid, TOOL_DENIALS: "none" }).toolDenials]).toEqual([]);

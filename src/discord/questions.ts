@@ -5,7 +5,7 @@ import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import { fitForDiscord } from "./outgoing.ts";
 import { questionPickId, questionSkipId, questionSubmitId } from "./menus.ts";
-import type { MessageSink, SinkAction, SinkMenu } from "./messageSink.ts";
+import type { Delivery, MessageSink, SinkAction, SinkMenu } from "./messageSink.ts";
 
 // A question deserves more thought than a permission, and a phone is often the thing answering it.
 export const QUESTION_TIMEOUT_MS = 10 * 60_000;
@@ -100,7 +100,7 @@ function actionsFor(say: Say, askId: string): SinkAction[] {
 export class QuestionPrompts {
   private readonly pending = new Map<string, Pending>();
 
-  async ask(say: Say, turnId: string, sink: MessageSink, questions: Question[]): Promise<QuestionOutcome> {
+  async ask(say: Say, turnId: string, sink: MessageSink, questions: Question[], delivery?: Delivery): Promise<QuestionOutcome> {
     if (!sink.askWithMenus) return { answered: false, reason: QUESTIONS_UNANSWERED.unaskable };
 
     const id = randomUUID();
@@ -111,7 +111,7 @@ export class QuestionPrompts {
     timer.unref();
 
     const handle = await sink
-      .askWithMenus(describeQuestions(say, questions), menusFor(say, id, questions), actionsFor(say, id))
+      .askWithMenus(describeQuestions(say, questions), menusFor(say, id, questions), actionsFor(say, id), delivery)
       .catch(() => null);
     if (!handle) {
       this.pending.delete(id);

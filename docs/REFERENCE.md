@@ -265,7 +265,9 @@ included unless asked for:
 | Reply to someone else, addressing the bot | Plus the message you replied to | One message |
 | `/ask context:30` | Plus the last 30 messages | What you chose, capped at 50 |
 
-Replies use Discord's reply, threaded to the prompting message and not pinging.
+Replies use Discord's reply, threaded to the prompting message and not pinging,
+except to reach someone who has been away from the turn: see
+[Being told when it needs you](#being-told-when-it-needs-you).
 Context names each speaker by id and the model is told not to tag whoever it is
 answering; it may only ping ids that appeared in its context, and `@everyone`,
 `@here` and role mentions are never parsed.
@@ -555,6 +557,32 @@ start of the next turn, and a process that opens with such a report refuses
 every tool call. The bridge notices, discards that process before your message
 reaches it, and starts another, which costs the turn a second or two and
 nothing else.
+
+### Being told when it needs you
+
+Nothing a turn posts pings, with one exception: a turn you have been away from.
+Once `PING_AFTER_SECONDS` have passed since you last acted on it, two minutes
+unless set otherwise, the next thing that needs you is sent as a reply to the
+message that started the turn, with the ping on. That is its answer, the reason
+it failed, a question Claude asks, or an approval request.
+
+Acting on a turn is sending the message that starts it, handing it another
+while it runs, and answering, skipping, approving or denying one of its
+prompts. Each starts the count again, so a turn you are following stays quiet.
+A prompt that expires with no answer does not, so the end of that turn still
+reaches you. Time a message spends queued behind another turn counts as time
+away.
+
+An edit notifies nobody in Discord, so an answer for someone who is away is
+always a message of its own beneath the trail, where a short turn's answer
+would otherwise replace the progress message. An answer the trail already
+holds whole is followed by a "Done." that carries the ping. A turn that was
+stopped pings nobody.
+
+The ping goes to whoever sent the message. On an approval request that can be
+an operator, who cannot approve it but can tell an owner it is waiting. A turn
+a command or a button started, `/run`, `/ask` or `/skills`, has no message of
+yours to reply to, and never pings. `PING_AFTER_SECONDS=0` turns the pings off.
 
 ### Stopping it
 

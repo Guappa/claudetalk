@@ -13,6 +13,7 @@ export interface Config {
   operatorsPath: string;
   toolApprovals: boolean;
   toolDenials: Set<Denial>;
+  pingAfterMs: number;
   language: Language;
   categoryId?: string;
   workspacesRoot?: string;
@@ -49,15 +50,24 @@ function ownerIds(env: NodeJS.ProcessEnv): string[] {
   return ids;
 }
 
-// A turn runs with the host's rights either way; this decides whether an owner sees each step first.
-function toolApprovals(env: NodeJS.ProcessEnv): boolean {
-  const value = env.CLAUDE_TOOL_APPROVALS?.trim() || "false";
-  if (value !== "true" && value !== "false") {
+function flag(value: string | undefined, key: string, fallback: boolean): boolean {
+  const given = value?.trim() || String(fallback);
+  if (given !== "true" && given !== "false") {
+    throw new Error(`${key} is "${given}", which is neither true nor false. Set it in .env, then restart the bridge.`);
+  }
+  return given === "true";
+}
+
+// How long the person may have been away from a turn before its outcome, or a question it asks, pings them; 0 never pings.
+function pingAfterMs(env: NodeJS.ProcessEnv): number {
+  const value = env.PING_AFTER_SECONDS?.trim() || "120";
+  if (!/^\d+$/.test(value)) {
     throw new Error(
-      `CLAUDE_TOOL_APPROVALS is "${value}", which is neither true nor false. Set it in .env, then restart the bridge.`,
+      `PING_AFTER_SECONDS is "${value}", which is not a whole number of seconds. ` +
+        `Use 0 to never ping. Set it in .env, then restart the bridge.`,
     );
   }
-  return value === "true";
+  return Number(value) * 1000;
 }
 
 // What the bridge itself says starts in this language, and stays in it until someone picks another in Discord.
@@ -86,8 +96,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bindingsPath: bindingsPathFrom(env),
     dataDir: path.dirname(bindingsPathFrom(env)),
     operatorsPath: env.OPERATORS_PATH?.trim() || path.join(path.dirname(bindingsPathFrom(env)), "operators.json"),
-    toolApprovals: toolApprovals(env),
+    // A turn runs with the host's rights either way; this decides whether an owner sees each step first.
+    toolApprovals: flag(env.CLAUDE_TOOL_APPROVALS, "CLAUDE_TOOL_APPROVALS", false),
     toolDenials: parseDenials(env.TOOL_DENIALS),
+    pingAfterMs: pingAfterMs(env),
     language: language(env),
     categoryId: env.DISCORD_CATEGORY_ID?.trim() || undefined,
     workspacesRoot: env.WORKSPACES_ROOT?.trim() || undefined,

@@ -43,9 +43,14 @@ export interface DetailSink {
   post(text: string): Promise<DetailPost>;
 }
 
+// Told as well as shown: the transport calls for the attention of whoever the turn is working for.
+export interface Delivery {
+  notify?: boolean;
+}
+
 // The only way a turn talks back to Discord, so a different transport can be dropped in behind it.
 export interface MessageSink {
-  send(text: string): Promise<void>;
+  send(text: string, delivery?: Delivery): Promise<void>;
   notice(text: string): Promise<void>;
   edit(text: string, actions?: SinkAction[]): Promise<void>;
   // A new message that later edits go to, so a trail can carry on past one message's limit.
@@ -53,8 +58,8 @@ export interface MessageSink {
   // False once something lasting was posted beneath the edited message; editing it further would break time order.
   isLatest?(): boolean;
   sendFiles(text: string, files: SinkFile[]): Promise<void>;
-  ask?(text: string, actions: SinkAction[]): Promise<AskHandle>;
-  askWithMenus?(text: string, menus: SinkMenu[], actions: SinkAction[]): Promise<AskHandle>;
+  ask?(text: string, actions: SinkAction[], delivery?: Delivery): Promise<AskHandle>;
+  askWithMenus?(text: string, menus: SinkMenu[], actions: SinkAction[], delivery?: Delivery): Promise<AskHandle>;
   typing?(): void;
   anchor?(): SinkAnchor | null;
   // Null when the transport has no side room to offer, or would not open one here.

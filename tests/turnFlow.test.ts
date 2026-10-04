@@ -10,6 +10,7 @@ import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import type { Config } from "../src/config.ts";
 import { TurnFlow } from "../src/discord/turnFlow.ts";
+import { Attention } from "../src/discord/attention.ts";
 import { menuAskingSink, quietSink, recordingSink } from "./helpers/sinks.ts";
 import { sayIn, type Language, type Say } from "../src/i18n/index.ts";
 import path from "node:path";
@@ -84,8 +85,14 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   };
 });
 
-function makeFlow(language: () => Say = () => sayIn("en"), approvals = new ApprovalPrompts()): TurnFlow {
-  const config = { toolApprovals: false, toolDenials: new Set(), ownerIds: [], dataDir: "data" } as unknown as Config;
+function makeFlow(language: () => Say = () => sayIn("en"), approvals = new ApprovalPrompts(), pingAfterMs = 0): TurnFlow {
+  const config = {
+    toolApprovals: false,
+    toolDenials: new Set(),
+    ownerIds: [],
+    dataDir: "data",
+    pingAfterMs,
+  } as unknown as Config;
   return new TurnFlow(
     new CapabilityCache(),
     () => new ContextTracker(),
@@ -988,6 +995,106 @@ describe("TurnFlow", () => {
       await folded;
 
       expect(closed).toEqual(["The turn ended before this was taken up. Send it again."]);
+    });
+  });
+
+  describe("a turn whose person has been away from it", () => {
+    const english = () => sayIn("en");
+
+    // An edit reaches nobody, so the outcome has to be a message of its own, sent as one that does.
+    it("sends the answer as a message that reaches them, beneath the trail it would otherwise be edited into", async () => {
+      const sink = recordingSink();
+      await makeFlow(english, new ApprovalPrompts(), 1).run("s60", cwd, "long job", {}, sink, { resume: true });
+
+      expect(sink.notified).toEqual(["echo long job"]);
+      expect(sink.messages.at(-1)).toBe("echo long job");
+      expect(sink.messages).toHaveLength(2);
+    });
+
+    it("reaches nobody when the time set has not passed, or when it is 0", async () => {
+      for (const pingAfterMs of [0, 60_000]) {
+        const sink = recordingSink();
+        await makeFlow(english, new ApprovalPrompts(), pingAfterMs).run("s61", cwd, "quick", {}, sink, { resume: true });
+        expect(sink.notified, String(pingAfterMs)).toEqual([]);
+        expect(sink.messages, String(pingAfterMs)).toEqual(["echo quick"]);
+      }
+    });
+
+    it("says the end in a message of its own when the trail already holds the answer", async () => {
+      const report = Array.from({ length: 40 }, (_, index) => `Finding ${index + 1}: ${"w".repeat(90)}`).join("\n");
+      scripted.set("long report away", [
+        { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: report }] } },
+      ]);
+      endings.set("long report away", { ok: true, text: report });
+      const sink = recordingSink();
+      vi.useFakeTimers();
+      try {
+        const letEnd = keepRunning("long report away");
+        const running = makeFlow(english, new ApprovalPrompts(), 1000).run("s62", cwd, "long report away", {}, sink, {
+          resume: true,
+        });
+        await vi.advanceTimersByTimeAsync(2500);
+        letEnd();
+        await running;
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(sink.notified).toEqual(["Done."]);
+      expect(sink.messages.join("\n").match(/Finding 40:/g)).toHaveLength(1);
+    });
+
+    it("reaches them about a turn that failed, and not about one that was stopped", async () => {
+      endings.set("breaks away", { ok: false, error: { kind: "reported", text: "the plan limit was reached" } });
+      const failed = recordingSink();
+      await makeFlow(english, new ApprovalPrompts(), 1).run("s63", cwd, "breaks away", {}, failed, { resume: true });
+      expect(failed.notified).toHaveLength(1);
+      expect(failed.notified[0]).toContain("the plan limit was reached");
+
+      const flow = makeFlow(english, new ApprovalPrompts(), 1);
+      keepRunning("stopped away");
+      const stopped = recordingSink();
+      const running = flow.run("s64", cwd, "stopped away", {}, stopped, { resume: true });
+      await vi.waitFor(() => expect(started).toContain("stopped away"));
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      flow.stop("s64");
+      await running;
+      expect(stopped.notified).toEqual([]);
+    });
+  });
+
+  describe("Attention", () => {
+    it("counts the person as away once the time set has passed since they were last seen, and never when it is 0", () => {
+      const clock = { now: 0 };
+      const attention = new Attention(1000, () => clock.now);
+      expect(attention.away()).toBe(false);
+      clock.now = 1000;
+      expect(attention.away()).toBe(true);
+      attention.seen();
+      expect(attention.away()).toBe(false);
+
+      const never = new Attention(0, () => clock.now);
+      clock.now = 1_000_000;
+      expect(never.away()).toBe(false);
+    });
+
+    // A prompt that timed out was answered by nobody, so the turn's end still has someone to reach.
+    it("asks with a ping only once they are away, and takes only an answer a person gave as their being back", async () => {
+      const clock = { now: 0 };
+      const attention = new Attention(1000, () => clock.now);
+      const asked: Array<boolean | undefined> = [];
+      const ask = async (delivery: { notify?: boolean }): Promise<string> => {
+        asked.push(delivery.notify);
+        return "expired";
+      };
+
+      await attention.calling(ask, () => false);
+      clock.now = 2000;
+      await attention.calling(ask, () => false);
+      expect(asked).toEqual([false, true]);
+      expect(attention.away()).toBe(true);
+
+      await attention.calling(ask, () => true);
+      expect(attention.away()).toBe(false);
     });
   });
 
