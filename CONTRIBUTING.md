@@ -111,11 +111,16 @@ gh pr create
 
 CI must be green before merging.
 
+From outside the project, fork it, branch in the fork and open the pull request
+against `main` here. The first CI run of a first-time contributor waits for the
+maintainer to approve it, and a run from a fork gets no secrets.
+
 The repository allows **rebase merge only**. Commits arrive on `main` as written,
 replayed in order with no merge commit. Group them by area as you go.
 
-Nothing on the server blocks a direct push to `main`: branch protection is a paid
-feature on a private repository. The convention stands regardless.
+A ruleset on `main` holds this: a pull request is required, rebase is the only
+merge method, the history stays linear, the four test jobs must pass, and
+`main` cannot be force-pushed or deleted.
 
 ## Versions
 
