@@ -187,6 +187,23 @@ describe("preflight", () => {
     expect(result.kind).toBe("refused");
     expect(result.kind === "refused" && result.message).toContain("/home/u/projects/deploy-scripts");
   });
+
+  // Closing a terminal that is working would cut its turn short, so only one that says it is idle is offered.
+  it("offers takeover of a terminal that is idle, and of no other", () => {
+    const terminal = { pid: 42, cwd: "/home/u/projects/deploy-scripts", kind: "interactive" as const, sessionId: "s1" };
+
+    const idle = preflight(say, { ...base, live: { ...terminal, status: "idle" } });
+    expect(idle).toMatchObject({ kind: "terminal-idle", pid: 42 });
+    expect(idle.kind === "terminal-idle" && idle.message).toContain("`/takeover`");
+
+    const busy = preflight(say, { ...base, live: { ...terminal, status: "busy" } });
+    expect(busy.kind).toBe("refused");
+    expect(busy.kind === "refused" && busy.message).toContain("a turn is running there");
+
+    const silent = preflight(say, { ...base, live: terminal });
+    expect(silent.kind).toBe("refused");
+    expect(silent.kind === "refused" && silent.message).toContain("Close that terminal");
+  });
 });
 
 describe("stopping one turn or all of them", () => {

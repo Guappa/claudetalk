@@ -131,6 +131,10 @@ export const en = {
       "Your message was not sent to Claude: the check before the turn failed with {{error}}. Try sending it again; if it keeps failing, the bridge log on the host has the details.",
     heldByBackgroundAgent:
       "That conversation is running as a background agent (`{{shortId}}`). Run `/takeover` here to stop it and continue, or `claude attach {{shortId}}` on the host.",
+    openInTerminalIdle:
+      "That conversation is open in a terminal on the host (pid {{pid}}, {{cwd}}), where nothing is running. Run `/takeover` here to close it there and continue, or close that terminal yourself.",
+    openInTerminalBusy:
+      "That conversation is open in a terminal on the host (pid {{pid}}, {{cwd}}), and a turn is running there. Let it finish or stop it there, then try again.",
     openInTerminal:
       "That conversation is open in a terminal on the host (pid {{pid}}, {{cwd}}). Close that terminal or switch it to another conversation, then try again.",
     conversationGone:
@@ -324,6 +328,10 @@ export const en = {
       "Could not delete the channel: {{error}}. The bot needs Manage Channels; remove it in Discord's channel settings instead.",
   },
   takeover: {
+    closedTerminal:
+      "Closed Claude Code in the terminal on the host (pid {{pid}}). This conversation is free now: send your message. To open it there again, run `claude --resume {{sessionId}}` on the host.",
+    notClosed:
+      "Claude Code in the terminal on the host (pid {{pid}}) did not close within a few seconds, so nothing was taken over. Close that terminal on the host, then try again.",
     running: "A turn is running here right now. Use `/stop` to end it.",
     nothingHolding: "Nothing is holding this conversation. Just send a message.",
     stopped: "Stopped background agent `{{shortId}}`.",

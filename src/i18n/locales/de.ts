@@ -136,6 +136,10 @@ export const de: Catalog = {
       "Deine Nachricht wurde nicht an Claude geschickt: Die Prüfung vor dem Durchlauf ist mit {{error}} fehlgeschlagen. Versuch, sie noch einmal zu schicken; wenn es weiter fehlschlägt, stehen die Einzelheiten im Log der Brücke auf dem Host.",
     heldByBackgroundAgent:
       "Dieses Gespräch läuft als Hintergrund-Agent (`{{shortId}}`). Führ hier `/takeover` aus, um ihn zu stoppen und weiterzumachen, oder `claude attach {{shortId}}` auf dem Host.",
+    openInTerminalIdle:
+      "Dieses Gespräch ist in einem Terminal auf dem Host offen (PID {{pid}}, {{cwd}}), in dem gerade nichts läuft. Führ hier `/takeover` aus, um es dort zu schließen und weiterzumachen, oder schließ dieses Terminal selbst.",
+    openInTerminalBusy:
+      "Dieses Gespräch ist in einem Terminal auf dem Host offen (PID {{pid}}, {{cwd}}), und dort läuft gerade ein Durchlauf. Lass ihn fertig werden oder stopp ihn dort, dann versuch es noch einmal.",
     openInTerminal:
       "Dieses Gespräch ist in einem Terminal auf dem Host offen (PID {{pid}}, {{cwd}}). Schließ dieses Terminal oder wechsle dort zu einem anderen Gespräch, dann versuch es noch einmal.",
     conversationGone:
@@ -335,6 +339,10 @@ export const de: Catalog = {
       "Konnte den Kanal nicht löschen: {{error}}. Der Bot braucht Kanäle verwalten; entfern ihn stattdessen in Discords Kanaleinstellungen.",
   },
   takeover: {
+    closedTerminal:
+      "Claude Code im Terminal auf dem Host geschlossen (PID {{pid}}). Dieses Gespräch ist jetzt frei: Schick deine Nachricht. Um es dort wieder zu öffnen, führ auf dem Host `claude --resume {{sessionId}}` aus.",
+    notClosed:
+      "Claude Code im Terminal auf dem Host (PID {{pid}}) hat sich nicht binnen weniger Sekunden geschlossen, also wurde nichts übernommen. Schließ dieses Terminal auf dem Host, dann versuch es noch einmal.",
     running: "Hier läuft gerade ein Durchlauf. Beende ihn mit `/stop`.",
     nothingHolding: "Nichts hält dieses Gespräch. Schick einfach eine Nachricht.",
     stopped: "Hintergrund-Agent `{{shortId}}` gestoppt.",
