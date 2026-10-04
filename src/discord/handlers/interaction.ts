@@ -16,7 +16,7 @@ import { isFromGuild } from "../gate.ts";
 import { tierOf } from "../policy.ts";
 import { handleAsk } from "../commands/ask.ts";
 import { handleCategory } from "../commands/category.ts";
-import { handleQueue, handleStop, handleTakeover, handleUnbind } from "../commands/control.ts";
+import { handleQueue, handleRestart, handleStop, handleTakeover, handleUnbind } from "../commands/control.ts";
 import { handleClear } from "../commands/clear.ts";
 import { handleCreate, handleFork, handleResume } from "../commands/conversations.ts";
 import { handleLanguage } from "../commands/language.ts";
@@ -68,6 +68,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   members: handleMembers,
   takeover: handleTakeover,
   language: handleLanguage,
+  restart: handleRestart,
 };
 
 type Suggester = (bridge: Bridge, interaction: AutocompleteInteraction) => Promise<void>;

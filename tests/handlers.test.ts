@@ -5,7 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleAsk } from "../src/discord/commands/ask.ts";
 import { handleClear } from "../src/discord/commands/clear.ts";
 import { handleFork, handleResume } from "../src/discord/commands/conversations.ts";
-import { handleUnbind } from "../src/discord/commands/control.ts";
+import { handleRestart, handleUnbind } from "../src/discord/commands/control.ts";
+import { announcement, askerFor } from "../src/discord/restart.ts";
+import { canRunCommand } from "../src/access.ts";
+import { lockPathBeside } from "../src/instanceLock.ts";
+import { takeStopRequest } from "../src/stopSignal.ts";
+import { sayIn } from "../src/i18n/index.ts";
 import { handlePurgeCommand } from "../src/discord/commands/purge.ts";
 import { handleSetting } from "../src/discord/commands/settings.ts";
 import { handleInvite, handleUninvite } from "../src/discord/commands/membership.ts";
@@ -872,5 +877,84 @@ describe("/unbind", () => {
     await handleButton(bridge, press.interaction);
     expect(place.wasDeleted()).toBe(false);
     expect(press.replies.at(-1)).toContain("bound to a conversation again");
+  });
+});
+
+describe("a restart asked for from Discord", () => {
+  const say = sayIn("en");
+
+  it("is asked of the bridge once the code is known to start, and remembers who asked and where", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("r1");
+    const command = fakeCommand(place, OWNER);
+    await handleRestart(bridge, command.interaction);
+
+    expect(command.replies.at(-1)).toBe(say("restart.now"));
+    expect(await takeStopRequest(lockPathBeside(bridge.config.bindingsPath))).toEqual({ mode: "restart" });
+    expect(await bridge.restartNote.take()).toEqual([{ channelId: "r1", userId: OWNER }]);
+    expect(await bridge.restartNote.take()).toEqual([]);
+  });
+
+  it("is refused, and nothing is asked of the bridge, when the code would not start", async () => {
+    const bridge = await testBridge();
+    bridge.checkBoot = async () => ({ ok: false, timedOut: false, output: "SyntaxError: Unexpected token" });
+    const broken = fakeCommand(fakeChannel("r2"), OWNER);
+    await handleRestart(bridge, broken.interaction);
+    expect(broken.replies.at(-1)).toContain("SyntaxError: Unexpected token");
+    expect(broken.replies.at(-1)).toContain("keeps running as it is");
+
+    bridge.checkBoot = async () => ({ ok: false, timedOut: true, output: "" });
+    const slow = fakeCommand(fakeChannel("r2"), OWNER);
+    await handleRestart(bridge, slow.interaction);
+    expect(slow.replies.at(-1)).toBe(say("restart.checkTimedOut"));
+
+    expect(await takeStopRequest(lockPathBeside(bridge.config.bindingsPath))).toBeNull();
+    expect(await bridge.restartNote.take()).toEqual([]);
+  });
+
+  // A bridge started by hand would leave and stay gone.
+  it("is refused when nothing would start the bridge again", async () => {
+    const bridge = await testBridge();
+    bridge.supervised = false;
+    const command = fakeCommand(fakeChannel("r3"), OWNER);
+    await handleRestart(bridge, command.interaction);
+    expect(command.replies.at(-1)).toBe(say("restart.unsupervised"));
+    expect(await takeStopRequest(lockPathBeside(bridge.config.bindingsPath))).toBeNull();
+  });
+
+  it("is an owner's to ask", () => {
+    expect(canRunCommand("owner", "restart")).toBe(true);
+    expect(canRunCommand("operator", "restart")).toBe(false);
+  });
+
+  it("answers a restart asked from a turn in that turn's channel, as a reply to the message that started it", async () => {
+    const bridge = await testBridge();
+    const conversation = await bridge.store.bindNew({
+      sessionId: "s-restart",
+      cwd: os.tmpdir(),
+      channelId: "r4",
+      ownerId: OWNER,
+    });
+    expect(askerFor(bridge, conversation.sessionId)).toEqual({ channelId: "r4" });
+
+    await bridge.activeTurns.record(conversation.sessionId, { channelId: "r4", messageId: "trail-1", promptId: "prompt-1" });
+    expect(askerFor(bridge, conversation.sessionId)).toEqual({ channelId: "r4", replyTo: "prompt-1" });
+    expect(askerFor(bridge, "no-such-session")).toBeNull();
+  });
+
+  it("reaches whoever asked: by a reply with the ping on, or by naming them where there is no message to reply to", () => {
+    expect(announcement({ channelId: "r5", replyTo: "prompt-1" }, "back")).toEqual({
+      content: "back",
+      allowedMentions: { parse: [], users: [], roles: [], repliedUser: true },
+      reply: { messageReference: "prompt-1", failIfNotExists: false },
+    });
+    expect(announcement({ channelId: "r5", userId: OWNER }, "back")).toEqual({
+      content: `<@${OWNER}> back`,
+      allowedMentions: { parse: [], users: [OWNER], roles: [] },
+    });
+    expect(announcement({ channelId: "r5" }, "back")).toEqual({
+      content: "back",
+      allowedMentions: { parse: [], users: [], roles: [] },
+    });
   });
 });

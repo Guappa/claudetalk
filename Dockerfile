@@ -15,5 +15,5 @@ USER 1000:0
 ENV HOME=/home/node PROJECTS_ROOT=/projects
 VOLUME ["/app/data", "/home/node/.claude", "/projects"]
 STOPSIGNAL SIGTERM
-# The sources under Node's type stripper, as the services run them.
-CMD ["node", "--env-file-if-exists=.env", "--experimental-strip-types", "src/index.ts"]
+# The sources under Node's type stripper, as the services run them; supervised because the restart policy the README gives starts a container that left again.
+CMD ["node", "--env-file-if-exists=.env", "--experimental-strip-types", "src/index.ts", "--supervised"]

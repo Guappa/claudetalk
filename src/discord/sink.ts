@@ -144,7 +144,10 @@ export function channelSink(channel: SendableChannels, options: SinkOptions = {}
       if ("sendTyping" in channel) void channel.sendTyping().catch(() => undefined);
     },
     anchor(): SinkAnchor | null {
-      return owned ? { channelId: owned.channelId, messageId: owned.id } : null;
+      if (!owned) return null;
+      const anchor: SinkAnchor = { channelId: owned.channelId, messageId: owned.id };
+      if (options.replyToMessageId) anchor.promptId = options.replyToMessageId;
+      return anchor;
     },
     async ask(text: string, actions: SinkAction[], delivery?: Delivery): Promise<AskHandle> {
       const shown = forDiscord(text);

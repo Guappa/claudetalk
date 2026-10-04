@@ -92,6 +92,19 @@ so the systemd unit and the launchd plist give the bridge thirty minutes before
 the system kills it. A restart mid-turn once cut a real turn short; nothing in
 the shipped scripts should be able to do that again.
 
+**A restart is a drain that leaves with exit code 75.** The bridge never starts
+a process to replace itself: under systemd a child dies with the unit's
+cgroup, and under the Windows wrapper it would outlive the log it writes to.
+It leaves, and what started it starts it again: `run-bridge.ps1` loops on that
+code, the systemd unit and the launchd agent restart on it, and a container
+has its restart policy. Each of those passes `--supervised`, which the bridge
+writes into its lock, and without it a restart is refused, since the bridge
+would only be gone. `src/bootCheck.ts` is what a restart is preceded by:
+`src/index.ts --check` does everything a start does up to the lock, in a child
+whose environment has the variables `.env` names taken out, because Node lets
+a variable that is already set win over the file and the running bridge
+carries the values of its last start.
+
 **A turn leaves a record while it runs.** `data/turns.json` maps each running
 session to its progress message, cleared when the turn ends. A bridge that
 starts and finds entries there knows the previous process died mid-turn, edits

@@ -31,6 +31,7 @@ this covers behaviour.
 | `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, with none of what was said before. The previous conversation stays on the host. The channel's messages are kept. |
 | `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. While agents or a cloud task are running there is also **Stop agents**, which stops them and leaves the turn going. |
 | `/queue` | O | Says whether a turn is running here and how many messages are queued behind it. |
+| `/restart` | H | Restarts the bridge once the running turns have finished, after checking that the code on the host would start, and says in this channel when it is back. See [Restarting it](#restarting-it). |
 | `/takeover` | O | Stops a background agent holding this conversation, then continues. |
 | `/category [name]` | O | Shows the category this conversation's channel is in, or moves it to one. Creates the category if it does not exist. |
 | `/unbind` | O | Unbinds the channel at once, then offers to delete it or keep it for the history. The conversation stays on the host either way. It refuses while a turn is running or queued here, and says so in a channel that holds no conversation. A channel that only answered when the bot was tagged is unbound without the offer to delete it, and **Delete the channel** does nothing if the channel has been bound again since. |
@@ -612,6 +613,40 @@ crashed, the progress message it left behind is edited on its next start to say
 it was interrupted, and the next message to that channel resumes the
 conversation from where the transcript ends.
 
+### Restarting it
+
+A change to the bridge's own code or to `.env` takes a restart, and the bridge
+restarts itself: `/restart` from Discord, or `npm run restart` on the host.
+
+Either one first starts the code on the host far enough to know it would come
+up: the same entry under the same flags, with `.env` read as it stands now,
+stopping short of the lock and the login. If that fails nothing is restarted,
+the bridge keeps running as it is, and what the start said is shown. The check
+proves the bridge starts. It does not prove that what it does once started is
+right.
+
+Then the bridge drains the way `npm run stop` has it drain: running and queued
+turns finish and nothing new is admitted. It leaves with exit code 75, which
+the scheduled task's wrapper, the systemd unit, the launchd agent and a
+container with a restart policy all take as a request to start it again.
+
+The bridge that comes back says so where the restart was asked from, naming
+its version and, in a clone, the commit it stands on. After `/restart` that is
+the channel the command was run in, with a mention of whoever ran it. After
+`npm run restart` run from inside a turn it is that turn's channel, as a reply
+to the message that started the turn: the turn has ended by then, and the
+conversation carries on with your next message. Run in a terminal with no
+conversation behind it, the restart is noted in the host log only.
+
+`npm run restart` returns at once and waits for nothing, because run from a
+turn it would be waiting on itself. A `npm run stop` given while the bridge
+drains for a restart makes it a plain stop.
+
+A bridge started by hand, with `npm run dev`, has nothing to start it again,
+so both refuse there and say so. The same goes for a systemd unit or a launchd
+agent written by an installer older than this command: run the installer
+again, which gives the service what it needs.
+
 ### Messages sent while it runs
 
 A plain message sent mid-turn is handed to the running turn, the way the
@@ -783,6 +818,7 @@ the language it started in, so its trail does not change tongue halfway.
 | `data/operators.json` | Who an owner made an operator |
 | `data/language.json` | The language picked with `/language`. Absent until someone picks one |
 | `data/bridge.lock` | Prevents a second instance. Delete only if you are sure nothing is running |
+| `data/restart.json` | Who asked for a restart, kept across it so the bridge can say it is back. Removed once it has |
 | `data/bridge.log` | Autostart output, rotated at 5 MB to `bridge.log.1` |
 | `<tmp>/claudetalk-attachments-<uid>/` | Attachment downloads, owner-only, swept an hour after the turn |
 

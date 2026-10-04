@@ -172,6 +172,18 @@ export const es: Catalog = {
     runningWith_other: "Hay un turno en marcha, con {{count}} mensajes en cola detrás.",
     full: "Esta conversación ya tiene {{limit}} mensajes: uno en marcha y {{queued}} en cola detrás. Deja que se ponga al día, ejecuta `/stop` para terminar el que está en curso y dejar que empiece el siguiente, o `/stop all:true` para descartar también la cola.",
   },
+  restart: {
+    unsupervised:
+      "No se reinició: este puente se inició a mano, o lo inició un servicio instalado antes de que pudiera reiniciarse solo, así que nada volvería a iniciarlo. Ejecuta otra vez el instalador de inicio automático del README, o detenlo e inícialo en el host.",
+    broken:
+      "No se reinició: el código del host no arrancaría, así que el puente sigue funcionando como está. Corrige lo que indica y vuelve a pedirlo.\n```\n{{error}}\n```",
+    checkTimedOut:
+      "No se reinició: comprobar que el código del host arrancaría llevó más de un minuto y se abandonó. El puente sigue funcionando como está; el registro del host puede decir a qué esperaba.",
+    now: "Reiniciando ahora. El puente lo dirá aquí cuando haya vuelto.",
+    afterTurns_one: "Se reiniciará cuando termine el {{count}} turno en marcha. El puente lo dirá aquí cuando haya vuelto.",
+    afterTurns_other: "Se reiniciará cuando terminen los {{count}} turnos en marcha. El puente lo dirá aquí cuando haya vuelto.",
+    back: "El puente ha vuelto tras su reinicio, en la v{{version}}.",
+  },
   stop: {
     button: "Detener",
     allButton: "Detener todo",
