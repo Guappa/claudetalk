@@ -24,6 +24,13 @@ const ENDED: Record<AgentOutcome, "trail.agentDone" | "trail.agentFailed" | "tra
   stopped: "trail.agentStopped",
 };
 
+// The terminal draws a circle in front of an agent that has come back, coloured by how it ended; a tick would read as the turn's own end.
+const ENDED_MARK: Record<AgentOutcome, string> = {
+  completed: "\u{1F7E2}",
+  failed: "\u{1F534}",
+  stopped: "\u{26AA}",
+};
+
 interface Agent {
   index: number;
   taskId: string;
@@ -116,10 +123,11 @@ export class AgentBoard {
     agent.tokens = event.tokens ?? agent.tokens;
     agent.durationMs = agent.earlierMs + (event.durationMs ?? this.now() - agent.startedAt);
     this.touch(agent);
-    return this.say(ENDED[event.outcome], {
+    const ended = this.say(ENDED[event.outcome], {
       name: truncate(agent.description || agent.type, DESCRIPTION_CHARS),
       elapsed: formatElapsed(this.say, agent.durationMs),
     });
+    return `${ENDED_MARK[event.outcome]} ${ended}`;
   }
 
   // What a stop would reach: the agents at work, and the commands agents left running behind them.

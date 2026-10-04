@@ -655,7 +655,7 @@ describe("TurnFlow", () => {
     const sink = recordingSink();
     await flow.run("s49", cwd, "fans out", {}, sink, { resume: true });
     const trail = sink.messages.join("\n");
-    expect(trail).toContain("**Audit the access checks** finished · 4s");
+    expect(trail).toContain("\u{1F7E2} **Audit the access checks** finished · 4s");
     expect(trail).not.toContain("The agent's own words.");
   });
 
