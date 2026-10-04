@@ -538,8 +538,8 @@ beneath the message. A bare URL is kept clickable, without the punctuation,
 emphasis or brackets that stand around it, a link Claude writes itself keeps
 its text with the target wrapped the same way, a domain name becomes a link to
 it, and when the working directory has an `origin` remote the repository's
-own references do too: commit hashes, a `#` number that the words before it
-name as a pull request or merge request, `!` numbers for merge requests on
+own references do too: commit hashes, `#` numbers for pull requests and
+issues, `!` numbers for merge requests on
 GitLab, branch and tag names written in code
 spans, and file paths with an optional `:line` or `:from-to`. Each repository
 reference is checked first, so a word that merely looks like a hash, or a path
@@ -547,9 +547,33 @@ that is not in the committed tree, stays plain text. A path is read from the
 conversation's working directory and linked from the repository's root, so a
 conversation in a folder below the root links correctly. A bare name ending in
 `.sh` or `.app`, `deploy.sh` say, is a file far more often than a site and
-stays text unless it has a subdomain or a path. A number on its own, or
-after a word like issue, stays plain too: it is as often the third point of a
-list as an item in a tracker. GitHub, GitLab and Bitbucket get their
+stays text unless it has a subdomain or a path.
+
+A `#` number links when two things hold: the remote has an item under that
+number, and the words mean one. The first is asked of the remote itself, which
+keeps a ref for every pull request; on GitHub and its kin issues share the
+count, so every number below the highest pull request is one or the other, and
+an issue filed since the last pull request is asked for by number where the
+repository is public on github.com. The second holds when the words before the
+number name it, PR or issue, and the remote agrees which of the two it is; when
+the message names such an item anywhere, after which its other numbers are
+read as items too; or when the number is 10 or more, since a place in a list is
+nearly always a single digit. A number after a word that counts or colours,
+step, point, option, colour and the like, never links, and neither does one
+written with a zero in front. So "PR #40 sits on top of #39" links both, and
+"step #3" and "issue #3", said of the third thing wrong where number 3 is a
+pull request, stay text.
+
+This is the one check that leaves the machine: a `git ls-remote` to the
+conversation's own remote, with whatever access the repository already has,
+and at most three requests to GitHub's public API. It is made only for a
+message that cites a number, and it is given two and a half seconds. Where the
+remote does not answer, or keeps no such refs, as Bitbucket does not, only a
+number the words name a pull request links, as before. On GitLab issues are
+counted apart from merge requests and have no ref, so there a `#` number links
+only when it is named a merge request.
+
+GitHub, GitLab and Bitbucket get their
 own link shapes, self-hosted GitLab included; any other host gets GitHub's,
 which Gitea, Forgejo and Codeberg share. The trail gets the same links once a
 message of it is final, not on the edits in between.
@@ -841,9 +865,9 @@ Deleting `data/` loses bindings and settings, never conversations.
 ## Knowing about a newer version
 
 When it starts, and once a day after, the bridge reads the list of tags of its
-own repository on GitHub. It is the one request the bridge makes on its own
-account to anything but Discord, and a plain read of a public list: it sends
-nothing about the host. When a tag newer than the running version exists, the
+own repository on GitHub. It is a plain read of a public list, made on the
+bridge's own account and not for any conversation, and it sends nothing about
+the host. When a tag newer than the running version exists, the
 host log says so once, with a link to what changed between the two, and the
 footer of `/whoami` names it. Nothing is downloaded or installed: updating is
 still `git pull` and a restart for a clone, and pulling the new image for a

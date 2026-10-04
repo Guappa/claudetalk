@@ -101,7 +101,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     toolApprovals: flag(env.CLAUDE_TOOL_APPROVALS, "CLAUDE_TOOL_APPROVALS", false),
     toolDenials: parseDenials(env.TOOL_DENIALS),
     pingAfterMs: pingAfterMs(env),
-    // The one request the bridge makes on its own account to anything but Discord, so a host can switch it off.
+    // A request the bridge makes on its own account and for no conversation, so a host can switch it off.
     updateCheck: flag(env.UPDATE_CHECK, "UPDATE_CHECK", true),
     language: language(env),
     categoryId: env.DISCORD_CATEGORY_ID?.trim() || undefined,
