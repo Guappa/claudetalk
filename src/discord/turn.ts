@@ -10,6 +10,8 @@ import { describeDrift } from "./transcriptView.ts";
 export interface ConversationTurn extends Pick<TurnOptions, "name" | "fork" | "onSessionId" | "onState" | "asked" | "foldable"> {
   prompt: string;
   sink: MessageSink;
+  // Called when the turn is refused over something `/takeover` can free, so whoever sent it need not send it again.
+  onHeld?: () => void;
 }
 
 // The only door into spending a turn, so none can skip the preflight or the catch-up that follows.
@@ -18,6 +20,7 @@ export async function runConversationTurn(bridge: Bridge, conversation: Conversa
 
   const check = bridge.flow.available(conversation.sessionId, record);
   if (check.kind !== "ok") {
+    if (check.kind !== "refused") turn.onHeld?.();
     await turn.sink.notice(check.message);
     return false;
   }

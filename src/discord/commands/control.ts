@@ -86,6 +86,15 @@ async function goneWithin(pid: number, waitMs: number): Promise<boolean> {
   return !isProcessAlive(pid);
 }
 
+// The message that was refused over what has just been freed runs now, and the reply says which of the two it is.
+function afterTakeover(bridge: Bridge, channelId: string): string {
+  const held = bridge.heldMessages.take(channelId);
+  if (!held) return bridge.language.say("takeover.free");
+  // Not waited for: the turn it starts can run for an hour, and the command is answered now.
+  void held().catch((error: unknown) => console.error(`the message held for a takeover in ${channelId} could not be run`, error));
+  return bridge.language.say("takeover.heldRuns");
+}
+
 export async function handleTakeover(bridge: Bridge, interaction: ChatInputCommandInteraction): Promise<void> {
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
@@ -112,14 +121,17 @@ export async function handleTakeover(bridge: Bridge, interaction: ChatInputComma
     killTree(check.pid);
     const closed = await goneWithin(check.pid, CLOSE_WAIT_MS);
     bridge.sessions.forgetLive();
-    const outcome = closed
-      ? say("takeover.closedTerminal", { pid: check.pid, sessionId: conversation.sessionId })
-      : say("takeover.notClosed", { pid: check.pid });
-    await respond(interaction, outcome);
+    if (!closed) {
+      await respond(interaction, say("takeover.notClosed", { pid: check.pid }));
+      return;
+    }
+    const closedThere = say("takeover.closedTerminal", { pid: check.pid, sessionId: conversation.sessionId });
+    await respond(interaction, `${closedThere} ${afterTakeover(bridge, interaction.channelId)}`);
     return;
   }
 
   const output = await stopBackgroundSession(check.shortId);
   bridge.sessions.forgetLive();
-  await respond(interaction, `${say("takeover.stopped", { shortId: check.shortId })} ${output}`.trim());
+  const stopped = `${say("takeover.stopped", { shortId: check.shortId })} ${output}`.trim();
+  await respond(interaction, `${stopped} ${afterTakeover(bridge, interaction.channelId)}`);
 }

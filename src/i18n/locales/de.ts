@@ -340,7 +340,9 @@ export const de: Catalog = {
   },
   takeover: {
     closedTerminal:
-      "Claude Code im Terminal auf dem Host geschlossen (PID {{pid}}). Dieses Gespräch ist jetzt frei: Schick deine Nachricht. Um es dort wieder zu öffnen, führ auf dem Host `claude --resume {{sessionId}}` aus.",
+      "Claude Code im Terminal auf dem Host geschlossen (PID {{pid}}). Um das Gespräch dort wieder zu öffnen, führ auf dem Host `claude --resume {{sessionId}}` aus.",
+    free: "Dieses Gespräch ist jetzt frei: Schick deine Nachricht.",
+    heldRuns: "Deine Nachricht von vorhin läuft jetzt.",
     notClosed:
       "Claude Code im Terminal auf dem Host (PID {{pid}}) hat sich nicht binnen weniger Sekunden geschlossen, also wurde nichts übernommen. Schließ dieses Terminal auf dem Host, dann versuch es noch einmal.",
     running: "Hier läuft gerade ein Durchlauf. Beende ihn mit `/stop`.",

@@ -204,6 +204,8 @@ async function askOf(
     asked: prompt,
     // A command is its own turn; only a plain message joins the one already running.
     foldable: plain,
+    // Run again from the top once the holder is gone: by then the channel, the attachments and who may speak are judged as they stand.
+    onHeld: () => bridge.heldMessages.remember(message.channelId, () => handleMessage(bridge, message)),
   });
 }
 

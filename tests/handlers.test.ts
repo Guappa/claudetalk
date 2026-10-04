@@ -11,7 +11,7 @@ import { announcement, askerFor } from "../src/discord/restart.ts";
 import { UpdateNotice, describeUpdate } from "../src/discord/updateNotice.ts";
 import { UpdateCheck, type UpdateNews } from "../src/updateCheck.ts";
 import { canRunCommand } from "../src/access.ts";
-import { lockPathBeside } from "../src/instanceLock.ts";
+import { isProcessAlive, lockPathBeside } from "../src/instanceLock.ts";
 import { takeStopRequest } from "../src/stopSignal.ts";
 import { sayIn } from "../src/i18n/index.ts";
 import { handlePurgeCommand } from "../src/discord/commands/purge.ts";
@@ -1084,9 +1084,39 @@ describe("taking a conversation over from a terminal on the host", () => {
     const command = fakeCommand(fakeChannel("t1"), OWNER);
     await handleTakeover(bridge, command.interaction);
 
-    expect(command.replies.at(-1)).toBe(say("takeover.closedTerminal", { pid: child.pid!, sessionId: SESSION }));
+    const closedThere = say("takeover.closedTerminal", { pid: child.pid!, sessionId: SESSION });
+    expect(command.replies.at(-1)).toBe(`${closedThere} ${say("takeover.free")}`);
     await vi.waitFor(() => expect(alive(child)).toBe(false));
   }, 15_000);
+
+  // Whoever was refused has already said what they wanted, and should not have to say it twice.
+  it("runs the message the terminal kept from running, once the terminal is closed", async () => {
+    const child = terminal();
+    const bridge = await held("t4", "idle", child.pid!);
+    const there = (await bridge.sessions.find(SESSION))!;
+    // The listing names the terminal for as long as its process lives, as Claude Code's own does.
+    bridge.sessions.find = async () => (isProcessAlive(child.pid!) ? there : { ...there, live: null });
+    const place = fakeChannel("t4");
+
+    await handleMessage(bridge, fakeMessage(place, { authorId: OWNER, content: "carry on from the phone" }).message);
+    expect(asked).toEqual([]);
+    expect(place.posted.join("\n")).toContain("`/takeover`");
+
+    const command = fakeCommand(place, OWNER);
+    await handleTakeover(bridge, command.interaction);
+    const closedThere = say("takeover.closedTerminal", { pid: child.pid!, sessionId: SESSION });
+    expect(command.replies.at(-1)).toBe(`${closedThere} ${say("takeover.heldRuns")}`);
+    await vi.waitFor(() => expect(asked.map((turn) => turn.prompt)).toEqual(["carry on from the phone"]));
+  }, 15_000);
+
+  it("keeps nothing for a terminal that cannot be taken over", async () => {
+    const child = terminal();
+    const bridge = await held("t5", "busy", child.pid!);
+    await handleMessage(bridge, fakeMessage(fakeChannel("t5"), { authorId: OWNER, content: "are you there?" }).message);
+
+    expect(bridge.heldMessages.take("t5")).toBeNull();
+    child.kill();
+  });
 
   it("leaves a terminal alone while a turn is running in it", async () => {
     const child = terminal();
