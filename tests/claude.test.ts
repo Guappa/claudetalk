@@ -685,6 +685,13 @@ describe("what a turn is refused outright", () => {
     expect(askedOfOwner(all, linked, "Write", through("src", "notes.md"))).toBeNull();
     expect(deniedBy(all, linked, "Read", through("src", "id_ed25519"))).toBeNull();
   });
+
+  // Every tool call waits on this check, and it runs in the bridge's own process, so a command built to be slow would hold every channel.
+  it("judges a command of any length in about the time it takes to read it", () => {
+    const started = performance.now();
+    for (const flag of ["r".repeat(200_000), "rf ".repeat(60_000), "-r ".repeat(60_000)]) expect(shell(`rm -${flag}`)).toBeNull();
+    expect(performance.now() - started).toBeLessThan(2_000);
+  });
 });
 
 describe("Claude Code versions", () => {
