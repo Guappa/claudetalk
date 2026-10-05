@@ -9,6 +9,7 @@ import { sweepAttachments } from "./attachments.ts";
 import { handleMessage } from "./discord/handlers/message.ts";
 import { handleInteraction } from "./discord/handlers/interaction.ts";
 import { onServerJoined, startUp } from "./discord/startup.ts";
+import { NO_MENTIONS } from "./discord/sink.ts";
 import { describeClaudeVersions } from "./claude/versions.ts";
 import { count } from "./text.ts";
 
@@ -38,6 +39,8 @@ await sweepAttachments();
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  // Text the bridge posts can quote a transcript, and a mention quoted there must not ping; a message meant to reach someone names them itself.
+  allowedMentions: { ...NO_MENTIONS, repliedUser: false },
   // Nothing here reads a cached message: /purge and /ask fetch, and a reply is fetched by id.
   makeCache: Options.cacheWithLimits({
     ...Options.DefaultMakeCacheSettings,

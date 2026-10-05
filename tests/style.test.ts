@@ -383,6 +383,14 @@ describe("what the bridge says lives in the catalog", () => {
   });
 });
 
+describe("a mention the bridge did not mean pings nobody", () => {
+  // A message without its own mention policy falls back to the client's, and Discord's own default parses every mention in the text.
+  it("gives the client a mention policy that parses nothing", () => {
+    const entry = fs.readFileSync(path.join(repoRoot, "src", "index.ts"), "utf8");
+    expect(entry).toMatch(/new Client\(\{[\s\S]*?allowedMentions: \{ \.\.\.NO_MENTIONS, repliedUser: false \}/);
+  });
+});
+
 describe("everything posted to Discord passes the outgoing gate", () => {
   // A path or a stray marker that skips forDiscord reaches the channel as written; the sink gates its payloads itself.
   it("sends text to Discord only through forDiscord", () => {
