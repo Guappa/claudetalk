@@ -11,7 +11,7 @@ import {
 import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
-import { describeToolUse } from "./toolTrail.ts";
+import { describeToolUse, trailKind, type TrailKind } from "./toolTrail.ts";
 import {
   agentEvent,
   commandsChanged,
@@ -306,6 +306,8 @@ export class TurnFlow {
   private readonly activeTurns: ActiveTurns;
   private readonly config: Config;
   private readonly say: () => Say;
+  // Asked at each tool call and not once per turn, so a choice made while a turn runs shows on its next line.
+  private readonly trailHidden: (sessionId: string) => ReadonlySet<TrailKind>;
   private readonly cloudGraceMs: number;
   private draining = false;
 
@@ -320,6 +322,7 @@ export class TurnFlow {
     activeTurns: ActiveTurns,
     config: Config,
     say: () => Say,
+    trailHidden: (sessionId: string) => ReadonlySet<TrailKind>,
     cloudGraceMs: number = CLOUD_STOP_GRACE_MS,
   ) {
     this.capabilities = capabilities;
@@ -332,6 +335,7 @@ export class TurnFlow {
     this.activeTurns = activeTurns;
     this.config = config;
     this.say = say;
+    this.trailHidden = trailHidden;
     this.cloudGraceMs = cloudGraceMs;
   }
 
@@ -882,7 +886,10 @@ export class TurnFlow {
     }
     status.stepped(uses.length);
 
+    // The step is counted above whether or not its line is drawn: the heading says how much was done, the lines say what.
+    const hidden = this.trailHidden(sessionId);
     for (const use of uses) {
+      if (hidden.has(trailKind(use.name))) continue;
       const shown = describeToolUse(say, use.name, use.input);
       if (shown) status.note(shown);
     }

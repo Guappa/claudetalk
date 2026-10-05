@@ -28,6 +28,28 @@ export const de: Catalog = {
     changed:
       "Sprache der Brücke: **{{name}}**, ab jetzt. Das gilt für das, was die Brücke selbst sagt; ein Durchlauf, der schon läuft, behält die Sprache, in der er begonnen hat. Claudes Antworten sind nicht betroffen: Es antwortet in der Sprache, in der du schreibst.",
   },
+  trailChoice: {
+    own: "Dieses Gespräch hat seine eigene Wahl, was die Spur zeigt. `/trail reset:True` lässt es wieder dem Standard der Brücke folgen.",
+    follows:
+      "Dieses Gespräch folgt dem Standard der Brücke dafür, was die Spur zeigt. `/trail hide:` oder `/trail show:` hier gibt ihm eine eigene Wahl.",
+    everywhere: "Der Standard der Brücke, für jedes Gespräch ohne eigene Wahl:",
+    drawn: "Gezeigt: {{kinds}}",
+    hidden: "Ausgeblendet: {{kinds}}",
+    none: "nichts",
+    stillCounted:
+      "Ein ausgeblendeter Aufruf zählt weiter als Schritt in der Überschrift, und eine Genehmigung oder eine Frage wird weiter gestellt. Eine Änderung gilt ab dem nächsten Werkzeugaufruf, auch in einem Durchlauf, der schon läuft.",
+    everywhereIsOwners:
+      "Nur ein Besitzer kann den Standard für jedes Gespräch ändern, und nichts wurde geändert. Lass `everywhere` weg, um für dieses Gespräch zu wählen, oder bitte einen Besitzer, den Standard zu setzen.",
+    kinds: {
+      edits: "Änderungen und geschriebene Dateien",
+      commands: "Befehle",
+      reads: "Lesen und Suchen",
+      web: "Abrufe und Suchen im Web",
+      agents: "Agenten und Skills",
+      todos: "Aufgabenlisten",
+      other: "andere Werkzeuge",
+    },
+  },
   access: {
     ownersOnly:
       "`/{{command}}` gehört den Besitzern. Operatoren steuern den Bot; wer ihn sonst noch benutzen darf und was darin läuft, entscheidet der Besitzer.",

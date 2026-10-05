@@ -20,6 +20,7 @@ const OPERATOR_COMMANDS = new Set([
   "sessions",
   "model",
   "effort",
+  "trail",
   "unbind",
   "takeover",
   "purge",

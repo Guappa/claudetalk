@@ -26,6 +26,26 @@ export const zh: Catalog = {
     changed:
       "桥接语言：**{{name}}**，从现在起生效。这只涉及桥接自身所说的话；已在运行的轮次保持其开始时的语言。Claude 的回答不受影响：它用你写给它的语言回答。",
   },
+  trailChoice: {
+    own: "此对话对轨迹显示什么有自己的选择。`/trail reset:True` 让它重新跟随桥接的默认值。",
+    follows: "此对话跟随桥接的默认值来决定轨迹显示什么。在这里使用 `/trail hide:` 或 `/trail show:` 会让它有自己的选择。",
+    everywhere: "桥接的默认值，适用于每个没有自行选择的对话：",
+    drawn: "显示：{{kinds}}",
+    hidden: "隐藏：{{kinds}}",
+    none: "无",
+    stillCounted: "被隐藏的调用仍在标题中计为一步，批准或提问也照常进行。更改从下一次工具调用起生效，正在运行的轮次也一样。",
+    everywhereIsOwners:
+      "只有所有者可以更改所有对话的默认值，没有做任何更改。去掉 `everywhere` 即可为此对话选择，或请所有者设置默认值。",
+    kinds: {
+      edits: "编辑和写入的文件",
+      commands: "命令",
+      reads: "读取和搜索",
+      web: "网页获取和搜索",
+      agents: "代理和技能",
+      todos: "待办列表",
+      other: "其他工具",
+    },
+  },
   access: {
     ownersOnly: "`/{{command}}` 属于所有者。操作员驱动机器人；还有谁可以使用它、里面运行什么，由所有者决定。",
     none: "你没有此桥接的访问权限。需要由所有者授予。",

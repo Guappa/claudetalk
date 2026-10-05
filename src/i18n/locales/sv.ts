@@ -27,6 +27,28 @@ export const sv: Catalog = {
     changed:
       "Bryggans språk: **{{name}}**, från och med nu. Det gäller det bryggan själv säger; en omgång som redan körs behåller språket den började på. Claudes svar påverkas inte: den svarar på det språk du skriver på.",
   },
+  trailChoice: {
+    own: "Den här konversationen har sitt eget val av vad spåret visar. `/trail reset:True` får den att följa bryggans standard igen.",
+    follows:
+      "Den här konversationen följer bryggans standard för vad spåret visar. `/trail hide:` eller `/trail show:` här ger den ett eget val.",
+    everywhere: "Bryggans standard, för varje konversation som inte har gjort ett eget val:",
+    drawn: "Visas: {{kinds}}",
+    hidden: "Dolt: {{kinds}}",
+    none: "inget",
+    stillCounted:
+      "Ett dolt anrop räknas fortfarande som ett steg i rubriken, och ett godkännande eller en fråga ställs fortfarande. En ändring syns från nästa verktygsanrop, även i en omgång som redan körs.",
+    everywhereIsOwners:
+      "Bara en ägare kan ändra standarden för alla konversationer, och inget har ändrats. Utelämna `everywhere` för att välja för den här konversationen, eller be en ägare att sätta standarden.",
+    kinds: {
+      edits: "ändringar och skrivna filer",
+      commands: "kommandon",
+      reads: "läsningar och sökningar",
+      web: "hämtningar och sökningar på webben",
+      agents: "agenter och skills",
+      todos: "att-göra-listor",
+      other: "andra verktyg",
+    },
+  },
   access: {
     ownersOnly:
       "`/{{command}}` är förbehållet ägare. Operatörer kör boten; vilka fler som får använda den, och vad som körs i den, avgör ägaren.",

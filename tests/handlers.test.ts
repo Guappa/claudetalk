@@ -16,6 +16,8 @@ import { takeStopRequest } from "../src/stopSignal.ts";
 import { sayIn } from "../src/i18n/index.ts";
 import { handlePurgeCommand } from "../src/discord/commands/purge.ts";
 import { handleSetting, suggestModels } from "../src/discord/commands/settings.ts";
+import { handleTrail } from "../src/discord/commands/trail.ts";
+import { TrailChoice } from "../src/discord/trailChoice.ts";
 import { handleInvite, handleUninvite } from "../src/discord/commands/membership.ts";
 import { handleSync } from "../src/discord/commands/sync.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
@@ -682,6 +684,65 @@ describe("/model", () => {
     expect(refused).toContain("`sonet` is not a model Claude Code offers");
     expect(refused).toContain("`opus`, `claude-sonnet-9`");
     expect(bridge.store.bySession(SESSION)?.settings.model).toBe("fable");
+  });
+});
+
+describe("/trail", () => {
+  const asked = async (
+    bridge: Awaited<ReturnType<typeof testBridge>>,
+    place: ReturnType<typeof fakeChannel>,
+    userId: string,
+    options: Record<string, string | boolean>,
+  ) => {
+    const command = fakeCommand(place, userId, options);
+    await handleTrail(bridge, command.interaction);
+    return command.replies.at(-1) ?? "";
+  };
+  const hiddenIn = (bridge: Awaited<ReturnType<typeof testBridge>>, sessionId: string) => [
+    ...bridge.trail.hiddenIn(bridge.store.bySession(sessionId)?.settings.trailHidden),
+  ];
+
+  // The default saves saying it in every channel; a conversation's own choice is for the one where more, or less, is wanted.
+  it("follows the bridge's default until a conversation chooses for itself, and goes back to it on a reset", async () => {
+    const bridge = await testBridge();
+    const [here, there] = [fakeChannel("t1"), fakeChannel("t2")];
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "t1", ownerId: OWNER });
+    await bridge.store.bindNew({ sessionId: "elsewhere", cwd: bridge.config.projectsRoot, channelId: "t2", ownerId: OWNER });
+
+    expect(await asked(bridge, here, OWNER, {})).toContain("follows the bridge's default");
+    expect(await asked(bridge, here, OWNER, { hide: "commands", everywhere: true })).toContain("Hidden: commands");
+    expect(hiddenIn(bridge, SESSION)).toEqual(["commands"]);
+    expect(hiddenIn(bridge, "elsewhere")).toEqual(["commands"]);
+
+    const own = await asked(bridge, here, OWNER, { hide: "all", show: "agents" });
+    expect(own).toContain("its own choice");
+    expect(own).toContain("Drawn: agents and skills\n");
+    expect(hiddenIn(bridge, SESSION)).toEqual(["edits", "commands", "reads", "web", "todos", "other"]);
+    expect(hiddenIn(bridge, "elsewhere")).toEqual(["commands"]);
+
+    expect(await asked(bridge, there, OWNER, { show: "commands", everywhere: true })).toContain("Hidden: nothing");
+    expect(hiddenIn(bridge, SESSION)).toHaveLength(6);
+
+    expect(await asked(bridge, here, OWNER, { reset: true })).toContain("follows the bridge's default");
+    expect(hiddenIn(bridge, SESSION)).toEqual([]);
+  });
+
+  it("keeps the default across a restart, and leaves it to an owner to change", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("t3");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "t3", ownerId: OPERATOR });
+
+    const refused = await asked(bridge, place, OPERATOR, { hide: "edits", everywhere: true });
+    expect(refused).toContain("Only an owner can change the default");
+    expect(hiddenIn(bridge, SESSION)).toEqual([]);
+    expect(await asked(bridge, place, OPERATOR, { everywhere: true })).toContain("Hidden: nothing");
+    expect(await asked(bridge, place, OPERATOR, { hide: "edits" })).toContain("Hidden: edits and written files");
+
+    await asked(bridge, place, OWNER, { hide: "web", everywhere: true });
+    const restarted = new TrailChoice(path.join(bridge.config.dataDir, "trail.json"));
+    await restarted.load();
+    expect([...restarted.hiddenIn(undefined)]).toEqual(["web"]);
+    expect([...restarted.hiddenIn(["commands", "a kind from another build"])]).toEqual(["commands"]);
   });
 });
 

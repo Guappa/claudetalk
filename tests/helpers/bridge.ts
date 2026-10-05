@@ -15,6 +15,7 @@ import { OutboxDelivery } from "../../src/discord/outboxDelivery.ts";
 import { Pending, PendingCreates } from "../../src/discord/pendingCreate.ts";
 import { QuestionPrompts } from "../../src/discord/questions.ts";
 import { TurnFlow } from "../../src/discord/turnFlow.ts";
+import { TrailChoice } from "../../src/discord/trailChoice.ts";
 import { LanguageChoice } from "../../src/i18n/languageChoice.ts";
 import { OperatorStore } from "../../src/operators.ts";
 import { UpdateCheck } from "../../src/updateCheck.ts";
@@ -70,6 +71,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
   const outbox = new OutboxDelivery();
   const updates = new UpdateCheck("0.0.0", null);
   const trackers = new ContextTrackers();
+  const trail = new TrailChoice(path.join(dir, "trail.json"));
   const sessions = {
     build: async () => records,
     find: async (sessionId: string) => newestCopy(records, sessionId),
@@ -81,6 +83,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     store,
     operators,
     language,
+    trail,
     capabilities,
     models: new ModelCatalog(settled.projectsRoot, async (_cwd, ask) => ask({ supportedModels: async () => OFFERED_MODELS })),
     usage,
@@ -109,6 +112,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
       activeTurns,
       settled,
       () => language.say,
+      (sessionId) => trail.hiddenIn(store.bySession(sessionId)?.settings.trailHidden),
       1,
     ),
     contextOf: (sessionId) => trackers.standing(sessionId),

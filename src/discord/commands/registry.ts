@@ -1,6 +1,10 @@
 import { SlashCommandBuilder } from "discord.js";
 import { LANGUAGES } from "../../i18n/index.ts";
 import { EFFORT_CHOICES } from "./settings.ts";
+import { TRAIL_KINDS } from "../toolTrail.ts";
+import { EVERY_KIND } from "../trailChoice.ts";
+
+const TRAIL_CHOICES = [...TRAIL_KINDS, EVERY_KIND];
 
 export function bridgeCommandDefinitions() {
   return [
@@ -51,6 +55,28 @@ export function bridgeCommandDefinitions() {
           .setName("value")
           .setDescription("Effort")
           .addChoices(...EFFORT_CHOICES.map((effort) => ({ name: effort, value: effort }))),
+      ),
+
+    new SlashCommandBuilder()
+      .setName("trail")
+      .setDescription("Show or choose which kinds of tool call the trail draws in this conversation")
+      .addStringOption((option) =>
+        option
+          .setName("hide")
+          .setDescription("A kind to stop drawing")
+          .addChoices(...TRAIL_CHOICES.map((kind) => ({ name: kind, value: kind }))),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("show")
+          .setDescription("A kind to draw again")
+          .addChoices(...TRAIL_CHOICES.map((kind) => ({ name: kind, value: kind }))),
+      )
+      .addBooleanOption((option) =>
+        option.setName("everywhere").setDescription("Show or change the default for every conversation instead of this one"),
+      )
+      .addBooleanOption((option) =>
+        option.setName("reset").setDescription("Drop this conversation's own choice, so it follows the default again"),
       ),
 
     new SlashCommandBuilder()
