@@ -26,9 +26,9 @@ export function sendNowActionId(sessionId: string): string {
   return `turn:sendnow:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
-// Offered once Send now has said what it would cut short.
-export function sendAnywayActionId(sessionId: string): string {
-  return `turn:sendanyway:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
+// Offered once Send now has said what it would cut short, and naming that call by when it started, so a press left over from an earlier one asks again.
+export function sendAnywayActionId(sessionId: string, startedAt: number): string {
+  return `turn:sendanyway:${sessionId}:${startedAt}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function stopAllActionId(sessionId: string): string {
@@ -77,7 +77,7 @@ export type MenuAction =
   | { kind: "turn-stop"; sessionId: string }
   | { kind: "turn-stop-all"; sessionId: string }
   | { kind: "turn-stop-agents"; sessionId: string }
-  | { kind: "turn-send-now"; sessionId: string; confirmed: boolean }
+  | { kind: "turn-send-now"; sessionId: string; confirmedFor: number | null }
   | { kind: "turn-send-wait" }
   | { kind: "question-pick"; askId: string; index: number }
   | { kind: "question-other"; askId: string; index: number }
@@ -142,9 +142,9 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
   if (resume?.[1]) return { kind: "create-resume", sessionId: resume[1] };
 
   const sendNow = /^turn:sendnow:(.+)$/.exec(customId);
-  if (sendNow?.[1]) return { kind: "turn-send-now", sessionId: sendNow[1], confirmed: false };
-  const sendAnyway = /^turn:sendanyway:(.+)$/.exec(customId);
-  if (sendAnyway?.[1]) return { kind: "turn-send-now", sessionId: sendAnyway[1], confirmed: true };
+  if (sendNow?.[1]) return { kind: "turn-send-now", sessionId: sendNow[1], confirmedFor: null };
+  const sendAnyway = /^turn:sendanyway:(.+):(\d+)$/.exec(customId);
+  if (sendAnyway?.[1]) return { kind: "turn-send-now", sessionId: sendAnyway[1], confirmedFor: Number(sendAnyway[2]) };
 
   const stopAgents = /^turn:stopagents:(.+)$/.exec(customId);
   if (stopAgents?.[1]) return { kind: "turn-stop-agents", sessionId: stopAgents[1] };

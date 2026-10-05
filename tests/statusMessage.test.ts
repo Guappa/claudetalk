@@ -621,8 +621,8 @@ describe("agents in a turn", () => {
     expect(agents.running()).toEqual(["t2"]);
     expect(agents.runningRemote()).toEqual([]);
     expect(parseCustomId(stopAgentsActionId("s1"))).toEqual({ kind: "turn-stop-agents", sessionId: "s1" });
-    expect(parseCustomId(sendNowActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1", confirmed: false });
-    expect(parseCustomId(sendAnywayActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1", confirmed: true });
+    expect(parseCustomId(sendNowActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1", confirmedFor: null });
+    expect(parseCustomId(sendAnywayActionId("s1", 1234))).toEqual({ kind: "turn-send-now", sessionId: "s1", confirmedFor: 1234 });
     expect(parseCustomId(SEND_WAIT)).toEqual({ kind: "turn-send-wait" });
     expect(describeSendNow(say, "nothing-waiting")).toContain("already taken");
     expect(describeSendNow(say, "sent")).toContain("cut short so it could read your message");
