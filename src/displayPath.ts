@@ -43,8 +43,8 @@ function spelledPattern(home: string): RegExp | null {
   const fromRoot = path.isAbsolute(home) && !/^[A-Za-z]:/.test(home);
   // A home one folder below the root, /root or /app, is an ordinary folder name too, and is the home only where a path starts; taken anywhere, every folder of that name in any path would turn into ~.
   const startsPath = fromRoot && segments.length === 1 ? "(?<![\\w.~-])" : "";
-  // A home from the root is its own whatever stands before it, a compiler flag or a UNC host or a volume, so only a web address ending in it is left alone; a drive letter is anchored so that it is not the tail of a word.
-  const [lead, unlessWeb] = fromRoot ? [`${startsPath}[\\\\/]+`, IN_WEB_ADDRESS] : ["(?<![\\w.-])", ""];
+  // A home is its own whatever stands before it, a compiler flag or an escaped newline or a colour code, a UNC host or a volume, so nothing anchors where it starts; only a web address ending in a home from the root is left alone.
+  const [lead, unlessWeb] = fromRoot ? [`${startsPath}[\\\\/]+`, IN_WEB_ADDRESS] : ["", ""];
   // Anchored at the end: /home/dan must not rewrite "danger", and a full stop that ends the sentence is not part of the name.
   return new RegExp(`${lead}${[drive, ...rest].join("[\\\\/]+")}${unlessWeb}(?![\\w-]|\\.\\w)`, "gi");
 }
@@ -65,7 +65,8 @@ const RUNNING_HOME = homePatterns([os.homedir(), shortHomeDir()].filter((home): 
 
 // Folders under a users root that belong to nobody in particular.
 const SHARED = /^(?:Public|Default|Default User|All Users|Shared)$/i;
-const WINDOWS_USERS = `(?<root>(?<![\\w.-])(?:[A-Za-z]:|${MOUNT}[\\\\/]+[A-Za-z](?=[\\\\/]))[\\\\/]+Users(?<sep>[\\\\/])[\\\\/]*)`;
+// A drive letter starts a path whatever is written right before it; a drive spelled as a folder is one only where a path starts, or every a/users/name in a relative path and a web address would lose its last part.
+const WINDOWS_USERS = `(?<root>(?:[A-Za-z]:|(?<![\\w.-])${MOUNT}[\\\\/]+[A-Za-z](?=[\\\\/]))[\\\\/]+Users(?<sep>[\\\\/])[\\\\/]*)`;
 const WORD = `[^\\\\/\\s"'\`<>|*?:;,=+[\\]]+`;
 // A Windows account name may hold spaces, which is also how a sentence carries on after a path that ends at the name. A spaced one is taken for a name only at three words or fewer, and only where the path goes on in the separator it came in or stops at a quote; otherwise the name ends at the first space or mark.
 const ACCOUNT_SHAPES = [
