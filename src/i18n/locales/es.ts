@@ -28,6 +28,28 @@ export const es: Catalog = {
     changed:
       "Idioma del puente: **{{name}}**, a partir de ahora. Eso cubre lo que dice el puente en sí; un turno que ya está en marcha conserva el idioma con el que empezó. Las respuestas de Claude no cambian: responde en el idioma en que le escribas.",
   },
+  trailChoice: {
+    own: "Esta conversación tiene su propia elección de lo que muestra la traza. `/trail reset:True` hace que vuelva a seguir el valor predeterminado del puente.",
+    follows:
+      "Esta conversación sigue el valor predeterminado del puente para lo que muestra la traza. `/trail hide:` o `/trail show:` aquí le da una elección propia.",
+    everywhere: "El valor predeterminado del puente, para toda conversación que no haya elegido por su cuenta:",
+    drawn: "Se muestra: {{kinds}}",
+    hidden: "Oculto: {{kinds}}",
+    none: "nada",
+    stillCounted:
+      "Una llamada oculta sigue contando como paso en el encabezado, y una aprobación o una pregunta se sigue pidiendo. Un cambio se nota desde la siguiente llamada a una herramienta, también en un turno que ya está en marcha.",
+    everywhereIsOwners:
+      "Solo un propietario puede cambiar el valor predeterminado de todas las conversaciones, y no se ha cambiado nada. Quita `everywhere` para elegir en esta conversación, o pide a un propietario que fije el valor predeterminado.",
+    kinds: {
+      edits: "ediciones y archivos escritos",
+      commands: "comandos",
+      reads: "lecturas y búsquedas",
+      web: "consultas y búsquedas en la web",
+      agents: "agentes y skills",
+      todos: "listas de tareas",
+      other: "otras herramientas",
+    },
+  },
   access: {
     ownersOnly:
       "`/{{command}}` es de los propietarios. Los operadores manejan el bot; quién más puede usarlo, y qué se ejecuta dentro, lo decide el propietario.",

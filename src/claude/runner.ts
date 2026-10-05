@@ -17,6 +17,8 @@ export interface ChannelSettings {
   fallbackModel?: string;
   autocompact?: string;
   agent?: string;
+  // The kinds of tool call the trail leaves out in this conversation; without it the conversation follows the bridge's default.
+  trailHidden?: string[];
 }
 
 export type ToolDecision = { allow: true } | { allow: false; reason: string };

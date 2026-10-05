@@ -20,6 +20,7 @@ import { handleQueue, handleRestart, handleStop, handleTakeover, handleUnbind } 
 import { handleClear } from "../commands/clear.ts";
 import { handleCreate, handleFork, handleResume } from "../commands/conversations.ts";
 import { handleLanguage } from "../commands/language.ts";
+import { handleTrail } from "../commands/trail.ts";
 import { handleInvite, handleMembers, handleUninvite } from "../commands/membership.ts";
 import { handleOperator } from "../commands/operators.ts";
 import { handleAutocomplete, handleSessions } from "../commands/sessions.ts";
@@ -70,6 +71,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   members: handleMembers,
   takeover: handleTakeover,
   language: handleLanguage,
+  trail: handleTrail,
   restart: handleRestart,
 };
 

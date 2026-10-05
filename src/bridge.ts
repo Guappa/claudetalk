@@ -10,6 +10,7 @@ import { ContextTrackers, type ContextStanding } from "./claude/contextTracker.t
 import { UsageLedger } from "./claude/usageLedger.ts";
 import { PlanUsage } from "./claude/planUsage.ts";
 import { TurnFlow } from "./discord/turnFlow.ts";
+import { TrailChoice } from "./discord/trailChoice.ts";
 import { OutboxDelivery } from "./discord/outboxDelivery.ts";
 import { SessionIndex } from "./sessions/index.ts";
 import { Pending, PendingCreates, type PendingRun } from "./discord/pendingCreate.ts";
@@ -29,6 +30,7 @@ export interface Bridge {
   store: ConversationStore;
   operators: OperatorStore;
   language: LanguageChoice;
+  trail: TrailChoice;
   capabilities: CapabilityCache;
   models: ModelCatalog;
   usage: UsageLedger;
@@ -91,12 +93,15 @@ export async function createBridge(config: Config, supervised: boolean): Promise
   const updateNotice = new UpdateNotice(path.join(config.dataDir, "update.json"), updates);
   await updateNotice.load();
   const trackers = new ContextTrackers();
+  const trail = new TrailChoice(path.join(config.dataDir, "trail.json"));
+  await trail.load();
 
   return {
     config,
     store,
     operators,
     language,
+    trail,
     capabilities,
     models: new ModelCatalog(config.projectsRoot),
     usage,
@@ -125,6 +130,7 @@ export async function createBridge(config: Config, supervised: boolean): Promise
       activeTurns,
       config,
       () => language.say,
+      (sessionId) => trail.hiddenIn(store.bySession(sessionId)?.settings.trailHidden),
     ),
     contextOf: (sessionId) => trackers.standing(sessionId),
     sessions: new SessionIndex(),

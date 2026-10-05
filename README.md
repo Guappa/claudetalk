@@ -30,7 +30,7 @@ Claude Code's own transcript, so nothing here owns it.
 | Resume in the terminal | `claude --resume <id>` opens in the terminal what Discord worked on. `/whoami` gives the command. |
 | Start, reopen, branch | `/create` starts a conversation in a project folder, `/resume` opens an existing one in its own channel, `/fork` branches one, `/sessions` lists what is on the host. |
 | Takeover | A conversation left open in an idle terminal is freed from Discord with `/takeover`, and the message you sent runs. |
-| Live trail | What Claude is doing as it does it: commands, edits, searches, and a line per agent with how it ended. |
+| Live trail | What Claude is doing as it does it: commands, edits, searches, and a line per agent with how it ended. `/trail` hides the kinds you do not want, for one conversation or for all. |
 | Question menus | Claude's questions arrive as select menus with the choices it offered and a field for your own words. |
 | Stop and steer | A **Stop** button ends a turn. A message sent while one runs is handed to it and taken up at its next step, or at once with **Send now**. |
 | Pings | A mention when a long turn finishes, fails or needs you, and only if you have been away. |

@@ -27,6 +27,28 @@ export const en = {
     changed:
       "Bridge language: **{{name}}**, from here on. That covers what the bridge itself says; a turn already running keeps the language it started in. Claude's answers are not affected: it replies in whatever language you write to it.",
   },
+  trailChoice: {
+    own: "This conversation has its own choice of what the trail draws. `/trail reset:True` makes it follow the bridge's default again.",
+    follows:
+      "This conversation follows the bridge's default for what the trail draws. `/trail hide:` or `/trail show:` here gives it a choice of its own.",
+    everywhere: "The bridge's default, for every conversation that has not made a choice of its own:",
+    drawn: "Drawn: {{kinds}}",
+    hidden: "Hidden: {{kinds}}",
+    none: "nothing",
+    stillCounted:
+      "A hidden call still counts as a step in the heading, and an approval or a question is still asked. A change shows from the next tool call, in a turn already running too.",
+    everywhereIsOwners:
+      "Only an owner can change the default for every conversation, and nothing has changed. Leave `everywhere` out to choose for this conversation, or ask an owner to set the default.",
+    kinds: {
+      edits: "edits and written files",
+      commands: "commands",
+      reads: "reads and searches",
+      web: "web fetches and searches",
+      agents: "agents and skills",
+      todos: "to-do lists",
+      other: "other tools",
+    },
+  },
   access: {
     ownersOnly:
       "`/{{command}}` is an owner's. Operators drive the bot; who else may use it, and what runs inside it, is the owner's to decide.",

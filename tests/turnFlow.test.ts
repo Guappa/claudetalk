@@ -10,6 +10,7 @@ import { OutboxDelivery } from "../src/discord/outboxDelivery.ts";
 import { ActiveTurns } from "../src/discord/activeTurns.ts";
 import type { Config } from "../src/config.ts";
 import { TurnFlow } from "../src/discord/turnFlow.ts";
+import type { TrailKind } from "../src/discord/toolTrail.ts";
 import { Attention } from "../src/discord/attention.ts";
 import { menuAskingSink, quietSink, recordingSink } from "./helpers/sinks.ts";
 import { sayIn, type Language, type Say } from "../src/i18n/index.ts";
@@ -85,7 +86,12 @@ vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   };
 });
 
-function makeFlow(language: () => Say = () => sayIn("en"), approvals = new ApprovalPrompts(), pingAfterMs = 0): TurnFlow {
+function makeFlow(
+  language: () => Say = () => sayIn("en"),
+  approvals = new ApprovalPrompts(),
+  pingAfterMs = 0,
+  trailHidden: () => ReadonlySet<TrailKind> = () => new Set(),
+): TurnFlow {
   const config = {
     toolApprovals: false,
     toolDenials: new Set(),
@@ -104,6 +110,7 @@ function makeFlow(language: () => Say = () => sayIn("en"), approvals = new Appro
     new ActiveTurns(path.join(os.tmpdir(), `claudetalk-turns-${process.pid}-${Math.random()}.json`)),
     config,
     language,
+    trailHidden,
     1,
   );
 }
@@ -284,6 +291,35 @@ describe("TurnFlow", () => {
     expect(trail).not.toContain("step");
     expect(sink.details).toEqual(["**1 · general-purpose** · Write the fixture\ndone in 2s · 1 tool · 1 token"]);
     expect(sink.detailTitles).toEqual(["Agents: fan out"]);
+  });
+
+  // A reader who does not care for commands and diffs still needs to see how much was done, and what Claude said while doing it.
+  it("leaves the hidden kinds of tool call out of the trail, and still counts them and keeps what was said between them", async () => {
+    const calling = (name: string, input: Record<string, unknown>) => ({
+      type: "assistant",
+      parent_tool_use_id: null,
+      message: { content: [{ type: "tool_use", name, input }] },
+    });
+    scripted.set("tidy up", [
+      calling("Bash", { command: "npm test" }),
+      { type: "assistant", parent_tool_use_id: null, message: { content: [{ type: "text", text: "The tests pass." }] } },
+      calling("Edit", { file_path: "/srv/app/notes.md", old_string: "alpha", new_string: "beta" }),
+      calling("Read", { file_path: "/srv/app/readme.md" }),
+      calling("mcp__tracker__list", {}),
+    ]);
+    const hidden = new Set<TrailKind>(["commands", "edits", "other"]);
+    const sink = recordingSink();
+    expect(await makeFlow(undefined, undefined, 0, () => hidden).run("s11", cwd, "tidy up", {}, sink, { resume: true })).toBe(
+      true,
+    );
+
+    const trail = sink.messages.join("\n");
+    expect(trail).not.toContain("npm test");
+    expect(trail).not.toContain("notes.md");
+    expect(trail).not.toContain("tracker");
+    expect(trail).toContain("readme.md");
+    expect(trail).toContain("The tests pass.");
+    expect(trail).toContain("4 steps");
   });
 
   const agentStart = (taskId: string, taskType: string) => ({

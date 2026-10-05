@@ -28,6 +28,28 @@ export const fr: Catalog = {
     changed:
       "Langue de la passerelle : **{{name}}**, à partir de maintenant. Cela couvre ce que dit la passerelle elle-même ; un tour déjà en cours garde la langue dans laquelle il a commencé. Les réponses de Claude ne changent pas : il répond dans la langue dans laquelle tu lui écris.",
   },
+  trailChoice: {
+    own: "Cette conversation a son propre choix de ce que la trace affiche. `/trail reset:True` lui fait suivre à nouveau le réglage par défaut de la passerelle.",
+    follows:
+      "Cette conversation suit le réglage par défaut de la passerelle pour ce que la trace affiche. `/trail hide:` ou `/trail show:` ici lui donne un choix à elle.",
+    everywhere: "Le réglage par défaut de la passerelle, pour toute conversation qui n'a pas fait son propre choix :",
+    drawn: "Affiché : {{kinds}}",
+    hidden: "Masqué : {{kinds}}",
+    none: "rien",
+    stillCounted:
+      "Un appel masqué compte toujours comme une étape dans l'en-tête, et une approbation ou une question est toujours demandée. Un changement se voit dès le prochain appel d'outil, même dans un tour déjà en cours.",
+    everywhereIsOwners:
+      "Seul un propriétaire peut changer le réglage par défaut de toutes les conversations, et rien n'a été modifié. Retire `everywhere` pour choisir pour cette conversation, ou demande à un propriétaire de fixer le réglage par défaut.",
+    kinds: {
+      edits: "modifications et fichiers écrits",
+      commands: "commandes",
+      reads: "lectures et recherches",
+      web: "requêtes et recherches sur le web",
+      agents: "agents et skills",
+      todos: "listes de tâches",
+      other: "autres outils",
+    },
+  },
   access: {
     ownersOnly:
       "`/{{command}}` est réservée aux propriétaires. Les opérateurs pilotent le bot ; qui d'autre peut l'utiliser, et ce qui tourne dedans, c'est au propriétaire d'en décider.",

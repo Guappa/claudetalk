@@ -2,6 +2,24 @@ import { displayPath } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 
+// What a reader can switch off in the trail: tool calls grouped by what they do, since nobody thinks of them by tool name.
+export const TRAIL_KINDS = ["edits", "commands", "reads", "web", "agents", "todos", "other"] as const;
+export type TrailKind = (typeof TRAIL_KINDS)[number];
+
+const KIND_OF = new Map<string, TrailKind>([
+  ...["Edit", "MultiEdit", "Write", "NotebookEdit"].map((tool): [string, TrailKind] => [tool, "edits"]),
+  ...["Bash", "PowerShell"].map((tool): [string, TrailKind] => [tool, "commands"]),
+  ...["Read", "Glob", "Grep"].map((tool): [string, TrailKind] => [tool, "reads"]),
+  ...["WebFetch", "WebSearch"].map((tool): [string, TrailKind] => [tool, "web"]),
+  ...["Agent", "Task", "Skill"].map((tool): [string, TrailKind] => [tool, "agents"]),
+  ["TodoWrite", "todos"],
+]);
+
+// A tool the bridge has no line of its own for, an MCP server's among them, is drawn by name and so belongs to no group but the last.
+export function trailKind(toolName: string): TrailKind {
+  return KIND_OF.get(toolName) ?? "other";
+}
+
 // An agent sent out is work that carries on beside the turn, so its line is marked apart from the tool calls around it.
 const AGENT_MARK = "🤖";
 

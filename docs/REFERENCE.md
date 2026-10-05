@@ -21,6 +21,7 @@ this covers behaviour.
 | `/uninvite <user>` | H | Takes that visibility away again. |
 | `/model [value]` | O | Shows or sets the model for this conversation. Persists across turns. Unset, it names the host default turns actually run with. The suggestions are the models Claude Code itself offers on the host, asked for at start-up and again every few hours, so a new model appears without an update of the bridge; until Claude Code has answered they are the four aliases `fable`, `opus`, `sonnet` and `haiku`, which always hold. A name that is neither is refused. |
 | `/effort [value]` | O | Shows or sets the effort level. Persists across turns. Unset, it names the host default turns actually run with. |
+| `/trail [hide] [show] [everywhere] [reset]` | O | Shows or chooses which kinds of tool call the trail draws: here, or with `everywhere` as the default for every conversation, which only an owner may change. See "Drawing less" under [A turn, start to finish](#a-turn-start-to-finish). |
 | `/language [value]` | H | Shows or sets the language the bridge itself speaks, for the whole bridge. Claude's answers are not affected. See [Language](#language). |
 | `/ask <prompt> [context:N]` | O | Asks with the last N channel messages as context. `N` is 1 to 50. A message with nothing written in it, an embed or an upload alone, is left out, and the reply says how many were taken. |
 | `/sync` | O | Posts where you left off outside Discord: the latest few prompts and replies since you last saw it, with all of them attached as a file when there are more than fit in one message. Turns the bridge itself ran are marked seen when they end, so they never come back as drift. The bridge reads back the last 3 MB of a transcript; when more happened outside Discord than that holds, the count is said to be only the most recent. |
@@ -558,6 +559,25 @@ held the refresh, or died holding it, the bridge says so in the trail, waits
 the minute Claude Code itself advises and runs the turn once more; a second
 failure is reported as the turn's outcome.
 
+**Drawing less.** The trail shows everything by default, as the terminal does,
+and `/trail` takes kinds of tool call out of it for a reader who wants less.
+The kinds are `edits` (edits and written files, with their diffs), `commands`,
+`reads` (reads and searches), `web` (fetches and searches), `agents` (agents
+and skills), `todos` and `other`, which is every tool the bridge draws by name,
+an MCP server's among them; `all` names every kind at once. `/trail
+hide:commands` hides one, `/trail show:commands` brings it back, and both may
+be given together, hide first, so `/trail hide:all show:agents` leaves only
+the agents. `/trail` alone says what is drawn. There are two layers. The
+bridge has a default for every conversation, which an owner sets by adding
+`everywhere:True`; a conversation follows it until `/trail` is used there
+without `everywhere`, which gives it a choice of its own that the default no
+longer moves, and `/trail reset:True` drops that choice again. A conversation
+keeps its choice across `/clear`. Only the lines go: a hidden call still counts
+in the heading's steps, an approval or a question about it is still asked,
+what Claude says between calls is still shown, and an agent still appears in
+the agents' thread. A change shows from the next tool call, in a turn that is
+already running too.
+
 When the turn ends the heading changes to **Worked**, the trail stays, and the
 answer arrives as its own message beneath it, not repeated in the trail. A turn
 whose only remark was the answer keeps no trail. An answer the trail already
@@ -919,6 +939,7 @@ the language it started in, so its trail does not change tongue halfway.
 | `data/conversations.json` | Channel bindings, members, per-conversation settings, and which conversations were started from a tag |
 | `data/operators.json` | Who an owner made an operator |
 | `data/language.json` | The language picked with `/language`. Absent until someone picks one |
+| `data/trail.json` | The kinds of tool call the trail leaves out by default, set with `/trail everywhere:True`. Absent until an owner sets one |
 | `data/bridge.lock` | Prevents a second instance. Delete only if you are sure nothing is running |
 | `data/update.json` | The newer version an owner was last told of, and when, so it is said once and at most weekly |
 | `data/restart.json` | Who asked for a restart, kept across it so the bridge can say it is back. Removed once it has |
