@@ -191,6 +191,11 @@ export const fr: Catalog = {
     nothingWaiting: "Rien n'attend : le tour en cours a déjà repris ton message.",
     notRunning: "Plus aucun tour ne tourne ici, il n'y a donc rien à interrompre.",
     notInterrupted: "Le tour en cours n'a pas pu être interrompu, ton message attend donc toujours sa prochaine étape.",
+    sendAnyway: "Envoyer maintenant quand même",
+    waitForIt: "Attendre",
+    cutsLongCall:
+      "Claude est dans {{call}}, en cours depuis {{elapsed}}. Envoyer maintenant l'interrompt et perd ce qui a été fait jusqu'ici. Si tu attends, ton message est remis dès qu'il se termine.",
+    waiting: "Ton message attend, et Claude le lit dès que l'appel en cours se termine.",
   },
   queue: {
     behind_one: "En file derrière le tour encore en cours.",

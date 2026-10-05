@@ -12,6 +12,7 @@ export const UNBIND_KEEP = "unbind:keep";
 export const CLEAR_CANCEL = "clear:cancel";
 export const RUN_CONFIRM = "run:confirm";
 export const RUN_CANCEL = "run:cancel";
+export const SEND_WAIT = "turn:sendwait";
 
 export function stopActionId(sessionId: string): string {
   return `turn:stop:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
@@ -23,6 +24,11 @@ export function stopAgentsActionId(sessionId: string): string {
 
 export function sendNowActionId(sessionId: string): string {
   return `turn:sendnow:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
+}
+
+// Offered once Send now has said what it would cut short.
+export function sendAnywayActionId(sessionId: string): string {
+  return `turn:sendanyway:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
 }
 
 export function stopAllActionId(sessionId: string): string {
@@ -71,7 +77,8 @@ export type MenuAction =
   | { kind: "turn-stop"; sessionId: string }
   | { kind: "turn-stop-all"; sessionId: string }
   | { kind: "turn-stop-agents"; sessionId: string }
-  | { kind: "turn-send-now"; sessionId: string }
+  | { kind: "turn-send-now"; sessionId: string; confirmed: boolean }
+  | { kind: "turn-send-wait" }
   | { kind: "question-pick"; askId: string; index: number }
   | { kind: "question-other"; askId: string; index: number }
   | { kind: "question-submit"; askId: string }
@@ -127,6 +134,7 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
   if (customId === CLEAR_CANCEL) return { kind: "clear-cancel" };
   if (customId === RUN_CONFIRM) return { kind: "run-confirm" };
   if (customId === RUN_CANCEL) return { kind: "run-cancel" };
+  if (customId === SEND_WAIT) return { kind: "turn-send-wait" };
   const clear = /^clear:confirm:(.+)$/.exec(customId);
   if (clear?.[1]) return { kind: "clear-confirm", sessionId: clear[1] };
 
@@ -134,7 +142,9 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
   if (resume?.[1]) return { kind: "create-resume", sessionId: resume[1] };
 
   const sendNow = /^turn:sendnow:(.+)$/.exec(customId);
-  if (sendNow?.[1]) return { kind: "turn-send-now", sessionId: sendNow[1] };
+  if (sendNow?.[1]) return { kind: "turn-send-now", sessionId: sendNow[1], confirmed: false };
+  const sendAnyway = /^turn:sendanyway:(.+)$/.exec(customId);
+  if (sendAnyway?.[1]) return { kind: "turn-send-now", sessionId: sendAnyway[1], confirmed: true };
 
   const stopAgents = /^turn:stopagents:(.+)$/.exec(customId);
   if (stopAgents?.[1]) return { kind: "turn-stop-agents", sessionId: stopAgents[1] };

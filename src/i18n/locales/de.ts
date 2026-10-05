@@ -195,6 +195,11 @@ export const de: Catalog = {
     notRunning: "Hier läuft kein Durchlauf mehr, also gibt es nichts zu unterbrechen.",
     notInterrupted:
       "Der laufende Durchlauf ließ sich nicht unterbrechen, also wartet deine Nachricht weiter auf seinen nächsten Schritt.",
+    sendAnyway: "Trotzdem jetzt senden",
+    waitForIt: "Darauf warten",
+    cutsLongCall:
+      "Claude steckt in {{call}}, seit {{elapsed}}. Jetzt zu senden bricht das ab und verwirft, was bisher getan wurde. Wartest du, wird deine Nachricht übergeben, sobald es zurückkehrt.",
+    waiting: "Deine Nachricht wartet, und Claude liest sie, sobald der laufende Aufruf zurückkehrt.",
   },
   queue: {
     behind_one: "Eingereiht hinter dem Durchlauf, der noch läuft.",

@@ -1,4 +1,7 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   LabelBuilder,
   ModalBuilder,
   TextInputBuilder,
@@ -9,7 +12,7 @@ import {
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { Say } from "../../i18n/index.ts";
-import { parseCustomId, questionOtherId, type Action, type MenuAction } from "../menus.ts";
+import { parseCustomId, questionOtherId, sendAnywayActionId, SEND_WAIT, type Action, type MenuAction } from "../menus.ts";
 import { OTHER_VALUE } from "../questions.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { clearConversation } from "../commands/clear.ts";
@@ -18,9 +21,10 @@ import { choosePlugin, togglePlugin } from "../commands/plugins.ts";
 import { cancelPurge, confirmPurge } from "../commands/purge.ts";
 import { cancelRun, confirmRun } from "../commands/run.ts";
 import { runSkill } from "../commands/skills.ts";
-import { acknowledgeQuietly, respondQuietly, settleMenu } from "../respond.ts";
+import { acknowledgeQuietly, respond, respondQuietly, settleMenu } from "../respond.ts";
 import { nameForDiscord } from "../outgoing.ts";
 import { describeSendNow, describeStop, describeStopAgents, describeStopTurn } from "../turnFlow.ts";
+import { formatElapsed } from "../statusMessage.ts";
 import { canRunCommand } from "../../access.ts";
 import { MODAL_TEXT_CHARS } from "../limits.ts";
 import { tierOf } from "../policy.ts";
@@ -50,6 +54,7 @@ const COMMAND_OF: Partial<Record<MenuAction["kind"], string>> = {
   "turn-stop-all": "stop",
   "turn-stop-agents": "stop",
   "turn-send-now": "stop",
+  "turn-send-wait": "stop",
 };
 
 // A control is checked on its own press, not on who could see the message it sits on; false once the presser has been told it is not theirs.
@@ -164,10 +169,32 @@ async function stopAgents(bridge: Bridge, interaction: ButtonInteraction, action
   await respondQuietly(interaction, describeStopAgents(bridge.language.say, stopped));
 }
 
+// Interrupting cuts short the call in flight, and a skill or an agent minutes in is too much to lose to a press that meant to hurry.
 async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: Action<"turn-send-now">) {
-  await acknowledgeQuietly(interaction);
-  const outcome = await bridge.flow.sendNow(action.sessionId);
-  await respondQuietly(interaction, describeSendNow(bridge.language.say, outcome));
+  const say = bridge.language.say;
+  const long = action.confirmed ? undefined : bridge.flow.longCallOf(action.sessionId);
+  if (long) {
+    await acknowledgeQuietly(interaction);
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(sendAnywayActionId(action.sessionId))
+        .setLabel(say("fold.sendAnyway"))
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(SEND_WAIT).setLabel(say("fold.waitForIt")).setStyle(ButtonStyle.Secondary),
+    );
+    const elapsed = formatElapsed(say, Date.now() - long.startedAt);
+    await respond(interaction, { content: say("fold.cutsLongCall", { call: long.label, elapsed }), components: [row] });
+    return;
+  }
+  if (action.confirmed) await interaction.deferUpdate();
+  else await acknowledgeQuietly(interaction);
+  const outcome = describeSendNow(say, await bridge.flow.sendNow(action.sessionId));
+  if (action.confirmed) await settleMenu(interaction, outcome);
+  else await respondQuietly(interaction, outcome);
+}
+
+async function waitForCall(bridge: Bridge, interaction: ButtonInteraction) {
+  await settleMenu(interaction, bridge.language.say("fold.waiting"));
 }
 
 async function cancelCreate(bridge: Bridge, interaction: ButtonInteraction) {
@@ -248,6 +275,8 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await stopAgents(bridge, interaction, action);
     case "turn-send-now":
       return await sendNow(bridge, interaction, action);
+    case "turn-send-wait":
+      return await waitForCall(bridge, interaction);
     case "purge-cancel":
       return await cancelPurge(bridge, interaction);
     case "purge-confirm":

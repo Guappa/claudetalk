@@ -175,6 +175,11 @@ export const zh: Catalog = {
     nothingWaiting: "没有等待中的内容：正在运行的轮次已经接手了你的消息。",
     notRunning: "这里已经没有正在运行的轮次了，所以没有什么可以中断。",
     notInterrupted: "无法中断正在运行的轮次，所以你的消息仍在等待它的下一步。",
+    sendAnyway: "仍然立即发送",
+    waitForIt: "等它完成",
+    cutsLongCall:
+      "Claude 正在执行 {{call}}，已运行 {{elapsed}}。现在发送会中断它，并丢弃目前已完成的内容。等待的话，它一返回你的消息就会送达。",
+    waiting: "你的消息在等待，当前调用一返回 Claude 就会读到它。",
   },
   queue: {
     behind_one: "已排队，前面还有一条。",

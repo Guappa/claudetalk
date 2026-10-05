@@ -7,7 +7,7 @@ import { AgentBoard, agentsTitle } from "../src/discord/agentBoard.ts";
 import type { MessageSink } from "../src/discord/messageSink.ts";
 import { StatusMessage, formatElapsed, renderActivity, tickIntervalMs } from "../src/discord/statusMessage.ts";
 import { describeSendNow, describeStopAgents } from "../src/discord/turnFlow.ts";
-import { sendNowActionId, stopAgentsActionId } from "../src/discord/menus.ts";
+import { SEND_WAIT, sendAnywayActionId, sendNowActionId, stopAgentsActionId } from "../src/discord/menus.ts";
 import { parseCustomId } from "../src/discord/menus.ts";
 import { sayIn } from "../src/i18n/index.ts";
 
@@ -621,7 +621,9 @@ describe("agents in a turn", () => {
     expect(agents.running()).toEqual(["t2"]);
     expect(agents.runningRemote()).toEqual([]);
     expect(parseCustomId(stopAgentsActionId("s1"))).toEqual({ kind: "turn-stop-agents", sessionId: "s1" });
-    expect(parseCustomId(sendNowActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1" });
+    expect(parseCustomId(sendNowActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1", confirmed: false });
+    expect(parseCustomId(sendAnywayActionId("s1"))).toEqual({ kind: "turn-send-now", sessionId: "s1", confirmed: true });
+    expect(parseCustomId(SEND_WAIT)).toEqual({ kind: "turn-send-wait" });
     expect(describeSendNow(say, "nothing-waiting")).toContain("already taken");
     expect(describeSendNow(say, "sent")).toContain("cut short so it could read your message");
     expect(describeStopAgents(say, 0)).toContain("nothing to stop");

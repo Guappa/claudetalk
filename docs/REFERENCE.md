@@ -777,7 +777,11 @@ reply. Your message carries a clock until it is taken up, then eyes, then
 whatever the turn ends as. The notice that says it was handed over has a **Send
 now** button. It cuts short the one step Claude is on, so the message runs at
 once as the next turn, with the conversation so far still in front of it; Claude
-is told that step was rejected, so say so if you want it run again. Agents and
+is told that step was rejected, so say so if you want it run again. When that
+step is a skill or an agent the turn waits on, which can run for minutes and
+loses its work when cut short, the button asks first, naming it and how long it
+has run: **Send now anyway** cuts it short, and **Wait for it** leaves the
+message to be taken up the moment it returns. Agents and
 background commands the turn had running are left running. The button only acts
 while the message is still waiting; once taken up there is nothing to hurry, and
 it says so. A turn that ends

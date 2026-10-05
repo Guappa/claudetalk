@@ -9,6 +9,7 @@ import {
   type TurnResult,
 } from "../claude/runner.ts";
 import type { PromptImage } from "../claude/heldPrompt.ts";
+import { LongCalls, type LongCall } from "../claude/longCalls.ts";
 import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
@@ -295,6 +296,8 @@ export class TurnFlow {
   // The language each running turn was started in, which a message joining it is told about in too.
   private readonly spoken = new Map<string, Say>();
   private readonly boards = new Map<string, AgentBoard>();
+  // The skills and agents each running turn waits on, which Send now would cut short.
+  private readonly longCalls = new Map<string, LongCalls>();
   // How long the person each running turn works for has been away from it.
   private readonly attention = new Map<string, Attention>();
   private readonly folded = new Map<string, Map<string, Folded>>();
@@ -561,6 +564,11 @@ export class TurnFlow {
     }
   }
 
+  // What Send now would throw away, so the press can ask first.
+  longCallOf(sessionId: string): LongCall | undefined {
+    return this.longCalls.get(sessionId)?.oldest();
+  }
+
   // Interrupting is only worth it while something waits; after that it would cut the turn short for nothing.
   async sendNow(sessionId: string): Promise<SendNowOutcome> {
     const turn = this.finishing.has(sessionId) ? undefined : this.running.get(sessionId);
@@ -652,6 +660,7 @@ export class TurnFlow {
       await this.settleFolded(sessionId, "stopped");
       this.spoken.delete(sessionId);
       this.boards.delete(sessionId);
+      this.longCalls.delete(sessionId);
       this.attention.delete(sessionId);
       this.stopping.delete(sessionId);
       this.finishing.delete(sessionId);
@@ -666,6 +675,8 @@ export class TurnFlow {
     const stillRunning = (): boolean => !over;
     const pending: Array<Promise<void>> = [];
     const compaction = { happened: false };
+    const calls = new LongCalls();
+    this.longCalls.set(sessionId, calls);
 
     const turn = runTurn(
       {
@@ -688,6 +699,7 @@ export class TurnFlow {
           ),
       },
       (event) => {
+        calls.observe(event);
         const noteCompaction = (): void => {
           compaction.happened = true;
         };
