@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import fc from "fast-check";
+import { SAME_CASES_EVERY_RUN } from "./helpers/properties.ts";
 import { recordingSink } from "./helpers/sinks.ts";
 import { fakeChannel as fakeDiscordChannel } from "./helpers/discord.ts";
 import fs from "node:fs/promises";
@@ -433,6 +435,38 @@ describe("no account's path reaches Discord, whoever's it is and however it is s
       ["../../home/" + "pat/x and /home/" + "pat/x", "../..~/x and ~/x"],
     ];
     for (const [text, expected] of cases) expect(redactPaths(text, named)).toBe(expected);
+  });
+
+  // A path is written straight after whatever came before it: a compiler flag, the n of an escaped newline in a JSON string, the m that ends a colour code.
+  it("knows a Windows home, and a drive's Users folder, whatever is written right before it", () => {
+    const doubled = (value: string) => value.replaceAll("\\", "\\\\");
+    const sam = [users, "Sam", "include"].join("\\");
+    const cases: Array<[string, string]> = [
+      [`gcc -I${home}\\include main.c`, "gcc -I~\\include main.c"],
+      [`{"out":"first line\\n${doubled(home)}\\\\a.ts:3"}`, '{"out":"first line\\n~\\\\a.ts:3"}'],
+      [`\u001b[31m${home}\\x\u001b[0m`, "\u001b[31m~\\x\u001b[0m"],
+      [`-I${slashed(home).replace("C:", "/c")}/x -L${slashed(home)}/lib`, "-I~/x -L~/lib"],
+      [`gcc -I${sam}`, `gcc -I${[users, "…", "include"].join("\\")}`],
+      [`{"out":"a\\n${doubled(sam)}"}`, `{"out":"a\\n${doubled([users, "…", "include"].join("\\"))}"}`],
+    ];
+    for (const [text, expected] of cases) expect(redactPaths(text, ownHome), text).toBe(expected);
+
+    const untouched = ["docs/c/Users/guide.md", "https://example.com/c/Users/list", "app/home/page.tsx"];
+    for (const text of untouched) expect(redactPaths(text, ownHome), text).toBe(text);
+  });
+
+  // The gate is a list of spellings, and what stands before a path is not one anyone can list, so it is drawn at random instead.
+  it("shows the account's name for no spelling of its home, whatever is written before it", () => {
+    const fromRoot = slashed(home).replace("C:", "/c");
+    const spellings = [home, slashed(home), home.replaceAll("\\", "\\\\"), fromRoot, `/mnt${fromRoot}`, shortHome];
+    const spelled = fc.constantFrom(...spellings, ...spellings.map((spelling) => spelling.toLowerCase()));
+    const after = fc.constantFrom("", "\\x", "/x", '"', " and more", ".", ", then", "\n");
+    fc.assert(
+      fc.property(fc.string({ unit: "grapheme", maxLength: 24 }), spelled, after, (before, spelling, rest) => {
+        expect(redactPaths(`${before}${spelling}${rest}`, ownHome)).not.toMatch(/pat doe|patdoe~1/i);
+      }),
+      SAME_CASES_EVERY_RUN,
+    );
   });
 
   it("finds the short spelling of the home folder from the temp folder, and nothing when there is none", () => {
