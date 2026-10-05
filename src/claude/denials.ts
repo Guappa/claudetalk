@@ -165,7 +165,7 @@ const RECURSIVE_DELETE = new RegExp(
 // A recursive delete whose target is the working directory itself or anything outside it.
 function deletesOutside(command: string, cwd: string): boolean {
   for (const match of blankQuoted(command).matchAll(RECURSIVE_DELETE)) {
-    const targets = wordsOf(originalOf(command, match, 1)).filter((word) => !word.startsWith("-"));
+    const targets = [...new Set(wordsOf(originalOf(command, match, 1)))].filter((word) => !word.startsWith("-"));
     for (const target of targets) {
       if (/^(\/\*?|[A-Za-z]:[\\/]?\*?|\*|\.\.?|\.\.[\\/].*)$/.test(target)) return true;
       const resolved = path.resolve(cwd, target.replace(/[\\/]\*$/, ""));
