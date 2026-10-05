@@ -221,7 +221,10 @@ describe("ApprovalPrompts", () => {
         return { close: async () => undefined };
       },
     };
-    const decision = await prompts.askAboutDelete(say, "turn-1", sink, [OWNER], "rm -rf /srv/elsewhere");
+    const decision = await prompts.askOfOwner(say, "turn-1", sink, [OWNER], {
+      rule: "deletes",
+      subject: "rm -rf /srv/elsewhere",
+    });
 
     expect(decision).toEqual({ allow: true });
     expect(shown.text).toContain("rm -rf /srv/elsewhere");
@@ -230,8 +233,30 @@ describe("ApprovalPrompts", () => {
   });
 
   it("refuses a delete outside the folder where nobody can be asked", async () => {
-    const decision = await new ApprovalPrompts().askAboutDelete(say, "turn-1", quietSink(), [OWNER], "rm -rf /srv/elsewhere");
+    const asked = { rule: "deletes" as const, subject: "rm -rf /srv/elsewhere" };
+    const decision = await new ApprovalPrompts().askOfOwner(say, "turn-1", quietSink(), [OWNER], asked);
     expect(decision).toEqual({ allow: false, reason: "This conversation cannot show approval buttons." });
+  });
+
+  it("asks an owner about a file written outside the folder by naming the file, offering once or not at all", async () => {
+    const prompts = new ApprovalPrompts();
+    const shown: { text: string; actions: string[] } = { text: "", actions: [] };
+    const sink = {
+      ...quietSink(),
+      ask: async (text: string, actions: SinkAction[]) => {
+        shown.text = text;
+        shown.actions = actions.map((action) => action.id.split(":")[0]!);
+        prompts.decide(say, actionId(actions, "deny"), OWNER, "deny");
+        return { close: async () => undefined };
+      },
+    };
+    const asked = { rule: "writes" as const, subject: "/srv/another-project/notes.md" };
+    const decision = await prompts.askOfOwner(say, "turn-1", sink, [OWNER], asked);
+
+    expect(decision.allow).toBe(false);
+    expect(shown.text).toContain("write a file outside this conversation's folder");
+    expect(shown.text).toContain("/srv/another-project/notes.md");
+    expect(shown.actions).toEqual(["approve", "deny"]);
   });
 
   it("refuses a tool when the gate itself fails, whatever failed inside it", async () => {

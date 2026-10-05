@@ -1,9 +1,9 @@
 import os from "node:os";
 import path from "node:path";
-import { isWithin, samePath } from "../platform.ts";
+import { isWithin, longTmpDir, samePath } from "../platform.ts";
 
 // Shapes a turn is refused outright, approvals on or off: a guard against an accident or a careless model, not a fence against a determined one, which can spell the same thing another way.
-const DENIALS = ["deletes", "force-push", "secrets", "keys", "download-run", "machine"] as const;
+const DENIALS = ["deletes", "writes", "force-push", "secrets", "keys", "download-run", "machine"] as const;
 export type Denial = (typeof DENIALS)[number];
 
 export function parseDenials(value: string | undefined): Set<Denial> {
@@ -44,6 +44,20 @@ function protectedPaths(scope: DenialScope): string[] {
 
 function underAny(roots: string[], target: string): boolean {
   return roots.some((root) => samePath(root, target) || isWithin(root, target));
+}
+
+// Where a turn writes as a matter of course beside its own folder: scratch files under the temp directory in either spelling, and Claude Code's own memory, plans and settings.
+function ordinaryRoots(scope: DenialScope): string[] {
+  return [scope.cwd, os.tmpdir(), longTmpDir(), path.join(home(), ".claude")];
+}
+
+// A file tool names its target outright, so where a write lands is known without reading a command. The path it resolves to, or null when that is somewhere a turn ordinarily writes.
+function writesOutside(scope: DenialScope, toolName: string, input: Record<string, unknown>): string | null {
+  if (!EDIT_TOOLS.has(toolName)) return null;
+  const filePath = text(input.file_path) || text(input.notebook_path);
+  if (!filePath) return null;
+  const target = path.resolve(scope.cwd, expandHome(filePath));
+  return underAny(ordinaryRoots(scope), target) ? null : target;
 }
 
 // ~ and the home variables, as a shell would read them, so a path is judged by where it lands.
@@ -112,6 +126,8 @@ const KEY_MENTION = /(?:^|[\s"'=:\\/])\.ssh[\\/]id_[A-Za-z0-9_]+(?!\.pub)\b|\.cr
 const REASONS: Record<Denial, string> = {
   deletes:
     "The bridge refused this outright: a recursive delete reaching outside the working directory. Delete inside it, or ask the person in Discord to do this by hand.",
+  writes:
+    "The bridge refused this outright: a file written outside the working directory by a file tool. Write inside it or under the temp directory, or ask the person in Discord to do this by hand.",
   "force-push":
     "The bridge refused this outright: a force push to main, or the deletion of it. Push to a branch, or ask the person in Discord to do this by hand.",
   secrets:
@@ -123,22 +139,30 @@ const REASONS: Record<Denial, string> = {
     "The bridge refused this outright: a command that would stop, restart or reformat the machine. Ask the person in Discord to do this by hand.",
 };
 
-// The one rule an owner may let a single command past: what a turn made outside its folder it has to be able to remove, and only a person can say that this delete is that.
-const ASKED_OF_AN_OWNER: Denial = "deletes";
+// The rules an owner may let a single call past: a turn has to be able to remove what it made outside its folder, and at times to write there, and only a person can say that this call is that.
+const ASKED_OF_AN_OWNER: ReadonlySet<Denial> = new Set(["deletes", "writes"]);
 
 export function withoutAskable(rules: ReadonlySet<Denial>): Set<Denial> {
-  return new Set([...rules].filter((rule) => rule !== ASKED_OF_AN_OWNER));
+  return new Set([...rules].filter((rule) => !ASKED_OF_AN_OWNER.has(rule)));
 }
 
-// The command an owner is asked about, where that rule is on and applies; null otherwise.
+// What an owner is asked about: the rule that caught the call, and the command or the file it caught.
+export interface AskedOfOwner {
+  rule: "deletes" | "writes";
+  subject: string;
+}
+
+// Null where no rule an owner is asked about is on and applies.
 export function askedOfOwner(
   rules: ReadonlySet<Denial>,
   scope: DenialScope,
   toolName: string,
   input: Record<string, unknown>,
-): string | null {
+): AskedOfOwner | null {
   const command = SHELL_TOOLS.has(toolName) ? text(input.command) : "";
-  return command && rules.has(ASKED_OF_AN_OWNER) && deletesOutside(command, scope.cwd) ? command : null;
+  if (command && rules.has("deletes") && deletesOutside(command, scope.cwd)) return { rule: "deletes", subject: command };
+  const written = rules.has("writes") ? writesOutside(scope, toolName, input) : null;
+  return written ? { rule: "writes", subject: written } : null;
 }
 
 // The reason a call is refused, for Claude to read, or null when no rule the bridge runs with applies.
@@ -163,5 +187,6 @@ export function deniedBy(
   const target = path.resolve(scope.cwd, expandHome(filePath));
   if (rules.has("secrets") && EDIT_TOOLS.has(toolName) && underAny(protectedPaths(scope), target)) return REASONS.secrets;
   if (rules.has("keys") && toolName === "Read" && underAny(keyFiles(), target) && !/\.pub$/.test(target)) return REASONS.keys;
+  if (rules.has("writes") && writesOutside(scope, toolName, input)) return REASONS.writes;
   return null;
 }

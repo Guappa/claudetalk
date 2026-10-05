@@ -224,6 +224,8 @@ export const zh: Catalog = {
     request: "**{{tool}}** 想要运行。批准吗？\n```\n{{detail}}\n```",
     deleteOutside:
       "Claude 想要删除此对话文件夹之外的内容，除非所有者允许，否则桥接会拒绝。允许这一条命令吗？\n```\n{{detail}}\n```",
+    writeOutside:
+      "Claude 想要在此对话文件夹之外写入一个文件，除非所有者允许，否则桥接会拒绝。允许这一次写入吗？\n```\n{{detail}}\n```",
     approveOnce: "批准一次",
     deny: "拒绝",
     approveRest: "批准本轮余下的全部",

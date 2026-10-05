@@ -544,11 +544,11 @@ describe("what a turn is refused outright", () => {
   const shell = (command: string) => deniedBy(all, scope, "Bash", { command });
 
   it("keeps every rule on by default, takes a shorter list, takes none, and refuses a name it does not know", () => {
-    expect([...all]).toEqual(["deletes", "force-push", "secrets", "keys", "download-run", "machine"]);
+    expect([...all]).toEqual(["deletes", "writes", "force-push", "secrets", "keys", "download-run", "machine"]);
     expect([...parseDenials("keys, machine")]).toEqual(["keys", "machine"]);
     expect(parseDenials("none").size).toBe(0);
     expect(() => parseDenials("deletes,nukes")).toThrow(
-      /"nukes".*deletes, force-push, secrets, keys, download-run, machine, or none/,
+      /"nukes".*deletes, writes, force-push, secrets, keys, download-run, machine, or none/,
     );
   });
 
@@ -617,16 +617,50 @@ describe("what a turn is refused outright", () => {
   // A turn can make a folder anywhere, and a rule that only refused would leave it unable to remove what it made.
   it("puts a recursive delete outside the folder to an owner, and nothing else, where that rule is on", () => {
     const outside = path.join(os.tmpdir(), "denials-elsewhere");
-    expect(askedOfOwner(all, scope, "Bash", { command: `rm -rf ${outside}` })).toBe(`rm -rf ${outside}`);
+    const asked = { rule: "deletes", subject: `rm -rf ${outside}` };
+    expect(askedOfOwner(all, scope, "Bash", { command: `rm -rf ${outside}` })).toEqual(asked);
     expect(askedOfOwner(all, scope, "Bash", { command: "rm -rf build" })).toBeNull();
     expect(askedOfOwner(all, scope, "Bash", { command: "reboot" })).toBeNull();
-    expect(askedOfOwner(all, scope, "Edit", { file_path: outside })).toBeNull();
     expect(askedOfOwner(parseDenials("machine"), scope, "Bash", { command: `rm -rf ${outside}` })).toBeNull();
 
     const refusedOutright = withoutAskable(all);
     expect(deniedBy(refusedOutright, scope, "Bash", { command: `rm -rf ${outside}` })).toBeNull();
     expect(deniedBy(refusedOutright, scope, "Bash", { command: "reboot" })).toContain("machine");
     expect(deniedBy(all, scope, "Bash", { command: `rm -rf ${outside}` })).toContain("recursive delete");
+  });
+
+  // A file tool names its path outright, so this rule holds whatever the model writes, which no rule that reads a shell command can.
+  it("puts a file tool's write outside the folder to an owner, and leaves alone where a turn ordinarily writes", () => {
+    const elsewhere = path.resolve(path.parse(os.tmpdir()).root, "srv", "another-project", "notes.md");
+    for (const tool of ["Write", "Edit", "MultiEdit"]) {
+      expect(askedOfOwner(all, scope, tool, { file_path: elsewhere })).toEqual({ rule: "writes", subject: elsewhere });
+    }
+    expect(askedOfOwner(all, scope, "NotebookEdit", { notebook_path: elsewhere })).toEqual({
+      rule: "writes",
+      subject: elsewhere,
+    });
+
+    const ordinary = [
+      path.join(scope.cwd, "src", "index.ts"),
+      "src/index.ts",
+      path.join(os.tmpdir(), "scratch", "probe.mjs"),
+      path.join(os.homedir(), ".claude", "projects", "some-project", "memory", "note.md"),
+    ];
+    for (const target of ordinary) expect(askedOfOwner(all, scope, "Write", { file_path: target })).toBeNull();
+
+    expect(askedOfOwner(all, scope, "Read", { file_path: elsewhere })).toBeNull();
+    expect(askedOfOwner(parseDenials("deletes"), scope, "Write", { file_path: elsewhere })).toBeNull();
+  });
+
+  it("refuses a write outside the folder outright where nobody can be asked, and a write to a protected file before that", () => {
+    const elsewhere = path.resolve(path.parse(os.tmpdir()).root, "srv", "another-project", "notes.md");
+    expect(deniedBy(all, scope, "Write", { file_path: elsewhere })).toContain("outside the working directory by a file tool");
+    expect(deniedBy(withoutAskable(all), scope, "Write", { file_path: elsewhere })).toBeNull();
+    expect(deniedBy(all, scope, "Write", { file_path: path.join(scope.cwd, "notes.md") })).toBeNull();
+
+    const login = path.join(os.homedir(), ".claude", ".credentials.json");
+    expect(deniedBy(withoutAskable(all), scope, "Write", { file_path: login })).toContain("credentials");
+    expect(askedOfOwner(all, scope, "Write", { file_path: login })).toBeNull();
   });
 });
 

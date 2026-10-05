@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { AskedOfOwner } from "../claude/denials.ts";
 import { APPROVAL_REFUSED } from "../claude/prompts.ts";
 import type { ToolDecision } from "../claude/runner.ts";
 import { displayPath, redactHome } from "../displayPath.ts";
@@ -33,7 +34,7 @@ export function describeRequest(say: Say, toolName: string, input: Record<string
   return say("approvals.request", { tool: toolName, detail: detail(input) });
 }
 
-// No offer to approve the rest of the turn: a delete outside the folder is let through one command at a time or not at all.
+// No offer to approve the rest of the turn: a delete or a write outside the folder is let through one call at a time or not at all.
 function onceActions(say: Say, id: string): SinkAction[] {
   return [
     { id: approvalActionId("approve", id), label: say("approvals.approveOnce") },
@@ -103,16 +104,19 @@ export class ApprovalPrompts {
     return await this.put(say, turnId, sink, ownerIds, describeRequest(say, toolName, input), approvalActions, delivery);
   }
 
-  // Asked whatever the turn was approved for: approving the rest of a turn was said of ordinary calls, never of a delete outside its folder.
-  async askAboutDelete(
+  // Asked whatever the turn was approved for: approving the rest of a turn was said of ordinary calls, never of a delete or a write outside its folder.
+  async askOfOwner(
     say: Say,
     turnId: string,
     sink: MessageSink,
     ownerIds: string[],
-    command: string,
+    asked: AskedOfOwner,
     delivery?: Delivery,
   ): Promise<ToolDecision> {
-    const request = say("approvals.deleteOutside", { detail: detail({ command }) });
+    const request =
+      asked.rule === "deletes"
+        ? say("approvals.deleteOutside", { detail: detail({ command: asked.subject }) })
+        : say("approvals.writeOutside", { detail: detail({ file_path: asked.subject }) });
     return await this.put(say, turnId, sink, ownerIds, request, onceActions, delivery);
   }
 
