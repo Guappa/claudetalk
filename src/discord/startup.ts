@@ -64,6 +64,8 @@ export async function startUp(bridge: Bridge, client: Client<true>): Promise<Nod
   });
   await markInterrupted(client, await bridge.activeTurns.takeLeftovers(), bridge.language.say);
   await announceRestart(client, await bridge.restartNote.take(), bridge.build, bridge.language.say);
+  // Asked ahead of the first /model, which has no time to wait for the answer.
+  void bridge.models.refresh();
   const watching = watchOutboxes(bridge, client);
   const ready = `Ready as ${client.user.tag} on v${bridge.build}.`;
   if (registered) console.log(`${ready} Commands registered to guild ${bridge.config.guildId}.`);

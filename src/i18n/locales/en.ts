@@ -463,6 +463,8 @@ export const en = {
       "{{setting}} set to `{{value}}`. It applies from the next turn onward; a turn already running keeps what it started with.",
     hostDefault: "`{{value}}` (host default)",
     claudeDefault: "Claude Code's default",
+    unknownModel:
+      "`{{value}}` is not a model Claude Code offers on this host, so every turn set to it would fail. Nothing has changed. Pick one of the suggestions `/model` shows as you type: {{offered}}.",
   },
   whoami: {
     title: "This channel",

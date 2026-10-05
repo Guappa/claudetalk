@@ -15,7 +15,7 @@ import { isProcessAlive, lockPathBeside } from "../src/instanceLock.ts";
 import { takeStopRequest } from "../src/stopSignal.ts";
 import { sayIn } from "../src/i18n/index.ts";
 import { handlePurgeCommand } from "../src/discord/commands/purge.ts";
-import { handleSetting } from "../src/discord/commands/settings.ts";
+import { handleSetting, suggestModels } from "../src/discord/commands/settings.ts";
 import { handleInvite, handleUninvite } from "../src/discord/commands/membership.ts";
 import { handleSync } from "../src/discord/commands/sync.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
@@ -642,6 +642,46 @@ describe("/model", () => {
     held.get("hold the first")?.();
     await Promise.all([first, second]);
     expect(asked.map((turn) => turn.settings.model)).toEqual([undefined, "haiku"]);
+  });
+
+  const suggested = async (bridge: Awaited<ReturnType<typeof testBridge>>, typed: string) => {
+    const shown: Array<{ name: string; value: string }> = [];
+    const respond = async (choices: typeof shown): Promise<void> => void shown.push(...choices);
+    await suggestModels(bridge, { options: { getFocused: () => typed }, respond } as never);
+    return shown;
+  };
+
+  // The list is Claude Code's own, and a suggestion has no time to wait for it, so the aliases stand in until it has answered.
+  it("suggests the aliases until Claude Code has answered, then the models it offers, without its entry for no choice", async () => {
+    const bridge = await testBridge();
+    expect((await suggested(bridge, "")).map((choice) => choice.value)).toEqual(["fable", "opus", "sonnet", "haiku"]);
+
+    await bridge.models.refresh();
+    expect(await suggested(bridge, "")).toEqual([
+      { name: "Opus 9 · For complex work", value: "opus" },
+      { name: "Sonnet 9 · For routine work", value: "claude-sonnet-9" },
+    ]);
+    expect((await suggested(bridge, "SONNET")).map((choice) => choice.value)).toEqual(["claude-sonnet-9"]);
+  });
+
+  // Whatever is typed past the suggestions arrives as it stands, and a name Claude Code does not know fails every turn after it.
+  it("takes a model Claude Code offers or an alias, and refuses any other name without changing the setting", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("s2");
+    await bridge.store.bindNew({ sessionId: SESSION, cwd: bridge.config.projectsRoot, channelId: "s2", ownerId: OWNER });
+    await bridge.models.refresh();
+    const set = async (value: string) => {
+      const command = fakeCommand(place, OWNER, { value });
+      await handleSetting(bridge, command.interaction, "model");
+      return command.replies.at(-1);
+    };
+
+    expect(await set("claude-sonnet-9")).toContain("set to `claude-sonnet-9`");
+    expect(await set("fable")).toContain("set to `fable`");
+    const refused = await set("sonet");
+    expect(refused).toContain("`sonet` is not a model Claude Code offers");
+    expect(refused).toContain("`opus`, `claude-sonnet-9`");
+    expect(bridge.store.bySession(SESSION)?.settings.model).toBe("fable");
   });
 });
 

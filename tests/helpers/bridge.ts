@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Bridge } from "../../src/bridge.ts";
 import { CapabilityCache } from "../../src/claude/capabilities.ts";
 import { ContextTrackers } from "../../src/claude/contextTracker.ts";
+import { ModelCatalog } from "../../src/claude/models.ts";
 import { PlanUsage } from "../../src/claude/planUsage.ts";
 import { UsageLedger } from "../../src/claude/usageLedger.ts";
 import type { Config } from "../../src/config.ts";
@@ -26,6 +27,13 @@ export const GUILD = "200000000000000001";
 export const OWNER = "100000000000000001";
 export const OPERATOR = "100000000000000002";
 export const STRANGER = "100000000000000003";
+
+// What the stand-in for Claude Code answers when asked for its models: its own entry for no choice, an alias and a dated model.
+const OFFERED_MODELS = [
+  { value: "default", displayName: "Default (recommended)", description: "Whatever Claude Code picks" },
+  { value: "opus", displayName: "Opus 9", description: "For complex work" },
+  { value: "claude-sonnet-9", displayName: "Sonnet 9", description: "For routine work" },
+];
 
 // A bridge made of the real parts over a scratch folder; only the transcripts on disk are stood in for, by the records handed in.
 export async function testBridge(records: SessionRecord[] = [], config: Partial<Config> = {}): Promise<Bridge> {
@@ -74,6 +82,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     operators,
     language,
     capabilities,
+    models: new ModelCatalog(settled.projectsRoot, async (_cwd, ask) => ask({ supportedModels: async () => OFFERED_MODELS })),
     usage,
     planUsage,
     approvals,

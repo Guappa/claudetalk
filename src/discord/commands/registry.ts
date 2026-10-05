@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from "discord.js";
 import { LANGUAGES } from "../../i18n/index.ts";
-import { EFFORT_CHOICES, MODEL_CHOICES } from "./settings.ts";
+import { EFFORT_CHOICES } from "./settings.ts";
 
 export function bridgeCommandDefinitions() {
   return [
@@ -40,10 +40,7 @@ export function bridgeCommandDefinitions() {
       .setName("model")
       .setDescription("Show or set the model for this conversation")
       .addStringOption((option) =>
-        option
-          .setName("value")
-          .setDescription("Model")
-          .addChoices(...MODEL_CHOICES.map((model) => ({ name: model, value: model }))),
+        option.setName("value").setDescription("Model, from the ones Claude Code offers on the host").setAutocomplete(true),
       ),
 
     new SlashCommandBuilder()

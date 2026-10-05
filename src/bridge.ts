@@ -5,6 +5,7 @@ import { readClaudeVersions, type ClaudeVersions } from "./claude/versions.ts";
 import { ConversationStore } from "./conversations.ts";
 import { OperatorStore } from "./operators.ts";
 import { CapabilityCache } from "./claude/capabilities.ts";
+import { ModelCatalog } from "./claude/models.ts";
 import { ContextTrackers, type ContextStanding } from "./claude/contextTracker.ts";
 import { UsageLedger } from "./claude/usageLedger.ts";
 import { PlanUsage } from "./claude/planUsage.ts";
@@ -29,6 +30,7 @@ export interface Bridge {
   operators: OperatorStore;
   language: LanguageChoice;
   capabilities: CapabilityCache;
+  models: ModelCatalog;
   usage: UsageLedger;
   planUsage: PlanUsage;
   approvals: ApprovalPrompts;
@@ -96,6 +98,7 @@ export async function createBridge(config: Config, supervised: boolean): Promise
     operators,
     language,
     capabilities,
+    models: new ModelCatalog(config.projectsRoot),
     usage,
     planUsage,
     approvals,
