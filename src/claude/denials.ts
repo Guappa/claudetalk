@@ -87,16 +87,18 @@ function pathsNamed(command: string, cwd: string): string[] {
 }
 
 const SHELLS = String.raw`(?<![\w.-])(?:sh|bash|zsh|dash|ksh|fish|su|pwsh|powershell|cmd)(?:\.exe)?`;
-// A shell handed a command to run, after its flags and their values, or eval. A flag's value can be any word, so the flags are capped: unbounded, each shell name would read on to the end of the line.
-const RUNNER = String.raw`(?:${SHELLS}(?:[ \t]+[-\/][\w-]+(?:[ \t]+(?![-\/"'])[\w.-]+)?){0,8}?[ \t]+(?:-[a-z]*c|\/c|-Command)|(?<![\w.-])eval)[ \t]+`;
+// A shell handed a command to run, after its flags and their values, or eval and its PowerShell kin. A flag's value can be any word, so the flags are capped: unbounded, each shell name would read on to the end of the line.
+const RUNNER = String.raw`(?:${SHELLS}(?:[ \t]+[-\/][\w-]+(?:[ \t]+(?![-\/"'])[\w.-]+)?){0,8}?[ \t]+(?:-[a-z]*c|\/c|-Command)|(?<![\w.-])(?:eval|iex|Invoke-Expression))[ \t]+`;
 // A closed double quote honours \"; a quote never closed ends with its line, as a reader would take it, so one apostrophe cannot hide the lines below.
 const QUOTED = String.raw`(?<!\\)(?:"(?:[^"\\]|\\[^])*"|'[^']*'|["'][^\n]*)`;
-// A heredoc's body runs to the line holding its tag alone, or to the end; it is text unless a shell is the one reading it.
-const HEREDOC = String.raw`(?<feed>${SHELLS}(?:[ \t]+[-\/][\w-]+){0,8}[ \t]*)?(?<!<)<<(?!<)-?[ \t]*(?<tagQuote>["']?)(?<tag>\w+)\k<tagQuote>[^\n]*(?<body>\n[^]*?(?:\n[ \t]*\k<tag>(?=\n|$)|$))?`;
+// A heredoc's body runs to the line holding its tag alone, or to the end; it is text unless a shell is the one reading it. A tag starts with a letter, so the shift in $((1<<3)) opens none.
+const HEREDOC = String.raw`(?<feed>${SHELLS}(?:[ \t]+[-\/][\w-]+){0,8}[ \t]*)?(?<!<)<<(?!<)-?[ \t]*(?<tagQuote>["']?)(?<tag>[A-Za-z_]\w*)\k<tagQuote>[^\n]*(?<body>\n[^]*?(?:\n[ \t]*\k<tag>(?=\r?\n|\r?$)|$))?`;
 const COMMENT = String.raw`(?<![^\s;&|(])#[^\n]*`;
 const NOT_A_COMMAND = new RegExp(`(?<runner>${RUNNER})?(?<quoted>${QUOTED})|${HEREDOC}|(?<comment>${COMMENT})`, "gi");
 
 const blank = (text: string): string => " ".repeat(text.length);
+// A shell inside a shell is read again, and a hook that throws lets the call run, so the depth read is capped well short of the stack.
+const MAX_NESTING = 8;
 
 // Inside double quotes the shell still runs $(...) and backticks, so those stay readable, the $ dropped so the bracket starts a command.
 function keepSubstitutions(text: string): string {
@@ -105,18 +107,20 @@ function keepSubstitutions(text: string): string {
   );
 }
 
-// Quoted text, a comment and a heredoc's body are arguments, not commands: each is blanked to spaces of the same length before a rule looks for where a command starts, so a commit message that says "then shutdown" refuses nothing. What a shell is handed to run is kept, its opening quote standing for a separator.
-function blankQuoted(command: string): string {
+// Quoted text, a comment and a heredoc's body are arguments, not commands: each is blanked to spaces of the same length before a rule looks for where a command starts, so a commit message that says "then shutdown" refuses nothing. What a shell is handed to run is kept and read the same way, its opening quote standing for a separator.
+function blankQuoted(command: string, depth = 0): string {
+  if (depth > MAX_NESTING) return blank(command);
   return command.replace(NOT_A_COMMAND, (...args: unknown[]) => {
     const whole = args[0] as string;
     const found = args.at(-1) as Record<string, string | undefined>;
     if (found.comment !== undefined) return blank(whole);
     if (found.tag !== undefined) {
       const body = found.body ?? "";
-      return found.feed !== undefined ? whole : `${whole.slice(0, whole.length - body.length)}${blank(body)}`;
+      const head = whole.slice(0, whole.length - body.length);
+      return `${head}${found.feed !== undefined ? blankQuoted(body, depth + 1) : blank(body)}`;
     }
     const quoted = found.quoted ?? "";
-    if (found.runner !== undefined) return `${found.runner};${quoted.slice(1)}`;
+    if (found.runner !== undefined) return `${found.runner};${blankQuoted(quoted.slice(1), depth + 1)}`;
     return `${quoted[0]}${quoted[0] === '"' ? keepSubstitutions(quoted.slice(1)) : blank(quoted.slice(1))}`;
   });
 }
@@ -260,8 +264,8 @@ export function deniedBy(
   const command = SHELL_TOOLS.has(toolName) ? text(input.command) : "";
   if (command) {
     if (rules.has("deletes") && deletesOutside(command, scope.cwd)) return REASONS.deletes;
-    if (rules.has("force-push") && forcesMain(command)) return REASONS["force-push"];
-    if (rules.has("download-run") && DOWNLOAD_RUN.test(command)) return REASONS["download-run"];
+    if (rules.has("force-push") && forcesMain(blankQuoted(command))) return REASONS["force-push"];
+    if (rules.has("download-run") && DOWNLOAD_RUN.test(blankQuoted(command))) return REASONS["download-run"];
     if (rules.has("machine") && MACHINE.test(blankQuoted(command))) return REASONS.machine;
     if (rules.has("secrets") && writesProtected(command, scope)) return REASONS.secrets;
     if (rules.has("keys") && KEY_MENTION.test(command)) return REASONS.keys;
