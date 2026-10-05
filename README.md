@@ -51,6 +51,27 @@ Claude Code's own transcript, so nothing here owns it.
 There is no sandbox: a turn runs as you, with your rights. Read
 [Security](#security-read-this-first) before running it for anyone but yourself.
 
+## Quick start
+
+You need Node 22.12 or newer, Claude Code signed in (`claude auth login`), and a
+Discord server you administer.
+
+1. [Create the Discord bot](#setting-up-the-discord-bot) and add it to your
+   server. That gives you the bot token, the server id and your own user id.
+2. Get the code:
+   ```bash
+   git clone https://github.com/Guappa/claudetalk.git
+   cd claudetalk
+   npm ci
+   ```
+3. Copy `.env.example` to `.env` and fill in the four required values:
+   `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_OWNER_IDS` and
+   `PROJECTS_ROOT`, the folder your projects live in.
+4. Start it with `npm run dev`. To have it start with the machine, see
+   [Running](#running); for Docker, see [In a container](#in-a-container).
+5. In Discord, run `/create` with a name. It makes a channel for a new
+   conversation: send a message there and Claude Code answers from your machine.
+
 ## How it differs from the built-in options
 
 Claude Code's **Channels** push messages into a session that is already open,
