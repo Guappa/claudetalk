@@ -627,7 +627,9 @@ describe("describeToolUse", () => {
     expect(describeToolUse(say, "WebSearch", { query: "github rulesets  approvals" })).toBe(
       "**Web search** github rulesets approvals",
     );
-    expect(describeToolUse(say, "Agent", { description: "Audit the access checks" })).toBe("**Agent** Audit the access checks");
+    expect(describeToolUse(say, "Agent", { description: "Audit the access checks" })).toBe(
+      "🤖 **Agent** Audit the access checks",
+    );
     expect(describeToolUse(say, "Skill", { skill: "code-review" })).toBe("**Skill** /code-review");
     expect(describeToolUse(say, "mcp__playwright__browser_click", { ref: "e1" })).toBe("**playwright** browser_click");
     expect(describeToolUse(say, "SomethingNew", {})).toBe("**SomethingNew**");
