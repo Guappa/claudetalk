@@ -190,7 +190,7 @@ export const de: Catalog = {
     takenUp: "Vom laufenden Durchlauf aufgenommen.",
     neverTaken: "Der Durchlauf endete, bevor das aufgenommen wurde. Schick es noch einmal.",
     sendNow: "Jetzt senden",
-    sent: "Jetzt gesendet. Der Schritt, an dem Claude war, wurde abgebrochen, damit es deine Nachricht lesen konnte, und es macht von dort weiter. Agenten und Hintergrundbefehle, die es laufen hatte, laufen weiter.",
+    sent: "Jetzt gesendet. Der Schritt, an dem Claude war, wurde abgebrochen, damit es deine Nachricht lesen konnte, und es macht von dort weiter. Agenten und Befehle im Hintergrund, die es laufen hatte, laufen weiter; einer, auf den es wartete, wurde gestoppt.",
     nothingWaiting: "Nichts wartet: Der laufende Durchlauf hat deine Nachricht schon aufgenommen.",
     notRunning: "Hier läuft kein Durchlauf mehr, also gibt es nichts zu unterbrechen.",
     notInterrupted:
@@ -200,6 +200,8 @@ export const de: Catalog = {
     cutsLongCall:
       "Claude steckt in {{call}}, seit {{elapsed}}. Jetzt zu senden bricht das ab und verwirft, was bisher getan wurde. Wartest du, wird deine Nachricht übergeben, sobald es zurückkehrt.",
     waiting: "Deine Nachricht wartet, und Claude liest sie, sobald der laufende Aufruf zurückkehrt.",
+    waitOver:
+      "Dieser Durchlauf ist zu Ende, also gibt es nichts mehr zu warten: Deine Nachricht wurde darin beantwortet oder läuft als Nächstes.",
   },
   queue: {
     behind_one: "Eingereiht hinter dem Durchlauf, der noch läuft.",

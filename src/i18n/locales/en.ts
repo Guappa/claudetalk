@@ -184,7 +184,7 @@ export const en = {
     takenUp: "Taken up by the running turn.",
     neverTaken: "The turn ended before this was taken up. Send it again.",
     sendNow: "Send now",
-    sent: "Sent now. The step Claude was on was cut short so it could read your message, and it carries on from there. Agents and background commands it had running were left running.",
+    sent: "Sent now. The step Claude was on was cut short so it could read your message, and it carries on from there. Background agents and commands it had running were left running; one it was waiting on was stopped.",
     nothingWaiting: "Nothing is waiting: the running turn has already taken your message up.",
     notRunning: "No turn is running here any more, so there is nothing to interrupt.",
     notInterrupted: "The running turn could not be interrupted, so your message still waits for its next step.",
@@ -193,6 +193,7 @@ export const en = {
     cutsLongCall:
       "Claude is inside {{call}}, running for {{elapsed}}. Sending now cuts it short and throws away what it has done so far. Waiting hands your message over the moment it returns.",
     waiting: "Your message waits, and Claude reads it as soon as the call it is in returns.",
+    waitOver: "That turn has ended, so there is nothing left to wait for: your message was answered in it, or runs next.",
   },
   queue: {
     behind_one: "Queued behind the turn still running.",

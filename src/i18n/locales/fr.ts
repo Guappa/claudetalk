@@ -187,7 +187,7 @@ export const fr: Catalog = {
     takenUp: "Repris par le tour en cours.",
     neverTaken: "Le tour s'est terminé avant que ceci soit repris. Renvoie-le.",
     sendNow: "Envoyer maintenant",
-    sent: "Envoyé maintenant. L'étape où en était Claude a été coupée pour qu'il puisse lire ton message, et il continue à partir de là. Les agents et commandes en arrière-plan qu'il avait lancés continuent de tourner.",
+    sent: "Envoyé maintenant. L'étape où en était Claude a été coupée pour qu'il puisse lire ton message, et il continue à partir de là. Les agents et commandes en arrière-plan qu'il avait lancés continuent de tourner ; celui qu'il attendait a été arrêté.",
     nothingWaiting: "Rien n'attend : le tour en cours a déjà repris ton message.",
     notRunning: "Plus aucun tour ne tourne ici, il n'y a donc rien à interrompre.",
     notInterrupted: "Le tour en cours n'a pas pu être interrompu, ton message attend donc toujours sa prochaine étape.",
@@ -196,6 +196,7 @@ export const fr: Catalog = {
     cutsLongCall:
       "Claude est dans {{call}}, en cours depuis {{elapsed}}. Envoyer maintenant l'interrompt et perd ce qui a été fait jusqu'ici. Si tu attends, ton message est remis dès qu'il se termine.",
     waiting: "Ton message attend, et Claude le lit dès que l'appel en cours se termine.",
+    waitOver: "Ce tour est terminé, il n'y a donc plus rien à attendre : ton message y a reçu sa réponse, ou passe juste après.",
   },
   queue: {
     behind_one: "En file derrière le tour encore en cours.",

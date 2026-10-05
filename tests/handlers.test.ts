@@ -27,12 +27,12 @@ import { onServerJoined, startUp } from "../src/discord/startup.ts";
 import { inviteUrl } from "../src/discord/invite.ts";
 import { PermissionsBitField } from "discord.js";
 import {
-  SEND_WAIT,
   UNBIND_DELETE,
   UNBIND_KEEP,
   createResumeId,
   sendAnywayActionId,
   sendNowActionId,
+  sendWaitActionId,
 } from "../src/discord/menus.ts";
 import type { SessionRecord } from "../src/sessions/index.ts";
 import { GUILD, OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
@@ -1079,7 +1079,7 @@ describe("Send now", () => {
     await handleButton(bridge, first.interaction);
     expect(sent).not.toHaveBeenCalled();
     expect(first.replies.at(-1)).toMatch(/Claude is inside \/code-review, running for 3m \d+s/);
-    expect(first.controls()).toEqual([sendAnywayActionId(SESSION, inFlight.startedAt), SEND_WAIT]);
+    expect(first.controls()).toEqual([sendAnywayActionId(SESSION, inFlight.startedAt), sendWaitActionId(SESSION)]);
 
     const anyway = fakePress(place, OWNER, sendAnywayActionId(SESSION, inFlight.startedAt));
     await handleButton(bridge, anyway.interaction);
@@ -1098,18 +1098,25 @@ describe("Send now", () => {
     await handleButton(bridge, stale.interaction);
     expect(sent).not.toHaveBeenCalled();
     expect(stale.replies.at(-1)).toContain("Claude is inside Audit the parser");
-    expect(stale.controls()).toEqual([sendAnywayActionId(SESSION, later.startedAt), SEND_WAIT]);
+    expect(stale.controls()).toEqual([sendAnywayActionId(SESSION, later.startedAt), sendWaitActionId(SESSION)]);
   });
 
   it("leaves the message waiting when asked to wait", async () => {
     const bridge = await testBridge();
     const sent = vi.spyOn(bridge.flow, "sendNow").mockResolvedValue("sent");
     vi.spyOn(bridge.flow, "longCallOf").mockReturnValue(inFlight);
-    const wait = fakePress(fakeChannel("n2"), OWNER, SEND_WAIT);
+    const running = vi.spyOn(bridge.flow, "isRunning").mockReturnValue(true);
+    const wait = fakePress(fakeChannel("n2"), OWNER, sendWaitActionId(SESSION));
     await handleButton(bridge, wait.interaction);
     expect(sent).not.toHaveBeenCalled();
     expect(wait.replies.at(-1)).toContain("Your message waits");
     expect(wait.controls()).toEqual([]);
+
+    // Pressed once the turn is over, the message has already been answered or runs next.
+    running.mockReturnValue(false);
+    const late = fakePress(fakeChannel("n2"), OWNER, sendWaitActionId(SESSION));
+    await handleButton(bridge, late.interaction);
+    expect(late.replies.at(-1)).toContain("That turn has ended");
   });
 
   it("sends at once when nothing long is in flight", async () => {

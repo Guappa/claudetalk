@@ -187,7 +187,7 @@ export const es: Catalog = {
     takenUp: "Retomado por el turno en marcha.",
     neverTaken: "El turno terminó antes de retomar esto. Envíalo otra vez.",
     sendNow: "Enviar ahora",
-    sent: "Enviado ahora. El paso en el que estaba Claude se cortó para que pudiera leer tu mensaje, y sigue desde ahí. Los agentes y comandos en segundo plano que tenía en marcha siguen en marcha.",
+    sent: "Enviado ahora. El paso en el que estaba Claude se cortó para que pudiera leer tu mensaje, y sigue desde ahí. Los agentes y comandos en segundo plano que tenía en marcha siguen en marcha; el que estaba esperando se detuvo.",
     nothingWaiting: "No hay nada esperando: el turno en marcha ya ha retomado tu mensaje.",
     notRunning: "Aquí ya no hay ningún turno en marcha, así que no hay nada que interrumpir.",
     notInterrupted: "No se pudo interrumpir el turno en marcha, así que tu mensaje sigue esperando a su siguiente paso.",
@@ -196,6 +196,8 @@ export const es: Catalog = {
     cutsLongCall:
       "Claude está dentro de {{call}}, en marcha desde hace {{elapsed}}. Enviar ahora lo interrumpe y descarta lo que lleva hecho. Si esperas, tu mensaje se entrega en cuanto termine.",
     waiting: "Tu mensaje espera, y Claude lo lee en cuanto termine la llamada en curso.",
+    waitOver:
+      "Ese turno ya terminó, así que no queda nada que esperar: tu mensaje se respondió en él, o se ejecuta a continuación.",
   },
   queue: {
     behind_one: "En cola detrás del turno que sigue en marcha.",
