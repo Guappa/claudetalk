@@ -37,10 +37,12 @@ describe("real session lifecycle", () => {
     expect(result.text.toLowerCase()).toContain("context");
   });
 
-  it("reports token usage and cost, which the context tracker depends on", async () => {
+  it("reports token usage and cost, and how full it is against where it compacts, which the context warnings depend on", async () => {
     const result = await turn("Reply with exactly: BETA", true);
     expect(result.usage?.cache_read_input_tokens).toBeGreaterThanOrEqual(0);
     expect(result.sessionCostUsd).toBeGreaterThan(0);
+    expect(result.context?.usedTokens).toBeGreaterThan(0);
+    expect(result.context?.ceilingTokens).toBeGreaterThan(result.context?.usedTokens ?? Number.POSITIVE_INFINITY);
   });
 
   it("appears in the session index with the name it was created with", async () => {

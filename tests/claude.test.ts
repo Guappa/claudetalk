@@ -20,7 +20,6 @@ import { DISCORD_MESSAGE_LIMIT, MAX_FILE_BYTES } from "../src/discord/limits.ts"
 import { describeDefault, parseHostDefaults, readHostDefaults } from "../src/claude/hostSettings.ts";
 import { downloadAttachments, keepAttachmentsAwhile, sweepAttachments } from "../src/attachments.ts";
 import { sayIn } from "../src/i18n/index.ts";
-import { lastCompactionCeiling } from "../src/sessions/exchanges.ts";
 
 const say = sayIn("en");
 
@@ -489,39 +488,49 @@ describe("UsageLedger", () => {
 });
 
 describe("ContextTracker", () => {
+  const holding = (usedTokens: number, ceilingTokens = 200_000) => ({ usedTokens, ceilingTokens });
+
   it("stays quiet well below the threshold", () => {
-    expect(new ContextTracker(200_000).observe(usage(50_000))).toBeNull();
+    expect(new ContextTracker().observe(holding(50_000))).toBeNull();
   });
 
   it("warns once at 75 percent", () => {
-    const tracker = new ContextTracker(200_000);
-    expect(tracker.observe(usage(150_000))?.level).toBe("approaching");
-    expect(tracker.observe(usage(151_000))).toBeNull();
+    const tracker = new ContextTracker();
+    expect(tracker.observe(holding(150_000))?.level).toBe("approaching");
+    expect(tracker.observe(holding(151_000))).toBeNull();
   });
 
   it("escalates at 90 percent and names the remedy", () => {
-    const tracker = new ContextTracker(200_000);
-    tracker.observe(usage(150_000));
-    const warning = tracker.observe(usage(185_000));
+    const tracker = new ContextTracker();
+    tracker.observe(holding(150_000));
+    const warning = tracker.observe(holding(185_000));
     expect(warning?.level).toBe("critical");
     expect(say("context.critical", { percent: warning!.percent })).toContain("/compact");
   });
 
-  it("rearms after a compaction", () => {
-    const tracker = new ContextTracker(200_000);
-    tracker.observe(usage(150_000));
+  it("rearms after a compaction, and forgets a measure of what the compaction emptied", () => {
+    const tracker = new ContextTracker();
+    tracker.observe(holding(150_000));
     tracker.reset();
-    expect(tracker.observe(usage(150_000))?.level).toBe("approaching");
+    expect(tracker.standing()).toBeNull();
+    expect(tracker.observe(holding(150_000))?.level).toBe("approaching");
   });
 
-  it("sums cached tokens into the total", () => {
-    const warning = new ContextTracker(200_000).observe({
-      input_tokens: 1000,
-      output_tokens: 0,
-      cache_read_input_tokens: 140_000,
-      cache_creation_input_tokens: 10_000,
-    });
-    expect(warning?.level).toBe("approaching");
+  // A session on a one-million window and one on a smaller window compact at different points, and say which with every turn.
+  it("measures against the ceiling the session gives with that turn, which moves with the model", () => {
+    const tracker = new ContextTracker();
+    expect(tracker.observe(holding(558_784, 967_000))).toBeNull();
+    expect(tracker.standing()).toEqual({ percent: 58, ceilingTokens: 967_000 });
+    expect(tracker.observe(holding(140_000, 167_000))).toEqual({ level: "approaching", percent: 84 });
+    expect(tracker.standing()).toEqual({ percent: 84, ceilingTokens: 167_000 });
+  });
+
+  it("has no standing before a turn has been measured", () => {
+    expect(new ContextTracker().standing()).toBeNull();
+  });
+
+  it("never reports more than 99 percent", () => {
+    expect(new ContextTracker().observe(holding(10_000_000))?.percent).toBe(99);
   });
 });
 
@@ -662,45 +671,6 @@ describe("auth status", () => {
 
   it("says what to run when it is signed out", () => {
     expect(SIGNED_OUT).toContain("claude auth login");
-  });
-});
-
-describe("ContextTracker ceiling", () => {
-  it("stays silent until it knows where this session compacts", () => {
-    expect(new ContextTracker().observe(usage(500_000))).toBeNull();
-  });
-
-  it("learns the ceiling from a compaction", () => {
-    const tracker = new ContextTracker();
-    tracker.learnCeiling(951_650);
-    expect(tracker.knownCeiling()).toBe(951_650);
-  });
-
-  // Only automatic compactions are ever reported to it, and a session moved to a model with a smaller window compacts sooner from then on.
-  it("follows the latest automatic compaction, down as well as up", () => {
-    const tracker = new ContextTracker();
-    tracker.learnCeiling(951_650);
-    tracker.learnCeiling(158_784);
-    expect(tracker.knownCeiling()).toBe(158_784);
-    tracker.learnCeiling(0);
-    expect(tracker.knownCeiling()).toBe(158_784);
-  });
-
-  it("does not call 558k tokens 279 percent full on a one-million window", () => {
-    const tracker = new ContextTracker(951_650);
-    expect(tracker.observe(usage(558_784))).toBeNull();
-  });
-
-  it("warns against the real ceiling rather than a guessed one", () => {
-    const tracker = new ContextTracker(951_650);
-    const warning = tracker.observe(usage(800_000));
-    expect(warning?.level).toBe("approaching");
-    expect(warning?.percent).toBe(84);
-  });
-
-  it("never reports more than 99 percent", () => {
-    const tracker = new ContextTracker(200_000);
-    expect(tracker.observe(usage(10_000_000))?.percent).toBe(99);
   });
 });
 
@@ -852,28 +822,6 @@ describe("host defaults", () => {
     expect(describeDefault(say, "low", "high")).toBe("`low`");
     expect(describeDefault(say, undefined, "high")).toBe("`high` (host default)");
     expect(describeDefault(say, undefined, null)).toBe("Claude Code's default");
-  });
-});
-
-describe("the ceiling comes only from automatic compactions", () => {
-  const transcriptWith = async (records: object[]): Promise<string> => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ceiling-"));
-    const file = path.join(dir, "session.jsonl");
-    await fs.writeFile(file, records.map((record) => JSON.stringify(record)).join("\n"), "utf8");
-    return file;
-  };
-
-  it("ignores a manual compaction, which marks where someone asked rather than where the session fills", async () => {
-    const file = await transcriptWith([{ type: "system", compactMetadata: { trigger: "manual", preTokens: 42_012 } }]);
-    expect(await lastCompactionCeiling(file)).toBeNull();
-  });
-
-  it("learns from an automatic one", async () => {
-    const file = await transcriptWith([
-      { type: "system", compactMetadata: { trigger: "manual", preTokens: 42_012 } },
-      { type: "system", compactMetadata: { trigger: "auto", preTokens: 951_650 } },
-    ]);
-    expect(await lastCompactionCeiling(file)).toBe(951_650);
   });
 });
 

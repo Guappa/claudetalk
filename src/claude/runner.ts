@@ -4,6 +4,7 @@ import { query, type Options, type Query } from "@anthropic-ai/claude-agent-sdk"
 import { killTree, turnSpawnOptions } from "../platform.ts";
 import { errorMessage } from "../text.ts";
 import { outboxRelative } from "../outboxFolder.ts";
+import type { ContextReport } from "./contextTracker.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
 import { HeldPrompt } from "./heldPrompt.ts";
@@ -43,8 +44,8 @@ interface TurnOutcome {
   text: string;
   sessionId?: string;
   usage?: TokenUsage;
-  // The context as it stood on the turn's last model call; usage above sums every call in the turn.
-  contextUsage?: TokenUsage;
+  // How full the session says it is, asked when the turn's answer came.
+  context?: ContextReport;
   // Claude Code's running total for the conversation, not the price of this turn.
   sessionCostUsd?: number;
 }
@@ -203,6 +204,20 @@ function messageUsage(usage: unknown): TokenUsage | undefined {
   };
 }
 
+// A session that does not answer must not hold up the end of its turn.
+const CONTEXT_ANSWER_MS = 2_000;
+
+async function contextOf(session: Query): Promise<ContextReport | undefined> {
+  const answer = session.getContextUsage().then(
+    (usage): ContextReport | undefined => {
+      const ceilingTokens = (usage.isAutoCompactEnabled && usage.autoCompactThreshold) || usage.maxTokens;
+      return ceilingTokens > 0 ? { usedTokens: usage.totalTokens, ceilingTokens } : undefined;
+    },
+    () => undefined,
+  );
+  return await Promise.race([answer, wait(CONTEXT_ANSWER_MS, undefined, { ref: false })]);
+}
+
 const RESTART = Symbol("restart");
 // What Claude Code itself advises on this error: retry in a minute. A lock left by a process that died takes about that long to count as stale.
 const REFRESH_RETRY_MS = 60_000;
@@ -232,6 +247,8 @@ async function consumeStream(
       () => held.ready(),
     );
     for await (const message of run) {
+      // A session answers about itself only while its input is open, and taking in its answer to the turn is what closes it.
+      if (message.type === "result" && !message.is_error) outcome.context = (await contextOf(run)) ?? outcome.context;
       held.observe(message as unknown as ClaudeEvent);
       if (held.needsRestart) {
         abort.abort();
@@ -241,12 +258,6 @@ async function consumeStream(
 
       const reported = (message as { session_id?: string }).session_id;
       if (reported) outcome.sessionId = reported;
-
-      // An agent's message carries the agent's own context, which says nothing about how full the session's is.
-      if (message.type === "assistant" && !message.parent_tool_use_id) {
-        const modelCall = messageUsage(message.message.usage);
-        if (modelCall) outcome.contextUsage = modelCall;
-      }
 
       if (message.type === "result") {
         unanswered = foldResult(outcome, message as unknown as ResultMessage);

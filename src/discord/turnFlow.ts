@@ -41,7 +41,6 @@ import { displayPath } from "../displayPath.ts";
 import { setTimeout as wait } from "node:timers/promises";
 import { errorMessage, shownError } from "../text.ts";
 import { outboxRelative } from "../outboxFolder.ts";
-import { lastCompactionCeiling } from "../sessions/exchanges.ts";
 import { TurnQueue, describeFull, describeQueued } from "./turnQueue.ts";
 import { sendNowActionId, stopActionId, stopAgentsActionId, stopAllActionId } from "./menus.ts";
 import type { OutboxDelivery } from "./outboxDelivery.ts";
@@ -365,14 +364,6 @@ export class TurnFlow {
     this.stopping.add(sessionId);
     // Aborting ends the turn; a command it already handed to the shell can outlive it.
     if (turn !== "starting") this.halt(sessionId, turn);
-  }
-
-  // Reading the transcript for a ceiling is expensive, so it happens once per session.
-  async ensureCeiling(sessionId: string, transcriptPath: string): Promise<void> {
-    const tracker = this.trackerFor(sessionId);
-    if (tracker.knownCeiling()) return;
-    const ceiling = await lastCompactionCeiling(transcriptPath);
-    if (ceiling) tracker.learnCeiling(ceiling);
   }
 
   // True while the conversation's lane holds anything: a turn starting, running, posting its answer, or waiting behind one.
@@ -729,8 +720,8 @@ export class TurnFlow {
     await this.settleFolded(sessionId, "done");
     await this.deliverFiles(say, cwd, sessionId, sink);
 
-    if (result.contextUsage) {
-      const warning = tracker.observe(result.contextUsage);
+    if (result.context) {
+      const warning = tracker.observe(result.context);
       if (warning) {
         await sink.notice(say(`context.${warning.level}`, { percent: warning.percent })).catch(reportUnposted(sessionId));
       }
@@ -859,8 +850,6 @@ export class TurnFlow {
     if (summary) {
       status.setLive("working");
       tracker.reset();
-      // A manual compaction happens wherever it was asked for and says nothing about where the session fills up.
-      if (summary.trigger === "auto") tracker.learnCeiling(summary.pre_tokens);
       await sink.notice(
         say(summary.trigger === "auto" ? "trail.compactedAuto" : "trail.compactedManual", {
           before: summary.pre_tokens,
