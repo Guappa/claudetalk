@@ -762,6 +762,13 @@ describe("what a turn is refused outright", () => {
     expect(shell("echo probe>notes.txt")).toBeNull();
   });
 
+  // A redirection writes the word after it and nothing else on the line.
+  it("lets a shell read a protected path beside a redirection elsewhere", () => {
+    expect(shell("cat ~/.ssh/known_hosts 2>/dev/null")).toBeNull();
+    expect(shell("ls ~/.ssh > listing.txt 2>&1")).toBeNull();
+    expect(shell("cat notes.txt >~/.ssh/config")).toContain("credentials");
+  });
+
   // Grep prints what it finds, so pointed at ~/.ssh it reads the keys as surely as Read does.
   it("refuses a search by Grep of ~/.ssh or a key in it, and lets it read a public key", () => {
     const grep = (searched: string) => deniedBy(all, scope, "Grep", { pattern: ".", path: searched });

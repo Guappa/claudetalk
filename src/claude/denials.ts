@@ -88,13 +88,17 @@ function pathsNamed(command: string, cwd: string): string[] {
     .map((word) => path.resolve(cwd, word));
 }
 
-// The shell forms of a write that a reader would call obvious: a redirection, spaced or not, or a verb that writes, copies, moves or removes.
-const SHELL_WRITE =
-  />|(^|[\s;&|(])(tee|cp|mv|install|chmod|chown|truncate|rm|sed\s+-[a-zA-Z]*i|Set-Content|Out-File|Add-Content|Copy-Item|Move-Item|Remove-Item)(?=\s|$)/im;
+// The shell forms of a write that a reader would call obvious: a verb that writes, copies, moves or removes, or a redirection, spaced or not.
+const SHELL_WRITE_VERB =
+  /(^|[\s;&|(])(tee|cp|mv|install|chmod|chown|truncate|rm|sed\s+-[a-zA-Z]*i|Set-Content|Out-File|Add-Content|Copy-Item|Move-Item|Remove-Item)(?=\s|$)/im;
+// A redirection writes only the word after it, so a read beside `2>/dev/null` is not a write to what it reads; `>&1` names no file.
+const REDIRECT_TARGET = />>?\|?\s*("[^"]*"|'[^']*'|[^\s<>;&|()]+)/g;
 
 function writesProtected(command: string, scope: DenialScope): boolean {
-  if (!SHELL_WRITE.test(command)) return false;
-  return pathsNamed(command, scope.cwd).some((target) => underAny(protectedPaths(scope), target));
+  const written = SHELL_WRITE_VERB.test(command)
+    ? pathsNamed(command, scope.cwd)
+    : [...command.matchAll(REDIRECT_TARGET)].flatMap((match) => pathsNamed(match[1] ?? "", scope.cwd));
+  return written.some((target) => underAny(protectedPaths(scope), target));
 }
 
 // A command starts a line, or follows a separator or an opening bracket, with any spaces before it. The recursive flag may come after others, short or spelled out, and each flag is read one way only: read every way it could be, a long run of them costs the square of its length. The targets end where the command does, at a separator, a redirection or the end of the line.
