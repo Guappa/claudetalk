@@ -12,7 +12,7 @@ import {
 } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { Say } from "../../i18n/index.ts";
-import { parseCustomId, questionOtherId, sendAnywayActionId, SEND_WAIT, type Action, type MenuAction } from "../menus.ts";
+import { parseCustomId, questionOtherId, sendAnywayActionId, sendWaitActionId, type Action, type MenuAction } from "../menus.ts";
 import { OTHER_VALUE } from "../questions.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { clearConversation } from "../commands/clear.ts";
@@ -182,7 +182,10 @@ async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: A
         .setCustomId(sendAnywayActionId(action.sessionId, long.startedAt))
         .setLabel(say("fold.sendAnyway"))
         .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(SEND_WAIT).setLabel(say("fold.waitForIt")).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(sendWaitActionId(action.sessionId))
+        .setLabel(say("fold.waitForIt"))
+        .setStyle(ButtonStyle.Secondary),
     );
     const elapsed = formatElapsed(say, Date.now() - long.startedAt);
     await respond(interaction, { content: say("fold.cutsLongCall", { call: long.label, elapsed }), components: [row] });
@@ -195,8 +198,9 @@ async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: A
   else await respondQuietly(interaction, outcome);
 }
 
-async function waitForCall(bridge: Bridge, interaction: ButtonInteraction) {
-  await settleMenu(interaction, bridge.language.say("fold.waiting"));
+async function waitForCall(bridge: Bridge, interaction: ButtonInteraction, action: Action<"turn-send-wait">) {
+  const say = bridge.language.say;
+  await settleMenu(interaction, bridge.flow.isRunning(action.sessionId) ? say("fold.waiting") : say("fold.waitOver"));
 }
 
 async function cancelCreate(bridge: Bridge, interaction: ButtonInteraction) {
@@ -278,7 +282,7 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
     case "turn-send-now":
       return await sendNow(bridge, interaction, action);
     case "turn-send-wait":
-      return await waitForCall(bridge, interaction);
+      return await waitForCall(bridge, interaction, action);
     case "purge-cancel":
       return await cancelPurge(bridge, interaction);
     case "purge-confirm":

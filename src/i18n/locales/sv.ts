@@ -186,7 +186,7 @@ export const sv: Catalog = {
     takenUp: "Har tagits upp av den pågående omgången.",
     neverTaken: "Omgången tog slut innan detta togs upp. Skicka det igen.",
     sendNow: "Skicka nu",
-    sent: "Skickat nu. Steget Claude höll på med avbröts så att den kunde läsa ditt meddelande, och den fortsätter därifrån. Agenter och bakgrundskommandon som den hade igång fick fortsätta köra.",
+    sent: "Skickat nu. Steget Claude höll på med avbröts så att den kunde läsa ditt meddelande, och den fortsätter därifrån. Agenter och kommandon i bakgrunden som den hade igång fick fortsätta köra; ett som den väntade på stoppades.",
     nothingWaiting: "Inget väntar: den pågående omgången har redan tagit upp ditt meddelande.",
     notRunning: "Ingen omgång körs här längre, så det finns inget att avbryta.",
     notInterrupted: "Den pågående omgången kunde inte avbrytas, så ditt meddelande väntar fortfarande på nästa steg.",
@@ -195,6 +195,7 @@ export const sv: Catalog = {
     cutsLongCall:
       "Claude är inne i {{call}} och har hållit på i {{elapsed}}. Att skicka nu avbryter det och kastar bort det som gjorts hittills. Väntar du lämnas ditt meddelande över så fort det är klart.",
     waiting: "Ditt meddelande väntar, och Claude läser det så fort det pågående anropet är klart.",
+    waitOver: "Den omgången är slut, så det finns inget kvar att vänta på: ditt meddelande besvarades i den, eller körs härnäst.",
   },
   queue: {
     behind_one: "I kö bakom omgången som fortfarande körs.",

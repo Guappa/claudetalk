@@ -786,8 +786,8 @@ is told that step was rejected, so say so if you want it run again. When that
 step is a skill or an agent the turn waits on, which can run for minutes and
 loses its work when cut short, the button asks first, naming it and how long it
 has run: **Send now anyway** cuts it short, and **Wait for it** leaves the
-message to be taken up the moment it returns. Agents and
-background commands the turn had running are left running. The button only acts
+message to be taken up the moment it returns. Agents and commands the turn had
+running in the background are left running. The button only acts
 while the message is still waiting; once taken up there is nothing to hurry, and
 it says so. A turn that ends
 with a message still waiting runs it next without being asked.
