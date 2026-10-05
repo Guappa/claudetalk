@@ -94,8 +94,9 @@ function writesProtected(command: string, scope: DenialScope): boolean {
   return pathsNamed(command, scope.cwd).some((target) => underAny(protectedPaths(scope), target));
 }
 
+// The flag is read up to its first r and no other way: read every way it could be, a long run of them costs the square of its length.
 const RECURSIVE_DELETE =
-  /(?:^|[;&|]\s*)(?:sudo\s+)?(?:rm\s+(?:-[a-zA-Z]*r[a-zA-Z]*\s+)+|rmdir\s+\/s\s+|rd\s+\/s\s+|Remove-Item\s+(?=[^;&|]*-Recurse))([^;&|]*)/gi;
+  /(?:^|[;&|]\s*)(?:sudo\s+)?(?:rm\s+(?:-[a-qs-z]*r[a-z]*\s+)+|rmdir\s+\/s\s+|rd\s+\/s\s+|Remove-Item\s+(?=[^;&|]*-Recurse))([^;&|]*)/gi;
 
 // A recursive delete whose target is the working directory itself or anything outside it.
 function deletesOutside(command: string, cwd: string): boolean {
