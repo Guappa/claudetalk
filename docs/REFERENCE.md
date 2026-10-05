@@ -464,9 +464,14 @@ that started the turn carries one reaction from the bot, changed as the turn
 moves: eyes while it works, a clock while it waits on another turn, a
 question mark while it waits on you, then a tick, a stop sign or a cross for
 finished, stopped or failed. The heading carries the same state in front of the
-verb, an hourglass while working. Those, the robot in front of a trail line
-that sends an agent out, and the circle in front of an agent that has come
-back, are the only emoji the bridge uses.
+verb, an hourglass while working. Each tool call's line in the trail opens with
+a mark of what it does, so it reads apart from what Claude says: 📖 a read,
+📁 a file search by name, 🔍 a search inside files, 📝 an edit or a written
+file, 📓 a notebook, 🌐 a web search, 🔗 a fetched page, 🧰 a tool search,
+🧩 a skill, 🤖 an agent sent out, 📋 the todo list, 🔌 a tool from an MCP
+server and 🔧 any other. A command has none: its fenced `$` line stands apart
+already. Those, and the circle in front of an agent that has come back, are the
+only emoji the bridge uses.
 
 ```
 ⏳ **Working** 1m 12s · 3 steps

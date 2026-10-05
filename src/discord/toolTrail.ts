@@ -20,11 +20,40 @@ export function trailKind(toolName: string): TrailKind {
   return KIND_OF.get(toolName) ?? "other";
 }
 
-// An agent sent out is work that carries on beside the turn, so its line is marked apart from the tool calls around it.
-const AGENT_MARK = "🤖";
+// A tool call's line opens with a mark of what it does, so it reads apart from Claude's own words in the same message. A command has none: its fenced `$` line already stands apart.
+const TOOL_MARK = new Map<string, string>([
+  ["Read", "📖"],
+  ["Glob", "📁"],
+  ["Grep", "🔍"],
+  ["WebSearch", "🌐"],
+  ["WebFetch", "🔗"],
+  ["ToolSearch", "🧰"],
+  ["Skill", "🧩"],
+  ["Agent", "🤖"],
+  ["Task", "🤖"],
+  ["TodoWrite", "📋"],
+  ["NotebookEdit", "📓"],
+  ["Edit", "📝"],
+  ["MultiEdit", "📝"],
+  ["Write", "📝"],
+]);
+const UNMARKED = new Set(["Bash", "PowerShell"]);
+const SERVER_MARK = "🔌";
+const OTHER_MARK = "🔧";
+
+function markOf(name: string): string | null {
+  if (UNMARKED.has(name)) return null;
+  return TOOL_MARK.get(name) ?? (name.startsWith("mcp__") ? SERVER_MARK : OTHER_MARK);
+}
 
 // What the terminal shows for a tool call, drawn from the call's own input, so it costs the model nothing: every call gets a line, as in the terminal, so nothing a turn does goes unseen.
 export function describeToolUse(say: Say, name: string, input: Record<string, unknown>): string | null {
+  const line = toolLine(say, name, input);
+  const mark = markOf(name);
+  return line && mark ? `${mark} ${line}` : line;
+}
+
+function toolLine(say: Say, name: string, input: Record<string, unknown>): string | null {
   switch (name) {
     case "Edit":
       return editDiff(say, input);
@@ -52,7 +81,7 @@ export function describeToolUse(say: Say, name: string, input: Record<string, un
       return quoted(input.query, (query) => say("tools.toolSearch", { query: asCode(query) }));
     case "Agent":
     case "Task":
-      return quoted(input.description, (description) => `${AGENT_MARK} ${say("tools.agent", { description })}`);
+      return quoted(input.description, (description) => say("tools.agent", { description }));
     case "Skill":
       return quoted(input.skill, (name) => say("tools.skill", { name }));
     case "TodoWrite":

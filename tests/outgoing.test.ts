@@ -581,17 +581,17 @@ describe("describeToolUse", () => {
       old_string: "const alpha = 1;\nconst beta = 2;",
       new_string: "const alpha = 10;",
     });
-    expect(shown).toBe("`/srv/app/src/thing.ts`\n```diff\n- const alpha = 1;\n- const beta = 2;\n+ const alpha = 10;\n```");
+    expect(shown).toBe("📝 `/srv/app/src/thing.ts`\n```diff\n- const alpha = 1;\n- const beta = 2;\n+ const alpha = 10;\n```");
   });
 
   // Discord reads the underscores in a plain path as italics, which run into the fence and break it.
   it("keeps a path with underscores out of Markdown, whichever tool drew it", () => {
     const input = { file_path: "/srv/app/memory/project_backup_notes.md", old_string: "a", new_string: "b", content: "c" };
-    expect(describeToolUse(say, "Edit", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md`");
+    expect(describeToolUse(say, "Edit", input)?.split("\n")[0]).toBe("📝 `/srv/app/memory/project_backup_notes.md`");
     expect(describeToolUse(say, "MultiEdit", { ...input, edits: [{ old_string: "a", new_string: "b" }] })?.split("\n")[0]).toBe(
-      "`/srv/app/memory/project_backup_notes.md`",
+      "📝 `/srv/app/memory/project_backup_notes.md`",
     );
-    expect(describeToolUse(say, "Write", input)?.split("\n")[0]).toBe("`/srv/app/memory/project_backup_notes.md` (1 line)");
+    expect(describeToolUse(say, "Write", input)?.split("\n")[0]).toBe("📝 `/srv/app/memory/project_backup_notes.md` (1 line)");
   });
 
   it("counts the lines a written file has, not the line break that ends it", () => {
@@ -612,6 +612,7 @@ describe("describeToolUse", () => {
     expect(describeToolUse(say, "Write", { file_path: "/srv/app/notes.unknownext", content: "a" })).toContain("```\na\n```");
   });
 
+  // Its fenced prompt line already stands apart from Claude's words, so a command carries no mark.
   it("shows a command as a prompt line in a shell block", () => {
     expect(describeToolUse(say, "Bash", { command: "npm   test\n  --run" })).toBe("```bash\n$ npm test --run\n```");
     expect(describeToolUse(say, "PowerShell", { command: "Get-Date" })).toBe("```powershell\n$ Get-Date\n```");
@@ -619,29 +620,31 @@ describe("describeToolUse", () => {
 
   // The terminal gives every call a line; a reader who sees only edits and commands cannot tell a fetch from a hang.
   it("gives every other call the line the terminal gives it", () => {
-    expect(describeToolUse(say, "Read", { file_path: "/srv/app/x.ts" })).toBe("**Read** `/srv/app/x.ts`");
-    expect(describeToolUse(say, "Grep", { pattern: "limit", path: "/srv/app/src" })).toBe("**Search** `limit` in `/srv/app/src`");
-    expect(describeToolUse(say, "Grep", { pattern: "x`y" })).toBe("**Search** `x'y`");
-    expect(describeToolUse(say, "Glob", { pattern: "**/*.ts" })).toBe("**Find** `**/*.ts`");
-    expect(describeToolUse(say, "WebFetch", { url: "https://example.com/docs" })).toBe("**Fetch** <https://example.com/docs>");
+    expect(describeToolUse(say, "Read", { file_path: "/srv/app/x.ts" })).toBe("📖 **Read** `/srv/app/x.ts`");
+    expect(describeToolUse(say, "Grep", { pattern: "limit", path: "/srv/app/src" })).toBe(
+      "🔍 **Search** `limit` in `/srv/app/src`",
+    );
+    expect(describeToolUse(say, "Grep", { pattern: "x`y" })).toBe("🔍 **Search** `x'y`");
+    expect(describeToolUse(say, "Glob", { pattern: "**/*.ts" })).toBe("📁 **Find** `**/*.ts`");
+    expect(describeToolUse(say, "WebFetch", { url: "https://example.com/docs" })).toBe("🔗 **Fetch** <https://example.com/docs>");
     expect(describeToolUse(say, "WebSearch", { query: "github rulesets  approvals" })).toBe(
-      "**Web search** github rulesets approvals",
+      "🌐 **Web search** github rulesets approvals",
     );
     expect(describeToolUse(say, "Agent", { description: "Audit the access checks" })).toBe(
       "🤖 **Agent** Audit the access checks",
     );
-    expect(describeToolUse(say, "Skill", { skill: "code-review" })).toBe("**Skill** /code-review");
-    expect(describeToolUse(say, "mcp__playwright__browser_click", { ref: "e1" })).toBe("**playwright** browser_click");
-    expect(describeToolUse(say, "SomethingNew", {})).toBe("**SomethingNew**");
+    expect(describeToolUse(say, "Skill", { skill: "code-review" })).toBe("🧩 **Skill** /code-review");
+    expect(describeToolUse(say, "mcp__playwright__browser_click", { ref: "e1" })).toBe("🔌 **playwright** browser_click");
+    expect(describeToolUse(say, "SomethingNew", {})).toBe("🔧 **SomethingNew**");
     expect(describeToolUse(say, "AskUserQuestion", { questions: [] })).toBeNull();
   });
 
   // Tool names carry double underscores in pairs, which Discord reads as underline and takes out of the text.
   it("draws a tool search as code, so the names searched for arrive as they were written", () => {
     const shown = describeToolUse(say, "ToolSearch", { query: "select:mcp__notes__add_entry,mcp__notes__list_entries" });
-    expect(shown).toBe("**Tool search** `select:mcp__notes__add_entry,mcp__notes__list_entries`");
+    expect(shown).toBe("🧰 **Tool search** `select:mcp__notes__add_entry,mcp__notes__list_entries`");
     expect(forDiscord(shown!)).toBe(shown);
-    expect(describeToolUse(say, "ToolSearch", { query: "a `quoted` name" })).toBe("**Tool search** `a 'quoted' name`");
+    expect(describeToolUse(say, "ToolSearch", { query: "a `quoted` name" })).toBe("🧰 **Tool search** `a 'quoted' name`");
   });
 
   it("lists the todos a turn keeps, ticked as they are, and caps a long list", () => {
@@ -649,7 +652,7 @@ describe("describeToolUse", () => {
       { content: "Read the spec", status: "completed" },
       { content: "Write the test", status: "in_progress" },
     ];
-    expect(describeToolUse(say, "TodoWrite", { todos })).toBe("**Todo** · 2 items\n- [x] Read the spec\n- [ ] Write the test");
+    expect(describeToolUse(say, "TodoWrite", { todos })).toBe("📋 **Todo** · 2 items\n- [x] Read the spec\n- [ ] Write the test");
     const many = Array.from({ length: 15 }, (_, index) => ({ content: `Step ${index + 1}`, status: "pending" }));
     const shown = describeToolUse(say, "TodoWrite", { todos: many });
     expect(shown?.split("\n")).toHaveLength(14);

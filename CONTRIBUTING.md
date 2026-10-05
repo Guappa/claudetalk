@@ -412,8 +412,11 @@ each carrying the turn's state: queued, running, waiting on a person, done,
 stopped, failed. The line that says an agent has come back, behind a
 circle coloured by how it ended, as the terminal draws one; a circle and not
 the turn's tick, which there would read as the turn itself being over. And a
-robot in front of the trail line that sends an agent out, so work carrying on
-beside the turn stands apart from the tool calls around it. The sets live in
+mark in front of each tool call's line in the trail, one per tool (a book for a
+read, a robot for an agent sent out, a plug for an MCP server's tool, a wrench
+for any tool without one of its own), so a call reads apart from Claude's own
+words; a command has none, since its fenced prompt line stands apart already.
+The sets live in
 `src/discord/reactions.ts`, `statusMessage.ts`, `agentBoard.ts` and
 `toolTrail.ts`, standard Unicode only, so every client draws the same thing
 and no server needs a custom emoji. Nothing else in the bridge uses emoji: not
