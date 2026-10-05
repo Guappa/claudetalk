@@ -50,15 +50,13 @@ export async function handleTrail(bridge: Bridge, interaction: ChatInputCommandI
 
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
-  const own = conversation.settings.trailHidden;
+  const own = conversation.trailHidden;
   if (interaction.options.getBoolean("reset")) {
-    await bridge.store.updateSettings(conversation.sessionId, { trailHidden: undefined });
+    await bridge.store.setTrailHidden(conversation.sessionId, undefined);
   } else if (hide !== null || show !== null) {
-    await bridge.store.updateSettings(conversation.sessionId, {
-      trailHidden: hiddenAfter(bridge.trail.hiddenIn(own), hide, show),
-    });
+    await bridge.store.setTrailHidden(conversation.sessionId, hiddenAfter(bridge.trail.hiddenIn(own), hide, show));
   }
 
-  const chosen = bridge.store.bySession(conversation.sessionId)?.settings.trailHidden;
+  const chosen = bridge.store.bySession(conversation.sessionId)?.trailHidden;
   await respond(interaction, standing(bridge.language.say, chosen ? "own" : "follows", bridge.trail.hiddenIn(chosen)));
 }

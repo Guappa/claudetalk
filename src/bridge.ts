@@ -130,7 +130,7 @@ export async function createBridge(config: Config, supervised: boolean): Promise
       activeTurns,
       config,
       () => language.say,
-      (sessionId) => trail.hiddenIn(store.bySession(sessionId)?.settings.trailHidden),
+      (sessionId) => trail.hiddenIn(store.bySession(sessionId)?.trailHidden),
     ),
     contextOf: (sessionId) => trackers.standing(sessionId),
     sessions: new SessionIndex(),

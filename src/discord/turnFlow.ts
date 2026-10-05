@@ -877,7 +877,8 @@ export class TurnFlow {
     const agent = agentEvent(event);
     if (agent) {
       const ended = board.observe(agent);
-      if (ended) status.note(ended);
+      // An agent's end is drawn as part of the agents kind, so hiding agents hides how each one ended as well.
+      if (ended && !this.trailHidden(sessionId).has("agents")) status.note(ended);
       return;
     }
 

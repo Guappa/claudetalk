@@ -38,6 +38,24 @@ describe("ConversationStore", () => {
     expect(store.all()).toEqual([]);
   });
 
+  // The trail choice is the reader's, not the session's, so it outlives a /clear and a restart like the conversation's other settings.
+  it("keeps a conversation's trail choice across a restart and a start-over, and drops it on request", async () => {
+    const store = new ConversationStore(file);
+    await store.load();
+    const first = await store.bindNew({ sessionId: "s1", cwd: os.tmpdir(), channelId: "c1", ownerId: "o1" });
+    await store.setTrailHidden("s1", ["commands"]);
+
+    const reloaded = new ConversationStore(file);
+    await reloaded.load();
+    expect(reloaded.bySession("s1")?.trailHidden).toEqual(["commands"]);
+    expect(reloaded.bySession("s1")?.settings).toEqual({});
+
+    const fresh = await store.startOver(first, "s2");
+    expect(fresh.trailHidden).toEqual(["commands"]);
+    await store.setTrailHidden("s2", undefined);
+    expect(store.bySession("s2")?.trailHidden).toBeUndefined();
+  });
+
   // Saves that overlap must not share a temporary file, or one loses its rename to the other.
   it("lands every save when several overlap, and ends holding the last state", async () => {
     const store = new ConversationStore(file);

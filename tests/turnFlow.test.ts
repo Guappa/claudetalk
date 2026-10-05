@@ -322,6 +322,38 @@ describe("TurnFlow", () => {
     expect(trail).toContain("4 steps");
   });
 
+  // Hiding agents hides each agent's whole line in the trail, its end included; the roster in the agents' thread still has it.
+  it("leaves an agent's end out of the trail when agents are hidden", async () => {
+    scripted.set("send one", [
+      {
+        type: "system",
+        subtype: "task_started",
+        task_id: "t9",
+        tool_use_id: "use9",
+        description: "Map the files",
+        task_type: "local_agent",
+      },
+      {
+        type: "system",
+        subtype: "task_notification",
+        task_id: "t9",
+        status: "completed",
+        summary: "Mapped.",
+        usage: { total_tokens: 1, tool_uses: 0, duration_ms: 1000 },
+      },
+    ]);
+    const shown = recordingSink();
+    expect(await makeFlow().run("s12", cwd, "send one", {}, shown, { resume: true })).toBe(true);
+    expect(shown.messages.join("\n")).toContain("Map the files");
+
+    scripted.set("send two", scripted.get("send one")!);
+    const hidden = recordingSink();
+    const flow = makeFlow(undefined, undefined, 0, () => new Set<TrailKind>(["agents"]));
+    expect(await flow.run("s13", cwd, "send two", {}, hidden, { resume: true })).toBe(true);
+    expect(hidden.messages.join("\n")).not.toContain("Map the files");
+    expect(hidden.details.join("\n")).toContain("Map the files");
+  });
+
   const agentStart = (taskId: string, taskType: string) => ({
     type: "system",
     subtype: "task_started",

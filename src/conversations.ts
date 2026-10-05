@@ -29,6 +29,8 @@ export interface Conversation {
   syncedThrough?: string;
   // What a turn announced as having happened outside Discord and nobody has been shown. The turn marks itself seen when it ends, and would take these with it.
   unseen?: UnseenStretch[];
+  // The kinds of tool call the trail leaves out here; without it the conversation follows the bridge's default. Kept beside the settings, not among them: a turn never reads it.
+  trailHidden?: string[];
 }
 
 export interface NewConversation {
@@ -37,6 +39,7 @@ export interface NewConversation {
   channelId: string;
   ownerId: string;
   settings?: ChannelSettings;
+  trailHidden?: string[];
   mentionOnly?: boolean;
   adopted?: boolean;
   // True for an id minted here, which Claude Code has never seen.
@@ -49,6 +52,7 @@ function newConversation(input: NewConversation): Conversation {
     cwd: input.cwd,
     boundAt: new Date().toISOString(),
     settings: input.settings ?? {},
+    trailHidden: input.trailHidden,
     channels: { text: input.channelId },
     ownerId: input.ownerId,
     memberIds: [],
@@ -183,6 +187,13 @@ export class ConversationStore {
     await this.flush();
   }
 
+  // Undefined drops the conversation's own choice, so it follows the bridge's default again.
+  async setTrailHidden(sessionId: string, hidden: string[] | undefined): Promise<void> {
+    const conversation = this.require(sessionId, "update");
+    conversation.trailHidden = hidden;
+    await this.flush();
+  }
+
   // One write for the whole exchange, so a failure part-way cannot leave the channel bound to nothing, or the new conversation without its members.
   async startOver(previous: Conversation, sessionId: string): Promise<Conversation> {
     const fresh: Conversation = {
@@ -190,6 +201,7 @@ export class ConversationStore {
       cwd: previous.cwd,
       boundAt: new Date().toISOString(),
       settings: { ...previous.settings },
+      trailHidden: previous.trailHidden,
       channels: { ...previous.channels },
       ownerId: previous.ownerId,
       memberIds: [...previous.memberIds],

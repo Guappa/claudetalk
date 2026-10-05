@@ -699,7 +699,7 @@ describe("/trail", () => {
     return command.replies.at(-1) ?? "";
   };
   const hiddenIn = (bridge: Awaited<ReturnType<typeof testBridge>>, sessionId: string) => [
-    ...bridge.trail.hiddenIn(bridge.store.bySession(sessionId)?.settings.trailHidden),
+    ...bridge.trail.hiddenIn(bridge.store.bySession(sessionId)?.trailHidden),
   ];
 
   // The default saves saying it in every channel; a conversation's own choice is for the one where more, or less, is wanted.

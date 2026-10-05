@@ -112,7 +112,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
       activeTurns,
       settled,
       () => language.say,
-      (sessionId) => trail.hiddenIn(store.bySession(sessionId)?.settings.trailHidden),
+      (sessionId) => trail.hiddenIn(store.bySession(sessionId)?.trailHidden),
       1,
     ),
     contextOf: (sessionId) => trackers.standing(sessionId),
