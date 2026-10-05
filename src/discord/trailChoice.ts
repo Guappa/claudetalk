@@ -2,7 +2,7 @@ import { orderedWriter, readJsonOr } from "../jsonFile.ts";
 import { TRAIL_KINDS, type TrailKind } from "./toolTrail.ts";
 
 // What a hide or a show may name beside a kind: every kind at once.
-export const EVERY_KIND = "all";
+export const EVERY_KIND = "all" as const;
 
 // What was stored may come from a build that knew other kinds; only the ones this build draws are read back.
 function knownKinds(stored: unknown): TrailKind[] {
