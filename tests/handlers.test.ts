@@ -1079,13 +1079,26 @@ describe("Send now", () => {
     await handleButton(bridge, first.interaction);
     expect(sent).not.toHaveBeenCalled();
     expect(first.replies.at(-1)).toMatch(/Claude is inside \/code-review, running for 3m \d+s/);
-    expect(first.controls()).toEqual([sendAnywayActionId(SESSION), SEND_WAIT]);
+    expect(first.controls()).toEqual([sendAnywayActionId(SESSION, inFlight.startedAt), SEND_WAIT]);
 
-    const anyway = fakePress(place, OWNER, sendAnywayActionId(SESSION));
+    const anyway = fakePress(place, OWNER, sendAnywayActionId(SESSION, inFlight.startedAt));
     await handleButton(bridge, anyway.interaction);
     expect(sent).toHaveBeenCalledWith(SESSION);
     expect(anyway.replies.at(-1)).toContain("cut short so it could read your message");
     expect(anyway.controls()).toEqual([]);
+  });
+
+  // A confirm left on screen names the call it was for, and a later one is not cut short on its word.
+  it("asks again when the confirm is for a call that has ended and another is in flight", async () => {
+    const bridge = await testBridge();
+    const sent = vi.spyOn(bridge.flow, "sendNow").mockResolvedValue("sent");
+    const later = { label: "Audit the parser", startedAt: inFlight.startedAt + 60_000 };
+    vi.spyOn(bridge.flow, "longCallOf").mockReturnValue(later);
+    const stale = fakePress(fakeChannel("n4"), OWNER, sendAnywayActionId(SESSION, inFlight.startedAt));
+    await handleButton(bridge, stale.interaction);
+    expect(sent).not.toHaveBeenCalled();
+    expect(stale.replies.at(-1)).toContain("Claude is inside Audit the parser");
+    expect(stale.controls()).toEqual([sendAnywayActionId(SESSION, later.startedAt), SEND_WAIT]);
   });
 
   it("leaves the message waiting when asked to wait", async () => {

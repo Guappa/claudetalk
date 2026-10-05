@@ -435,6 +435,31 @@ describe("TurnFlow", () => {
     expect(await flow.sendNow("s13")).toBe("not-running");
   });
 
+  // Send now asks first while one of these is open, so the turn has to see each one start and end.
+  it("knows the skill a running turn waits on until its result, and nothing once the turn ends", async () => {
+    const flow = makeFlow();
+    const skill = { type: "tool_use", id: "sk1", name: "Skill", input: { skill: "code-review" } };
+    const result = { type: "tool_result", tool_use_id: "sk1", content: "done" };
+    scripted.set("review it", [{ type: "assistant", message: { content: [skill] } }]);
+    const letEnd = keepRunning("review it");
+    const running = flow.run("s90", cwd, "review it", {}, quietSink(), { resume: true });
+    await vi.waitFor(() => expect(flow.longCallOf("s90")?.label).toBe("/code-review"));
+    letEnd();
+    await running;
+    expect(flow.longCallOf("s90")).toBeUndefined();
+
+    scripted.set("reviewed", [
+      { type: "assistant", message: { content: [skill] } },
+      { type: "user", message: { content: [result] } },
+    ]);
+    const letEndToo = keepRunning("reviewed");
+    const finished = flow.run("s91", cwd, "reviewed", {}, quietSink(), { resume: true });
+    await vi.waitFor(() => expect(started).toContain("reviewed"));
+    expect(flow.longCallOf("s91")).toBeUndefined();
+    letEndToo();
+    await finished;
+  });
+
   it("says a message the turn ended without taking up did not run", async () => {
     const flow = makeFlow();
     const letEnd = keepRunning("busy elsewhere");

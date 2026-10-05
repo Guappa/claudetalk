@@ -172,12 +172,14 @@ async function stopAgents(bridge: Bridge, interaction: ButtonInteraction, action
 // Interrupting cuts short the call in flight, and a skill or an agent minutes in is too much to lose to a press that meant to hurry.
 async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: Action<"turn-send-now">) {
   const say = bridge.language.say;
-  const long = action.confirmed ? undefined : bridge.flow.longCallOf(action.sessionId);
-  if (long) {
-    await acknowledgeQuietly(interaction);
+  const long = bridge.flow.longCallOf(action.sessionId);
+  const confirming = action.confirmedFor !== null;
+  if (long && long.startedAt !== action.confirmedFor) {
+    if (confirming) await interaction.deferUpdate();
+    else await acknowledgeQuietly(interaction);
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(sendAnywayActionId(action.sessionId))
+        .setCustomId(sendAnywayActionId(action.sessionId, long.startedAt))
         .setLabel(say("fold.sendAnyway"))
         .setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(SEND_WAIT).setLabel(say("fold.waitForIt")).setStyle(ButtonStyle.Secondary),
@@ -186,10 +188,10 @@ async function sendNow(bridge: Bridge, interaction: ButtonInteraction, action: A
     await respond(interaction, { content: say("fold.cutsLongCall", { call: long.label, elapsed }), components: [row] });
     return;
   }
-  if (action.confirmed) await interaction.deferUpdate();
+  if (confirming) await interaction.deferUpdate();
   else await acknowledgeQuietly(interaction);
   const outcome = describeSendNow(say, await bridge.flow.sendNow(action.sessionId));
-  if (action.confirmed) await settleMenu(interaction, outcome);
+  if (confirming) await settleMenu(interaction, outcome);
   else await respondQuietly(interaction, outcome);
 }
 
