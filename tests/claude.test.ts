@@ -662,6 +662,29 @@ describe("what a turn is refused outright", () => {
     expect(deniedBy(withoutAskable(all), scope, "Write", { file_path: login })).toContain("credentials");
     expect(askedOfOwner(all, scope, "Write", { file_path: login })).toBeNull();
   });
+
+  // A link is made by a shell command no rule reads, and a file tool then reaches through it by a path that reads as the folder's own. Each link here points at a folder the test made or at one that does not exist.
+  it("judges a file tool's path by where it lands, through a link inside the folder", async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "denials-links-"));
+    const linked = { cwd: path.join(base, "project"), dataDir: path.join(base, "bridge", "data") };
+    const nowhere = path.join(path.parse(base).root, "denials-no-such-folder");
+    const noKeys = path.join(os.homedir(), ".ssh", "denials-no-such-folder");
+    await fs.mkdir(linked.cwd, { recursive: true });
+    await fs.mkdir(linked.dataDir, { recursive: true });
+    for (const [name, target] of Object.entries({ state: linked.dataDir, shared: nowhere, keys: noKeys })) {
+      await fs.symlink(target, path.join(linked.cwd, name), "junction");
+    }
+    const through = (name: string, file: string) => ({ file_path: path.join(linked.cwd, name, file) });
+
+    expect(deniedBy(all, linked, "Edit", through("state", "turns.json"))).toContain("credentials");
+    expect(askedOfOwner(all, linked, "Write", through("shared", "notes.md"))).toEqual({
+      rule: "writes",
+      subject: path.join(nowhere, "notes.md"),
+    });
+    expect(deniedBy(all, linked, "Read", through("keys", "id_ed25519"))).toContain("private key");
+    expect(askedOfOwner(all, linked, "Write", through("src", "notes.md"))).toBeNull();
+    expect(deniedBy(all, linked, "Read", through("src", "id_ed25519"))).toBeNull();
+  });
 });
 
 describe("Claude Code versions", () => {
