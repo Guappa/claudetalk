@@ -523,6 +523,32 @@ export const es: Catalog = {
     enableFailed: "No se pudo activar `{{id}}`: {{error}}. Ejecuta el mismo comando en el host para ver la salida completa.",
     disableFailed: "No se pudo desactivar `{{id}}`: {{error}}. Ejecuta el mismo comando en el host para ver la salida completa.",
   },
+  mcp: {
+    none: "Claude Code no informa de ningún servidor MCP para la carpeta de esta conversación.",
+    choose: "Elige un servidor",
+    summary_one: "{{count}} servidor MCP para la carpeta de esta conversación; conectados: {{connected}}.",
+    summary_other: "{{count}} servidores MCP para la carpeta de esta conversación; conectados: {{connected}}.",
+    stateConnected_one: "conectado, {{count}} herramienta",
+    stateConnected_other: "conectado, {{count}} herramientas",
+    stateFailed: "falló",
+    stateNeedsAuth: "necesita iniciar sesión",
+    statePending: "aún conectando",
+    stateDisabled: "apagado",
+    failedBecause:
+      "Claude Code no pudo conectarse: {{error}}. Reconectar lo intenta de nuevo; si sigue fallando, hay que mirar la configuración del servidor en el host.",
+    signInOnHost:
+      "Está esperando un inicio de sesión, que no se puede dar desde Discord. Ejecuta `/mcp` en Claude Code en el host y autorízalo allí; un conector de claude.ai se autoriza en los ajustes de conectores de claude.ai.",
+    offForFolder: "Está apagado para esta carpeta, así que ninguna sesión aquí lo carga.",
+    stillConnecting: "Claude Code todavía se está conectando. Ejecuta `/mcp` otra vez dentro de un momento.",
+    switchOn: "Encender",
+    switchOff: "Apagar",
+    reconnect: "Reconectar",
+    appliesFromNextTurn: "Vale para la carpeta: el próximo turno aquí lo ve, y también una terminal abierta allí.",
+    gone: "Claude Code ya no informa de ningún servidor llamado `{{name}}` para esta carpeta. Ejecuta `/mcp` otra vez para ver la lista actual.",
+    changeFailed: "No se pudo cambiar `{{name}}`: {{error}}. Ejecuta `/mcp` en Claude Code en el host para ver qué dice allí.",
+    unreachable:
+      "No se pudo preguntar a Claude Code por sus servidores MCP: {{error}}. Comprueba que Claude Code está instalado y con sesión iniciada en el host, y ejecuta `/mcp` otra vez.",
+  },
   skills: {
     none: "Todavía no se conocen skills para esta conversación. Envíale un mensaje primero, y vuelve a intentarlo: la lista viene de la propia sesión.",
     option: "Ejecutar /{{skill}}",

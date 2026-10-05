@@ -516,6 +516,32 @@ export const en = {
     enableFailed: "Could not enable `{{id}}`: {{error}}. Run the same command on the host to see the full output.",
     disableFailed: "Could not disable `{{id}}`: {{error}}. Run the same command on the host to see the full output.",
   },
+  mcp: {
+    none: "Claude Code reports no MCP servers for this conversation's folder.",
+    choose: "Choose a server",
+    summary_one: "{{count}} MCP server for this conversation's folder, {{connected}} connected.",
+    summary_other: "{{count}} MCP servers for this conversation's folder, {{connected}} connected.",
+    stateConnected_one: "connected, {{count}} tool",
+    stateConnected_other: "connected, {{count}} tools",
+    stateFailed: "failed",
+    stateNeedsAuth: "needs a sign-in",
+    statePending: "still connecting",
+    stateDisabled: "switched off",
+    failedBecause:
+      "Claude Code could not connect to it: {{error}}. Reconnect tries again; if it keeps failing, the server's own setup on the host is where to look.",
+    signInOnHost:
+      "It is waiting for a sign-in, which cannot be given from Discord. Run `/mcp` in Claude Code on the host and authorise it there; a claude.ai connector is authorised in the connector settings on claude.ai.",
+    offForFolder: "It is switched off for this folder, so no session here loads it.",
+    stillConnecting: "Claude Code is still connecting to it. Run `/mcp` again in a moment.",
+    switchOn: "Switch on",
+    switchOff: "Switch off",
+    reconnect: "Reconnect",
+    appliesFromNextTurn: "This holds for the folder: the next turn here sees it, and so does a terminal opened there.",
+    gone: "Claude Code reports no server named `{{name}}` for this folder any more. Run `/mcp` again for the current list.",
+    changeFailed: "Could not change `{{name}}`: {{error}}. Run `/mcp` in Claude Code on the host to see what it says there.",
+    unreachable:
+      "Could not ask Claude Code about its MCP servers: {{error}}. Check that Claude Code is installed and signed in on the host, then run `/mcp` again.",
+  },
   skills: {
     none: "No skills known for this conversation yet. Send it a message first, then try again: the list comes from the session itself.",
     option: "Run /{{skill}}",

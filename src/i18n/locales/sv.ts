@@ -519,6 +519,33 @@ export const sv: Catalog = {
     enableFailed: "Kunde inte aktivera `{{id}}`: {{error}}. Kör samma kommando på värddatorn för att se hela utskriften.",
     disableFailed: "Kunde inte inaktivera `{{id}}`: {{error}}. Kör samma kommando på värddatorn för att se hela utskriften.",
   },
+  mcp: {
+    none: "Claude Code rapporterar inga MCP-servrar för den här konversationens mapp.",
+    choose: "Välj en server",
+    summary_one: "{{count}} MCP-server för den här konversationens mapp, {{connected}} anslutna.",
+    summary_other: "{{count}} MCP-servrar för den här konversationens mapp, {{connected}} anslutna.",
+    stateConnected_one: "ansluten, {{count}} verktyg",
+    stateConnected_other: "ansluten, {{count}} verktyg",
+    stateFailed: "misslyckades",
+    stateNeedsAuth: "behöver inloggning",
+    statePending: "ansluter fortfarande",
+    stateDisabled: "avstängd",
+    failedBecause:
+      "Claude Code kunde inte ansluta: {{error}}. Anslut igen försöker en gång till; om det fortsätter misslyckas är det serverns egen konfiguration på värddatorn som behöver ses över.",
+    signInOnHost:
+      "Den väntar på en inloggning, som inte går att göra från Discord. Kör `/mcp` i Claude Code på värddatorn och godkänn den där; en claude.ai-koppling godkänns i kopplingsinställningarna på claude.ai.",
+    offForFolder: "Den är avstängd för den här mappen, så ingen session här laddar den.",
+    stillConnecting: "Claude Code ansluter fortfarande. Kör `/mcp` igen om en stund.",
+    switchOn: "Slå på",
+    switchOff: "Stäng av",
+    reconnect: "Anslut igen",
+    appliesFromNextTurn: "Det gäller för mappen: nästa omgång här ser det, och likaså en terminal som öppnas där.",
+    gone: "Claude Code rapporterar inte längre någon server som heter `{{name}}` för den här mappen. Kör `/mcp` igen för att se den aktuella listan.",
+    changeFailed:
+      "Det gick inte att ändra `{{name}}`: {{error}}. Kör `/mcp` i Claude Code på värddatorn för att se vad det säger där.",
+    unreachable:
+      "Det gick inte att fråga Claude Code om dess MCP-servrar: {{error}}. Kontrollera att Claude Code är installerat och inloggat på värddatorn och kör sedan `/mcp` igen.",
+  },
   skills: {
     none: "Inga skills är kända för den här konversationen än. Skicka ett meddelande till den först och försök sedan igen: listan kommer från sessionen själv.",
     option: "Kör /{{skill}}",

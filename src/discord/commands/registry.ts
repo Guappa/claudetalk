@@ -119,6 +119,10 @@ export function bridgeCommandDefinitions() {
     new SlashCommandBuilder().setName("plugins").setDescription("List Claude Code plugins and toggle one"),
 
     new SlashCommandBuilder()
+      .setName("mcp")
+      .setDescription("List this conversation's MCP servers, and switch one off or on or reconnect it"),
+
+    new SlashCommandBuilder()
       .setName("restart")
       .setDescription("Restart the bridge as soon as nothing is running, after checking that it would start"),
 

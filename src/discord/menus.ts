@@ -1,6 +1,7 @@
 import { CUSTOM_ID_CHARS } from "./limits.ts";
 
 export const PLUGIN_SELECT = "plugin:select";
+export const MCP_SELECT = "mcp:select";
 export const SKILL_SELECT = "skill:select";
 export const PURGE_CONFIRM = "purge:confirm";
 export const PURGE_CANCEL = "purge:cancel";
@@ -52,6 +53,9 @@ export function skillSelectId(page: number): string {
 export type MenuAction =
   | { kind: "plugin-chosen"; id: string }
   | { kind: "plugin-toggle"; id: string; enable: boolean }
+  | { kind: "mcp-chosen"; name: string }
+  | { kind: "mcp-toggle"; name: string; enable: boolean }
+  | { kind: "mcp-reconnect"; name: string }
   | { kind: "skill-chosen"; skill: string }
   | { kind: "purge-confirm" }
   | { kind: "purge-cancel" }
@@ -87,6 +91,14 @@ export function pluginToggleId(id: string, enable: boolean): string {
   return `plugin:${enable ? "enable" : "disable"}:${id}`.slice(0, CUSTOM_ID_CHARS);
 }
 
+export function mcpToggleId(name: string, enable: boolean): string {
+  return `mcp:${enable ? "on" : "off"}:${name}`.slice(0, CUSTOM_ID_CHARS);
+}
+
+export function mcpReconnectId(name: string): string {
+  return `mcp:reconnect:${name}`.slice(0, CUSTOM_ID_CHARS);
+}
+
 // The button names the conversation it was offered for, so a press that comes late clears nothing else.
 export function clearConfirmId(sessionId: string): string {
   return `clear:confirm:${sessionId}`.slice(0, CUSTOM_ID_CHARS);
@@ -102,6 +114,7 @@ function isSkillSelect(customId: string): boolean {
 
 export function parseCustomId(customId: string, selectedValue?: string): MenuAction {
   if (customId === PLUGIN_SELECT && selectedValue) return { kind: "plugin-chosen", id: selectedValue };
+  if (customId === MCP_SELECT && selectedValue) return { kind: "mcp-chosen", name: selectedValue };
   if (isSkillSelect(customId) && selectedValue) return { kind: "skill-chosen", skill: selectedValue };
 
   if (customId === PURGE_CONFIRM) return { kind: "purge-confirm" };
@@ -149,6 +162,11 @@ export function parseCustomId(customId: string, selectedValue?: string): MenuAct
 
   const toggle = /^plugin:(enable|disable):(.+)$/.exec(customId);
   if (toggle?.[1] && toggle[2]) return { kind: "plugin-toggle", id: toggle[2], enable: toggle[1] === "enable" };
+
+  // A server's name can hold colons and spaces of its own, so everything after the verb is the name.
+  const server = /^mcp:(on|off|reconnect):(.+)$/.exec(customId);
+  if (server?.[1] === "reconnect" && server[2]) return { kind: "mcp-reconnect", name: server[2] };
+  if (server?.[1] && server[2]) return { kind: "mcp-toggle", name: server[2], enable: server[1] === "on" };
 
   return { kind: "unknown" };
 }

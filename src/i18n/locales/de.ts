@@ -530,6 +530,33 @@ export const de: Catalog = {
     disableFailed:
       "Konnte `{{id}}` nicht deaktivieren: {{error}}. Führ denselben Befehl auf dem Host aus, um die ganze Ausgabe zu sehen.",
   },
+  mcp: {
+    none: "Claude Code meldet keine MCP-Server für den Ordner dieses Gesprächs.",
+    choose: "Server wählen",
+    summary_one: "{{count}} MCP-Server für den Ordner dieses Gesprächs, {{connected}} verbunden.",
+    summary_other: "{{count}} MCP-Server für den Ordner dieses Gesprächs, {{connected}} verbunden.",
+    stateConnected_one: "verbunden, {{count}} Werkzeug",
+    stateConnected_other: "verbunden, {{count}} Werkzeuge",
+    stateFailed: "fehlgeschlagen",
+    stateNeedsAuth: "braucht eine Anmeldung",
+    statePending: "verbindet noch",
+    stateDisabled: "ausgeschaltet",
+    failedBecause:
+      "Claude Code konnte sich nicht verbinden: {{error}}. Neu verbinden versucht es noch einmal; schlägt es weiter fehl, liegt es an der Einrichtung des Servers auf dem Host.",
+    signInOnHost:
+      "Er wartet auf eine Anmeldung, die sich aus Discord nicht geben lässt. Führ `/mcp` in Claude Code auf dem Host aus und autorisiere ihn dort; ein claude.ai-Connector wird in den Connector-Einstellungen auf claude.ai autorisiert.",
+    offForFolder: "Er ist für diesen Ordner ausgeschaltet, also lädt ihn hier keine Sitzung.",
+    stillConnecting: "Claude Code verbindet sich noch. Führ `/mcp` gleich noch einmal aus.",
+    switchOn: "Einschalten",
+    switchOff: "Ausschalten",
+    reconnect: "Neu verbinden",
+    appliesFromNextTurn: "Das gilt für den Ordner: Der nächste Durchlauf hier sieht es, und ein dort geöffnetes Terminal ebenso.",
+    gone: "Claude Code meldet für diesen Ordner keinen Server namens `{{name}}` mehr. Führ `/mcp` noch einmal aus, um die aktuelle Liste zu sehen.",
+    changeFailed:
+      "`{{name}}` ließ sich nicht ändern: {{error}}. Führ `/mcp` in Claude Code auf dem Host aus, um zu sehen, was es dort sagt.",
+    unreachable:
+      "Claude Code ließ sich nicht nach seinen MCP-Servern fragen: {{error}}. Prüf, ob Claude Code auf dem Host installiert und angemeldet ist, und führ `/mcp` dann noch einmal aus.",
+  },
   skills: {
     none: "Für dieses Gespräch sind noch keine Skills bekannt. Schick ihm erst eine Nachricht, dann versuch es noch einmal: Die Liste kommt aus der Sitzung selbst.",
     option: "/{{skill}} ausführen",

@@ -27,6 +27,7 @@ import { handleRun, suggestCommands } from "../commands/run.ts";
 import { handleSetting, handleWhoami } from "../commands/settings.ts";
 import { handleSync } from "../commands/sync.ts";
 import { handleSpend } from "../commands/spend.ts";
+import { handleMcpCommand } from "../commands/mcp.ts";
 import { handlePluginsCommand } from "../commands/plugins.ts";
 import { handlePurgeCommand } from "../commands/purge.ts";
 import { handleSkillsCommand } from "../commands/skills.ts";
@@ -60,6 +61,7 @@ const COMMANDS: Record<string, CommandHandler> = {
   purge: handlePurgeCommand,
   clear: handleClear,
   plugins: handlePluginsCommand,
+  mcp: handleMcpCommand,
   skills: handleSkillsCommand,
   run: handleRun,
   operator: handleOperator,

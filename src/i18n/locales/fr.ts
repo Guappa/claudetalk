@@ -527,6 +527,33 @@ export const fr: Catalog = {
     disableFailed:
       "Impossible de désactiver `{{id}}` : {{error}}. Lance la même commande sur l'hôte pour voir la sortie complète.",
   },
+  mcp: {
+    none: "Claude Code ne signale aucun serveur MCP pour le dossier de cette conversation.",
+    choose: "Choisis un serveur",
+    summary_one: "{{count}} serveur MCP pour le dossier de cette conversation ; connectés : {{connected}}.",
+    summary_other: "{{count}} serveurs MCP pour le dossier de cette conversation ; connectés : {{connected}}.",
+    stateConnected_one: "connecté, {{count}} outil",
+    stateConnected_other: "connecté, {{count}} outils",
+    stateFailed: "en échec",
+    stateNeedsAuth: "connexion requise",
+    statePending: "connexion en cours",
+    stateDisabled: "désactivé",
+    failedBecause:
+      "Claude Code n'a pas pu s'y connecter : {{error}}. Reconnecter réessaie ; si l'échec persiste, c'est la configuration du serveur sur l'hôte qu'il faut regarder.",
+    signInOnHost:
+      "Il attend une connexion à un compte, qui ne peut pas se faire depuis Discord. Lance `/mcp` dans Claude Code sur l'hôte et autorise-le là ; un connecteur claude.ai s'autorise dans les réglages des connecteurs sur claude.ai.",
+    offForFolder: "Il est désactivé pour ce dossier, donc aucune session ne le charge ici.",
+    stillConnecting: "Claude Code est encore en train de s'y connecter. Relance `/mcp` dans un instant.",
+    switchOn: "Activer",
+    switchOff: "Désactiver",
+    reconnect: "Reconnecter",
+    appliesFromNextTurn: "Cela vaut pour le dossier : le prochain tour ici le voit, et un terminal ouvert là aussi.",
+    gone: "Claude Code ne signale plus de serveur nommé `{{name}}` pour ce dossier. Relance `/mcp` pour voir la liste actuelle.",
+    changeFailed:
+      "Impossible de modifier `{{name}}` : {{error}}. Lance `/mcp` dans Claude Code sur l'hôte pour voir ce qu'il en dit.",
+    unreachable:
+      "Impossible d'interroger Claude Code sur ses serveurs MCP : {{error}}. Vérifie que Claude Code est installé et connecté sur l'hôte, puis relance `/mcp`.",
+  },
   skills: {
     none: "Aucun skill connu pour cette conversation pour l'instant. Envoie-lui d'abord un message, puis réessaie : la liste vient de la session elle-même.",
     option: "Lancer /{{skill}}",

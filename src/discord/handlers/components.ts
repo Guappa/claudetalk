@@ -13,6 +13,7 @@ import { parseCustomId, questionOtherId, type Action, type MenuAction } from "..
 import { OTHER_VALUE } from "../questions.ts";
 import { openConversation, startConversation } from "../commands/conversations.ts";
 import { clearConversation } from "../commands/clear.ts";
+import { chooseMcpServer, reconnectChosenServer, toggleMcpServer } from "../commands/mcp.ts";
 import { choosePlugin, togglePlugin } from "../commands/plugins.ts";
 import { cancelPurge, confirmPurge } from "../commands/purge.ts";
 import { cancelRun, confirmRun } from "../commands/run.ts";
@@ -30,6 +31,9 @@ import { errorMessage, truncate } from "../../text.ts";
 const COMMAND_OF: Partial<Record<MenuAction["kind"], string>> = {
   "plugin-chosen": "plugins",
   "plugin-toggle": "plugins",
+  "mcp-chosen": "mcp",
+  "mcp-toggle": "mcp",
+  "mcp-reconnect": "mcp",
   "skill-chosen": "skills",
   "purge-confirm": "purge",
   "purge-cancel": "purge",
@@ -122,6 +126,8 @@ export async function handleSelect(bridge: Bridge, interaction: StringSelectMenu
   switch (action.kind) {
     case "plugin-chosen":
       return await choosePlugin(bridge, interaction, action);
+    case "mcp-chosen":
+      return await chooseMcpServer(bridge, interaction, action);
     case "skill-chosen":
       return await runSkill(bridge, interaction, action);
     case "question-pick":
@@ -270,6 +276,10 @@ export async function handleButton(bridge: Bridge, interaction: ButtonInteractio
       return await skipQuestions(bridge, interaction, action);
     case "plugin-toggle":
       return await togglePlugin(bridge, interaction, action);
+    case "mcp-toggle":
+      return await toggleMcpServer(bridge, interaction, action);
+    case "mcp-reconnect":
+      return await reconnectChosenServer(bridge, interaction, action);
     default:
       return await settleMenu(interaction, bridge.language.say("common.staleControl"));
   }
