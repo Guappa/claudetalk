@@ -1,4 +1,4 @@
-import { orderedWriter, readJsonOr } from "./jsonFile.ts";
+import { orderedWriter, readStore } from "./jsonFile.ts";
 
 export class OperatorStore {
   private ids: string[] = [];
@@ -11,8 +11,8 @@ export class OperatorStore {
   }
 
   async load(): Promise<void> {
-    // A list that cannot be read is no operators at all, which fails towards less access and still lets the owners in.
-    const parsed = await readJsonOr<unknown>(this.filePath, () => []);
+    // Read as empty, the list would be written over by the next /operator change, so one that cannot be read stops the start.
+    const parsed = await readStore<unknown>(this.filePath, () => []);
     this.ids = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
   }
 
