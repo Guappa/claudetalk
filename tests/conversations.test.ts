@@ -404,6 +404,14 @@ describe("OperatorStore", () => {
     expect(store.has("u1")).toBe(false);
   });
 
+  // Read as empty, the list would be written over by the next /operator change and everyone on it lost.
+  it("refuses to start on a list it cannot read, and leaves the file as it was", async () => {
+    const damaged = '["111","222",]';
+    await fs.writeFile(filePath, damaged, "utf8");
+    await expect(new OperatorStore(filePath).load()).rejects.toThrow(/not valid JSON[\s\S]*Nothing was changed/);
+    expect(await fs.readFile(filePath, "utf8")).toBe(damaged);
+  });
+
   it("remembers someone across a reload", async () => {
     const store = new OperatorStore(filePath);
     await store.load();
@@ -421,13 +429,6 @@ describe("OperatorStore", () => {
     expect(await store.add("u1")).toBe(false);
     expect(await store.remove("u1")).toBe(true);
     expect(await store.remove("u1")).toBe(false);
-  });
-
-  it("survives a corrupt file rather than refusing to start", async () => {
-    await fs.writeFile(filePath, "{ not json", "utf8");
-    const store = new OperatorStore(filePath);
-    await store.load();
-    expect(store.all()).toEqual([]);
   });
 
   it("ignores entries that are not ids", async () => {
