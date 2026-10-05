@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import fc from "fast-check";
+import { SAME_CASES_EVERY_RUN } from "./helpers/properties.ts";
 import { usage, wait } from "./helpers/records.ts";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -691,6 +693,27 @@ describe("what a turn is refused outright", () => {
     const started = performance.now();
     for (const flag of ["r".repeat(200_000), "rf ".repeat(60_000), "-r ".repeat(60_000)]) expect(shell(`rm -${flag}`)).toBeNull();
     expect(performance.now() - started).toBeLessThan(2_000);
+  });
+
+  // Claude Code runs the tool when the hook that judges it throws, so nothing a model can put in a call may make a rule throw.
+  it("judges whatever it is handed without throwing", () => {
+    const words = fc.constantFrom(
+      ...["rm", "-rf", "-r", "/", "..", "~", "$HOME", "git", "push", "--force", "main", "+main", "curl", "|", "&&", ";"],
+      ...["sh", ">", ".env", ".ssh/id_ed25519", "sudo", "Remove-Item", "-Recurse", "'", '"', "$(", "`", "\n", "\u0000"],
+      ...["C:\\", "//host/share/x", "\\\\host\\share\\x", "a/b/c"],
+    );
+    const said = fc
+      .array(fc.oneof(words, fc.string({ unit: "grapheme", maxLength: 8 })), { maxLength: 30 })
+      .chain((parts) => fc.constantFrom(" ", "").map((between) => parts.join(between)));
+    const tools = fc.constantFrom("Bash", "PowerShell", "Write", "Edit", "Read", "NotebookEdit", "Glob");
+    const fields = fc.constantFrom("command", "file_path", "notebook_path");
+    fc.assert(
+      fc.property(tools, fields, said, (tool, field, value) => {
+        const judge = () => [deniedBy(all, scope, tool, { [field]: value }), askedOfOwner(all, scope, tool, { [field]: value })];
+        expect(judge).not.toThrow();
+      }),
+      SAME_CASES_EVERY_RUN,
+    );
   });
 });
 

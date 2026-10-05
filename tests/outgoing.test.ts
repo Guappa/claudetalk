@@ -211,6 +211,22 @@ describe("splitForDiscord", () => {
     const plain = Array.from({ length: 300 }, () => "plain words only").join("\n");
     expect(splitForDiscord(plain)).toEqual(chunkForDiscord(plain));
   });
+
+  // Discord refuses a piece over the limit and posts none of it, so the cut has to hold for every mix of markers, fences and paths, not only the ones somebody thought to write down.
+  it("cuts any text into pieces that each fit the room once through the gate", () => {
+    const marks = fc.constantFrom(
+      ...["```", "```ts\n", "`", "*", "**", "_", "~~", "||", "> ", "# ", "- ", "\n", "\n\n", " ", "\\"],
+      ...["[a](http://example.test/a_b)", "| a | b |\n|---|---|\n", "word", "x".repeat(50), os.homedir()],
+    );
+    const text = fc.array(fc.oneof(marks, fc.string({ unit: "grapheme", maxLength: 12 })), { maxLength: 300 });
+    const rooms = fc.constantFrom(DISCORD_MESSAGE_LIMIT, EMBED_FIELD_LIMIT, 500, 200);
+    fc.assert(
+      fc.property(text, rooms, (parts, room) => {
+        for (const piece of splitForDiscord(parts.join(""), room)) expect(forDiscord(piece).length).toBeLessThanOrEqual(room);
+      }),
+      SAME_CASES_EVERY_RUN,
+    );
+  });
 });
 
 describe("a channel sink whose message is gone", () => {
