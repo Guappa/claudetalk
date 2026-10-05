@@ -253,6 +253,10 @@ or `/effort` through to the session would report success and silently revert.
 `buildOptions` renders the typed options and `query()` runs them; there is no
 flag string and no stdout parsing. The SDK still spawns the same `claude`
 binary, which is why transcripts stay where `src/sessions/` reads them.
+`askSession`, beside `buildOptions` in `runner.ts`, is the one other caller of
+`query()`: it opens a session that is sent nothing, to ask Claude Code about a
+folder, as `/mcp` does for its MCP servers. Anything else that needs a session
+goes through one of the two.
 
 **The prompt is streamed, never passed as a string.** `HeldPrompt` yields the
 one user message and then holds the input open until the answer has arrived and
