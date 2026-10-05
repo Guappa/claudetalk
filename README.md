@@ -1,37 +1,74 @@
 <h1 align="center">ClaudeTalk</h1>
 
-<h3 align="center">Your Claude Code sessions, from any device</h3>
+<h3 align="center">A Discord bot for Claude Code: your sessions, on your own machine, from any device</h3>
 
 <p align="center">
   <img src="docs/assets/header.webp" alt="ClaudeTalk" width="700">
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <a href="https://github.com/Guappa/claudetalk/tags"><img alt="version" src="https://img.shields.io/github/v/tag/Guappa/claudetalk?label=version"></a>
   <a href="https://github.com/Guappa/claudetalk/actions/workflows/ci.yml"><img alt="ci" src="https://github.com/Guappa/claudetalk/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-blue"></a>
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A522.12-brightgreen">
   <img alt="platforms" src="https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macos-lightgrey">
   <a href="https://github.com/Guappa/claudetalk/pkgs/container/claudetalk"><img alt="image" src="https://img.shields.io/badge/image-ghcr.io%2Fguappa%2Fclaudetalk-blue"></a>
 </p>
 
-Talk to Claude Code sessions running on your own machine from Discord, on any device.
+ClaudeTalk is a self-hosted Discord bot that runs Claude Code on your own
+machine. Each Discord channel is one Claude Code conversation: message the
+channel and the conversation resumes on your machine, whether or not a terminal
+is open for it. Close the terminal, carry on from your phone, then open the same
+conversation in the CLI later with all of it there. The conversation lives in
+Claude Code's own transcript, so nothing here owns it.
 
-Each Discord channel is one conversation. Message a channel and it resumes that
-conversation on your machine, whether or not a terminal is open for it. Close
-your terminal, pick it up from your phone, then resume the same conversation in
-the CLI later with its full history intact. The conversation lives in Claude
-Code's own transcript, so nothing here owns it.
+## What it does
 
-When Claude stops to ask you something, the questions arrive as select menus
-with the choices it offered, an "Other..." for your own words, and a Submit
-button, the same exchange the terminal shows as a wizard.
+| Feature | What it does |
+| --- | --- |
+| A conversation per channel | Message a channel and its conversation resumes on your machine, with or without a terminal open for it. |
+| Resume in the terminal | `claude --resume <id>` opens in the terminal what Discord worked on. `/whoami` gives the command. |
+| Start, reopen, branch | `/create` starts a conversation in a project folder, `/resume` opens an existing one in its own channel, `/fork` branches one, `/sessions` lists what is on the host. |
+| Takeover | A conversation left open in an idle terminal is freed from Discord with `/takeover`, and the message you sent runs. |
+| Live trail | What Claude is doing as it does it: commands, edits, searches, and a line per agent with how it ended. |
+| Question menus | Claude's questions arrive as select menus with the choices it offered and a field for your own words. |
+| Stop and steer | A **Stop** button ends a turn. A message sent while one runs is handed to it and taken up at its next step, or at once with **Send now**. |
+| Pings | A mention when a long turn finishes, fails or needs you, and only if you have been away. |
+| Files both ways | Attach files to a message. Claude sends files back by writing them to a folder. |
+| Claude Code's commands | Skills, plugin commands and Claude Code's own slash commands, through `/run` and `/skills`. |
+| Plugins and MCP servers | `/plugins` toggles a plugin. `/mcp` shows what each MCP server is doing and switches one off or on, or reconnects it. |
+| Access control | Owners are set in `.env`, operators are added from Discord, and everyone else is ignored. A channel is private to whoever created it until someone is invited. |
+| Tool approvals | Optional: an owner approves each command, edit and fetch from the channel. |
+| Guard rules | Seven kinds of call are caught before they run. Five are refused, such as a force push to `main`. A recursive delete, or a file written, outside the conversation's folder asks an owner first. |
+| Turn limit | Optional: a turn stops by itself after a set number of model calls, and the next message carries on from it. |
+| Context and usage | A warning before a conversation fills its context, the figure in `/whoami`, and plan usage with `/spend`. |
+| Model and effort | `/model` and `/effort` per conversation, kept across turns. |
+| Runs as a service | Windows, Linux and macOS, starting with the machine, or a [container image](#in-a-container) for amd64 and arm64 with a compose file. |
+| Restart from Discord | `/restart` checks that the code on the host would start, restarts once nothing is running, and says when it is back. |
+| Update notice | An owner is told in Discord when a newer version has been tagged, at most once a week. |
+| Six languages | The bridge speaks English, German, Spanish, French, Swedish and Simplified Chinese, picked with `/language` or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write. |
 
-What the bridge itself says comes in English, German, Spanish, French, Swedish
-or Simplified Chinese, picked with `/language` or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write to it, as it
-does in the terminal.
+There is no sandbox: a turn runs as you, with your rights. Read
+[Security](#security-read-this-first) before running it for anyone but yourself.
 
-It runs as a clone on the machine your projects are on, Windows, Linux or
-macOS, or as a [container image](#in-a-container) wherever Docker runs.
+## How it differs from the built-in options
+
+Claude Code's **Channels** push messages into a session that is already open,
+and cannot create, list or resume one. **Remote Control** drives a local session
+from claude.ai or the mobile apps, and also needs the process alive. ClaudeTalk
+starts from the other end: a conversation is a transcript on disk, not a running
+process, so nothing has to be open beforehand, and the same conversation stays
+resumable from the terminal afterwards.
+
+It is built on the Claude Agent SDK and kept on its current release. Every
+change runs through CI on Ubuntu and Windows before it lands, and versions are
+tagged as they ship.
+
+**What it is not:** a multi-tenant service, a bot for a public server, or a
+front end for other models. It is for the person who runs it and the people
+they choose to let in.
+
+Every command and behaviour is in [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## Requirements
 
