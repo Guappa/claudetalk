@@ -139,6 +139,8 @@ export const en = {
       "That conversation is open in a terminal on the host (pid {{pid}}, {{cwd}}). Close that terminal or switch it to another conversation, then try again.",
     conversationGone:
       "This channel's conversation was started over or unbound while your message was on its way, so it was not run. Send it again.",
+    turnLimit:
+      "The turn reached the limit `CLAUDE_MAX_TURNS` puts on how often one may go back to the model, and Claude Code stopped it there. What it did is kept. Send a message to have it carry on, or raise the limit in `.env` on the host and restart the bridge.",
     unknownSession:
       "Claude Code has no conversation under the session id this channel is bound to: its transcript was removed from the host, or its first turn never got far enough to write one. Sending the message again cannot help. Run `/clear` to start a fresh conversation in this channel.",
     errors: {

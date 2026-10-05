@@ -863,6 +863,18 @@ describe("TurnFlow", () => {
     expect(await fs.readdir(outboxPath(folder, "s28"))).toEqual(["report.md"]);
   });
 
+  it("says a turn stopped at the host's limit on model calls stopped there, with how to go on, and not that it failed", async () => {
+    endings.set("runs long", { ok: false, text: "", error: { kind: "turn-limit" } });
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s72", cwd, "runs long", {}, sink, { resume: true });
+
+    const shown = sink.messages.join("\n");
+    expect(shown).toContain("`CLAUDE_MAX_TURNS`");
+    expect(shown).toContain("Send a message to have it carry on");
+    expect(shown).not.toContain("The turn failed");
+  });
+
   it("points at /clear when the session a channel is bound to does not exist, since sending again cannot help", async () => {
     endings.set("bound to nothing", { ok: false, text: "", error: { kind: "unknown-session" } });
     const flow = makeFlow();

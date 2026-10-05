@@ -144,6 +144,8 @@ export const de: Catalog = {
       "Dieses Gespräch ist in einem Terminal auf dem Host offen (PID {{pid}}, {{cwd}}). Schließ dieses Terminal oder wechsle dort zu einem anderen Gespräch, dann versuch es noch einmal.",
     conversationGone:
       "Das Gespräch dieses Kanals wurde neu gestartet oder gelöst, während deine Nachricht unterwegs war, also wurde sie nicht ausgeführt. Schick sie noch einmal.",
+    turnLimit:
+      "Der Durchlauf hat die Grenze erreicht, die `CLAUDE_MAX_TURNS` dafür setzt, wie oft einer zum Modell zurückgehen darf, und Claude Code hat ihn dort angehalten. Was er getan hat, bleibt erhalten. Schick eine Nachricht, damit er weitermacht, oder heb die Grenze in `.env` auf dem Host an und starte die Brücke neu.",
     unknownSession:
       "Claude Code hat kein Gespräch unter der Sitzungs-ID, an die dieser Kanal gebunden ist: Sein Transkript wurde vom Host entfernt, oder sein erster Durchlauf kam nie weit genug, um eines zu schreiben. Die Nachricht noch einmal zu schicken hilft nicht. Führ `/clear` aus, um in diesem Kanal ein frisches Gespräch zu beginnen.",
     errors: {

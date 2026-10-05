@@ -51,6 +51,17 @@ describe("real session lifecycle", () => {
     expect(found?.name).toBe("integration-probe");
     expect(found?.cwd).toBe(expandShortPath(cwd));
   });
+
+  it("stops a turn at the limit on model calls it is given, and carries on from it with the next message", async () => {
+    await fs.writeFile(path.join(cwd, "note.txt"), "KAPPA\n");
+    const prompt = "Read note.txt with the Read tool, then reply with the one word that is in it.";
+    const limited = await runTurn({ sessionId, cwd, prompt, settings, resume: true, maxTurns: 1 }, () => {}).done;
+    expect(limited).toMatchObject({ ok: false, error: { kind: "turn-limit" } });
+
+    const next = await turn("Carry on.", true);
+    expect(next.ok).toBe(true);
+    expect(next.text).toContain("KAPPA");
+  });
 });
 
 afterAll(async () => {

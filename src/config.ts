@@ -14,6 +14,8 @@ export interface Config {
   toolApprovals: boolean;
   toolDenials: Set<Denial>;
   pingAfterMs: number;
+  // Null lets a turn go back to the model as often as it needs.
+  maxTurns: number | null;
   updateCheck: boolean;
   language: Language;
   categoryId?: string;
@@ -71,6 +73,19 @@ function pingAfterMs(env: NodeJS.ProcessEnv): number {
   return Number(value) * 1000;
 }
 
+// A turn nobody is watching can loop until the plan's window is spent; this is the count of model calls at which Claude Code stops one.
+function maxTurns(env: NodeJS.ProcessEnv): number | null {
+  const value = env.CLAUDE_MAX_TURNS?.trim();
+  if (!value) return null;
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new Error(
+      `CLAUDE_MAX_TURNS is "${value}", which is not a whole number above zero. ` +
+        `Leave it out for no limit. Set it in .env, then restart the bridge.`,
+    );
+  }
+  return Number(value);
+}
+
 // What the bridge itself says starts in this language, and stays in it until someone picks another in Discord.
 function language(env: NodeJS.ProcessEnv): Language {
   const value = env.BRIDGE_LANGUAGE?.trim() || "en";
@@ -101,6 +116,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     toolApprovals: flag(env.CLAUDE_TOOL_APPROVALS, "CLAUDE_TOOL_APPROVALS", false),
     toolDenials: parseDenials(env.TOOL_DENIALS),
     pingAfterMs: pingAfterMs(env),
+    maxTurns: maxTurns(env),
     // A request the bridge makes on its own account and for no conversation, so a host can switch it off.
     updateCheck: flag(env.UPDATE_CHECK, "UPDATE_CHECK", true),
     language: language(env),
