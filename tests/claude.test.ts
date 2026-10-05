@@ -769,6 +769,43 @@ describe("what a turn is refused outright", () => {
     expect(shell("cat notes.txt >~/.ssh/config")).toContain("credentials");
   });
 
+  // A verb writes within the part of the command it runs in, and a bare name is a file in the folder the command runs from.
+  it("judges a writing verb by its own part of the command, and sees a protected file named bare", () => {
+    expect(shell("ls ~/.ssh | tee listing.txt")).toBeNull();
+    expect(shell("cat notes.txt | tee ~/.ssh/config")).toContain("credentials");
+    expect(shell("sed -i 's/a;b/c/' ~/.ssh/config")).toContain("credentials");
+    const inBridge = { ...scope, cwd: process.cwd() };
+    expect(deniedBy(all, inBridge, "Bash", { command: "echo K=v > .env" })).toContain("credentials");
+    expect(deniedBy(all, inBridge, "Bash", { command: "sed -i s/a/b/ .env" })).toContain("credentials");
+  });
+
+  // Scripts a model writes start commands after shell keywords, inside braces and inside another shell, and name them by path.
+  it("finds a delete or a shutdown wherever a script starts a command", () => {
+    for (const command of [
+      "for d in a b; do rm -rf ~/$d; done",
+      "if true; then rm -rf ~/x; fi",
+      'bash -c "rm -rf ~/x"',
+      "find . -name x -exec rm -rf ~/x \\;",
+      "xargs rm -rf ~/x",
+      "/bin/rm -rf ~/x",
+      "\\rm -rf ~/x",
+      "if (Test-Path x) { Remove-Item -Recurse -Force C:\\x }",
+      "rd /q /s C:\\",
+    ]) {
+      expect(shell(command), command).not.toBeNull();
+    }
+    expect(shell("if x; then reboot; fi")).toContain("restart or reformat");
+    expect(shell("{ shutdown -h now; }")).toContain("restart or reformat");
+  });
+
+  // cmd takes its switches before the folder, in any order, and a switch is not a target.
+  it("lets cmd delete a folder inside the project with its switches in any order", () => {
+    expect(shell("rd /s /q build")).toBeNull();
+    expect(shell("rmdir /q /s node_modules")).toBeNull();
+    expect(shell('git commit -m "reboot the router docs"')).toBeNull();
+    expect(shell('git commit -m "rm -rf the old build step"')).toBeNull();
+  });
+
   // Grep prints what it finds, so pointed at ~/.ssh it reads the keys as surely as Read does.
   it("refuses a search by Grep of ~/.ssh or a key in it, and lets it read a public key", () => {
     const grep = (searched: string) => deniedBy(all, scope, "Grep", { pattern: ".", path: searched });
@@ -785,6 +822,8 @@ describe("what a turn is refused outright", () => {
   it("judges a command of any length in about the time it takes to read it", () => {
     const started = performance.now();
     for (const flag of ["r".repeat(200_000), "rf ".repeat(60_000), "-r ".repeat(60_000)]) expect(shell(`rm -${flag}`)).toBeNull();
+    for (const filler of ["\n".repeat(100_000), " \n".repeat(60_000), "(".repeat(100_000), "a/".repeat(60_000)])
+      expect(shell(`echo ${filler}x`)).toBeNull();
     expect(performance.now() - started).toBeLessThan(2_000);
   });
 
