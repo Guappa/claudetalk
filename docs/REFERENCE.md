@@ -297,19 +297,27 @@ An unanswered request is denied after five minutes, everything still waiting is
 denied when the turn ends, and a restart loses anything pending, which the model
 sees as a denial. "Approve the rest of this turn" lasts exactly that long.
 
-Six things are stopped before any approval and whether or not approvals are
+Seven things are stopped before any approval and whether or not approvals are
 on. Five are refused outright, and the model is told why so it can ask you
-instead. The sixth, a recursive delete reaching outside the working directory,
-is put to an owner: the command is shown in the channel with **Approve once**
-and **Deny**, pinging if you are away, and it is denied after five minutes
-with no answer. It is asked one command at a time, whatever the rest of the
-turn was approved for, because a turn can make a folder anywhere and a rule
-that only refused would leave it unable to remove what it made. Where nobody
-can be asked, it is refused like the others. They
-come in two kinds, and it matters which. Two are judged by tool and path and
-hold whatever the spelling: a write by an edit tool under `~/.ssh`, to Claude
-Code's login file, or to the bridge's own `.env` and data folder (`secrets`),
-and a read by the Read tool of a private key or of that login file (`keys`).
+instead. The other two are put to an owner: a recursive delete reaching outside
+the working directory, and a file written outside it by a file tool. The
+command or the file is shown in the channel with **Approve once** and **Deny**,
+pinging if you are away, and it is denied after five minutes with no answer. It
+is asked one call at a time, whatever the rest of the turn was approved for,
+because a turn can make a folder anywhere and a rule that only refused would
+leave it unable to remove what it made, or to write the one file a task needs
+elsewhere. Where nobody can be asked, both are refused like the others.
+
+The seven come in two kinds, and it matters which. Three are judged by tool and
+path and hold whatever the model writes: a write by an edit tool under `~/.ssh`,
+to Claude Code's login file, or to the bridge's own `.env` and data folder
+(`secrets`); a read by the Read tool of a private key or of that login file
+(`keys`); and a write by an edit tool anywhere outside the conversation's folder
+(`writes`). That last one leaves alone where a turn writes as a matter of
+course: the temp directory, and Claude Code's own folder under your home, where
+its memory, plans and settings live. It judges the path as written, so a link
+inside the folder that points out of it is followed without a question, and it
+says nothing of a shell command that writes the same file.
 The rest read the text of a shell command and catch its obvious forms, no
 more: a recursive delete reaching outside the working directory (`deletes`); a
 force push to `main` or `master`, or deleting that branch (`force-push`), while

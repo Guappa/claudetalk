@@ -245,6 +245,8 @@ export const sv: Catalog = {
     request: "**{{tool}}** vill köra. Vill du godkänna det?\n```\n{{detail}}\n```",
     deleteOutside:
       "Claude vill radera något utanför den här konversationens mapp, vilket bryggan nekar om inte en ägare tillåter det. Tillåta det här enda kommandot?\n```\n{{detail}}\n```",
+    writeOutside:
+      "Claude vill skriva en fil utanför den här konversationens mapp, vilket bryggan nekar om inte en ägare tillåter det. Tillåta den här enda skrivningen?\n```\n{{detail}}\n```",
     approveOnce: "Godkänn en gång",
     deny: "Neka",
     approveRest: "Godkänn resten av omgången",

@@ -61,6 +61,17 @@ your files, credentials, SSH keys and Claude plan. Setting
 from Discord first, which shows you every step without limiting what a step may
 do.
 
+**A few things are stopped whatever you set.** Seven kinds of call are caught
+before they run: five are refused outright, such as a force push to `main` or a
+download piped into a shell, and two are put to an owner in the channel first, a
+recursive delete outside the conversation's folder and a file written outside it
+by a file tool. This catches an accident and a careless model. It is not
+containment: the rules that read a shell command know its obvious spellings and
+no others, and a script can do what a refused command would have. Claude Code's
+own sandbox is not offered, because it does not exist on every platform the
+bridge runs on. [What is stopped, and how](docs/REFERENCE.md#approving-what-a-turn-does)
+has each rule and its limits.
+
 **Only owners and operators can use it.** Everyone else is ignored: messages
 dropped, commands refused, nothing reaching a session. `/invite` lets someone see
 a conversation's channel and talk in it, and grants no use of the bot.
@@ -126,7 +137,7 @@ cp .env.example .env
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
 | `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |
 | `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
-| `TOOL_DENIALS` | Optional, all six rules by default. What a turn is refused outright, approvals on or off: `deletes`, `force-push`, `secrets`, `keys`, `download-run`, `machine`, or `none`. `.env.example` says what each refuses |
+| `TOOL_DENIALS` | Optional, all seven rules by default. What a turn is refused outright, or has to ask an owner for, approvals on or off: `deletes`, `writes`, `force-push`, `secrets`, `keys`, `download-run`, `machine`, or `none`. `.env.example` says what each refuses |
 | `PING_AFTER_SECONDS` | Optional, `120` by default. How long you may have been away from a turn before its answer, a failure, a question or an approval request pings you. `0` never pings |
 | `CLAUDE_MAX_TURNS` | Optional, unset by default. How many times one turn may go back to the model before Claude Code stops it. A stopped turn loses nothing, and the next message carries on from it. Unset, a turn runs as long as it needs |
 | `UPDATE_CHECK` | Optional, `true` by default. Once a day the bridge reads this repository's tags on GitHub and says when a newer version is out: in its log, in `/whoami`, and to an owner in Discord at most once a week. It installs nothing. `false` makes no such request |

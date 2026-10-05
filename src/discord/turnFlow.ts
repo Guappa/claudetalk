@@ -752,7 +752,7 @@ export class TurnFlow {
     return (toolName, toolInput) => deniedBy(rules, scope, toolName, toolInput);
   }
 
-  // A turn can make a folder anywhere and could then never remove it, so a delete outside its own is put to an owner one command at a time.
+  // A turn can make a folder anywhere and could then never remove it, and a file tool can reach any path, so a delete or a write outside its folder is put to an owner one call at a time.
   private ownerGate(
     say: Say,
     sessionId: string,
@@ -765,11 +765,11 @@ export class TurnFlow {
     if (!sink.ask) return undefined;
     const scope = { cwd, dataDir: this.config.dataDir };
     return (toolName, input) => {
-      const command = askedOfOwner(this.config.toolDenials, scope, toolName, input);
-      if (!command) return null;
+      const asked = askedOfOwner(this.config.toolDenials, scope, toolName, input);
+      if (!asked) return null;
       return whileWaiting(onState, stillRunning, () =>
         attention.calling(
-          (delivery) => this.approvals.askAboutDelete(say, sessionId, sink, this.config.ownerIds, command, delivery),
+          (delivery) => this.approvals.askOfOwner(say, sessionId, sink, this.config.ownerIds, asked, delivery),
           decidedByPerson,
         ),
       );

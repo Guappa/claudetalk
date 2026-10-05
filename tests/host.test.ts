@@ -95,9 +95,11 @@ describe("loadConfig", () => {
   });
 
   it("takes the denial rules from TOOL_DENIALS, and names them all when one is wrong", () => {
-    expect([...loadConfig(valid).toolDenials]).toHaveLength(6);
+    expect([...loadConfig(valid).toolDenials]).toHaveLength(7);
     expect([...loadConfig({ ...valid, TOOL_DENIALS: "none" }).toolDenials]).toEqual([]);
-    expect(() => loadConfig({ ...valid, TOOL_DENIALS: "secrets,typos" })).toThrow(/TOOL_DENIALS.*"typos".*deletes, force-push/);
+    expect(() => loadConfig({ ...valid, TOOL_DENIALS: "secrets,typos" })).toThrow(
+      /TOOL_DENIALS.*"typos".*deletes, writes, force-push/,
+    );
   });
 
   it("refuses an owner id that is not a Discord id", () => {
