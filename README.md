@@ -34,7 +34,7 @@ Claude Code's own transcript, so nothing here owns it.
 | Question menus | Claude's questions arrive as select menus with the choices it offered and a field for your own words. |
 | Stop and steer | A **Stop** button ends a turn. A message sent while one runs is handed to it and taken up at its next step, or at once with **Send now**. |
 | Pings | A mention when a long turn finishes, fails or needs you, and only if you have been away. |
-| Files both ways | Attach files to a message. Claude sends files back by writing them to a folder. |
+| Files both ways | Attach files to a message; an image is shown to Claude with your words, with no tool call spent on reading it. Claude sends files back by writing them to a folder. |
 | Claude Code's commands | Skills, plugin commands and Claude Code's own slash commands, through `/run` and `/skills`. |
 | Plugins and MCP servers | `/plugins` toggles a plugin. `/mcp` shows what each MCP server is doing and switches one off or on, or reconnects it. |
 | Access control | Owners are set in `.env`, operators are added from Discord, and everyone else is ignored. A channel is private to whoever created it until someone is invited. |
@@ -42,7 +42,8 @@ Claude Code's own transcript, so nothing here owns it.
 | Guard rules | Seven kinds of call are caught before they run. Five are refused, such as a force push to `main`. A recursive delete, or a file written, outside the conversation's folder asks an owner first. |
 | Turn limit | Optional: a turn stops by itself after a set number of model calls, and the next message carries on from it. |
 | Context and usage | A warning before a conversation fills its context, the figure in `/whoami`, and plan usage with `/spend`. |
-| Model and effort | `/model` and `/effort` per conversation, kept across turns. |
+| Model and effort | `/model` and `/effort` per conversation, kept across turns. `/model` suggests the models Claude Code itself offers on the host, so a new one appears without an update. |
+| Invite link | On a first start the bridge prints the link that adds the bot to your server, with the scopes and permissions it needs already chosen. |
 | Runs as a service | Windows, Linux and macOS, starting with the machine, or a [container image](#in-a-container) for amd64 and arm64 with a compose file. |
 | Restart from Discord | `/restart` checks that the code on the host would start, restarts once nothing is running, and says when it is back. |
 | Update notice | An owner is told in Discord when a newer version has been tagged, at most once a week. |
