@@ -209,6 +209,42 @@ describe("StatusMessage", () => {
     for (const message of sink.messages) expect(message.length).toBeLessThan(2000);
   });
 
+  // The answer repeats an earlier remark the trail already sealed in part, and says more: what is new in it has to reach the channel somewhere.
+  it("posts an answer that repeats a sealed remark and adds to it, rather than taking it for shown", async () => {
+    const sink = recordingSink();
+    const earlier = Array.from({ length: 40 }, (_, index) => `Point ${index + 1}: ${"y".repeat(90)}`).join("\n");
+    const answer = `${earlier}\n\nAnd here is the new conclusion nobody has seen yet.`;
+    vi.useFakeTimers();
+    try {
+      const status = new StatusMessage(say, sink);
+      await status.start();
+      status.note(earlier);
+      await vi.advanceTimersByTimeAsync(2500);
+      status.note(answer);
+      expect(status.dropEcho(answer)).toBe("dropped");
+      await status.settle();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Escaping lengthens a remark, and a piece Discord refuses is never shown at all.
+  it("cuts a remark full of markers into pieces that each fit once escaped", async () => {
+    const sink = recordingSink();
+    vi.useFakeTimers();
+    try {
+      const status = new StatusMessage(say, sink);
+      await status.start();
+      status.note("[ ".repeat(900));
+      await vi.advanceTimersByTimeAsync(2500);
+      await status.settle();
+    } finally {
+      vi.useRealTimers();
+    }
+    for (const text of sink.written) expect(text.length).toBeLessThanOrEqual(2000);
+    expect(sink.messages.join("").split("\\[").length - 1).toBe(900);
+  });
+
   // An answer still wholly in the live message is dropped from it as before, and one the trail never held is nothing to it.
   it("tells an answer dropped from the live message from one the trail never held", () => {
     const sink = recordingSink();
@@ -593,6 +629,22 @@ describe("agents in a turn", () => {
   });
 
   // An agent reported done with a command of its own still running is not done: it stays stoppable, and the roster says it is waiting.
+  // A roster page Discord refuses is never written again, so the agents' thread would stand still at the last page that fit.
+  it("keeps a full roster page of long-named agents within a message", async () => {
+    const sink = recordingSink();
+    const agents = board(sink);
+    for (let index = 1; index <= 10; index += 1) {
+      feed(
+        agents,
+        started(`t${index}`, `use${index}`, `${"d".repeat(96)} ${index}`, `some-plugin-with-a-long-name:${"x".repeat(40)}`),
+      );
+      feed(agents, progressed(`t${index}`, `Reading ${"f".repeat(40)}.ts`, 123, 45_700));
+    }
+    await agents.flush();
+    expect(sink.details.length).toBeGreaterThan(0);
+    for (const page of sink.details) expect(page.length).toBeLessThanOrEqual(2000);
+  });
+
   it("treats an agent that left a command running as waiting, and reaches that command when stopping", async () => {
     const sink = recordingSink();
     const stopped: string[] = [];
