@@ -40,7 +40,7 @@ export type LiveMood = "working" | "compacting";
 // What became of an answer the trail may already hold: nothing of it was there, its remark was dropped from the live message, or it was already shown whole across sealed messages.
 export type Echo = "none" | "dropped" | "shown";
 
-// The one place the trail uses emoji: the state at a glance, heading only, standard Unicode only.
+// The state at a glance, in the heading only, standard Unicode only; the trail's one other emoji marks an agent sent out.
 const EMOJI: Record<Mood, string> = {
   working: "⏳",
   compacting: "⏳",
