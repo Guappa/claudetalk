@@ -572,7 +572,7 @@ bridge has a default for every conversation, which an owner sets by adding
 `everywhere:True`; a conversation follows it until `/trail` is used there
 without `everywhere`, which gives it a choice of its own that the default no
 longer moves, and `/trail reset:True` drops that choice again. A conversation
-keeps its choice across `/clear`. Only the lines go: a hidden call still counts
+keeps its choice across `/clear`, and a branch made with `/fork` starts with it. Only the lines go: a hidden call still counts
 in the heading's steps, an approval or a question about it is still asked,
 what Claude says between calls is still shown, and an agent still appears in
 the agents' thread. A change shows from the next tool call, in a turn that is

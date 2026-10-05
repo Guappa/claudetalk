@@ -40,6 +40,7 @@ export async function runFork(
     channelId: channel.id,
     ownerId: interaction.user.id,
     settings: { ...source.settings },
+    trailHidden: source.trailHidden,
   });
   // The branch was born with the source's whole history, none of which happened outside Discord from where it stands.
   await markCaughtUp(bridge, branch);
