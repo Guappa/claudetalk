@@ -490,6 +490,8 @@ export const es: Catalog = {
       "{{setting}} puesto en `{{value}}`. Se aplica a partir del siguiente turno; un turno que ya está en marcha conserva aquello con lo que empezó.",
     hostDefault: "`{{value}}` (predeterminado del host)",
     claudeDefault: "el predeterminado de Claude Code",
+    cleared: "{{setting}} queda sin valor propio en esta conversación, así que desde el siguiente turno se usa {{fallback}}.",
+    defaultChoice: "default · quitar el valor propio y seguir al host",
     unknownModel:
       "`{{value}}` no es un modelo que Claude Code ofrezca en este host, así que todo turno puesto en él fallaría. No se ha cambiado nada. Elige una de las sugerencias que `/model` muestra al escribir: {{offered}}.",
   },

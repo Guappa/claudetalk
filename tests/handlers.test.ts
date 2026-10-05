@@ -654,16 +654,36 @@ describe("/model", () => {
   };
 
   // The list is Claude Code's own, and a suggestion has no time to wait for it, so the aliases stand in until it has answered.
-  it("suggests the aliases until Claude Code has answered, then the models it offers, without its entry for no choice", async () => {
+  it("suggests the way back to the host first, then the aliases until Claude Code has answered, then the models it offers", async () => {
     const bridge = await testBridge();
-    expect((await suggested(bridge, "")).map((choice) => choice.value)).toEqual(["fable", "opus", "sonnet", "haiku"]);
+    expect((await suggested(bridge, "")).map((choice) => choice.value)).toEqual(["default", "fable", "opus", "sonnet", "haiku"]);
 
     await bridge.models.refresh();
     expect(await suggested(bridge, "")).toEqual([
+      { name: "default · clear the override and follow the host", value: "default" },
       { name: "Opus 9 · For complex work", value: "opus" },
       { name: "Sonnet 9 · For routine work", value: "claude-sonnet-9" },
     ]);
     expect((await suggested(bridge, "SONNET")).map((choice) => choice.value)).toEqual(["claude-sonnet-9"]);
+  });
+
+  // Setting nothing is how a conversation follows the host, and without this the first choice of a model would be for good.
+  it("clears the conversation's own model or effort on default, and says what turns run with instead", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("s3");
+    await bridge.store.bindNew({
+      sessionId: SESSION,
+      cwd: bridge.config.projectsRoot,
+      channelId: "s3",
+      ownerId: OWNER,
+      settings: { model: "opus", effort: "high" },
+    });
+    for (const key of ["model", "effort"] as const) {
+      const command = fakeCommand(place, OWNER, { value: "default" });
+      await handleSetting(bridge, command.interaction, key);
+      expect(command.replies.at(-1)).toContain("is cleared for this conversation");
+      expect(bridge.store.bySession(SESSION)?.settings[key]).toBeUndefined();
+    }
   });
 
   // Whatever is typed past the suggestions arrives as it stands, and a name Claude Code does not know fails every turn after it.

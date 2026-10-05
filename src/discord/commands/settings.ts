@@ -14,6 +14,8 @@ import { detail } from "../embeds.ts";
 import type { ClaudeVersions } from "../../claude/versions.ts";
 import { respond } from "../respond.ts";
 
+// Setting nothing is how a conversation follows the host, so this value clears the override rather than being stored.
+export const BACK_TO_DEFAULT = "default";
 export const EFFORT_CHOICES = ["low", "medium", "high", "xhigh", "max"] as const;
 
 // The footer names the Claude Code turns run on, and the host's when that is another build; a newer bridge that has been tagged is named beside the running one.
@@ -99,6 +101,13 @@ export async function handleSetting(
     return;
   }
 
+  if (value === BACK_TO_DEFAULT) {
+    await bridge.store.updateSettings(conversation.sessionId, { [key]: undefined });
+    const fallback = describeDefault(say, undefined, (await readHostDefaults(conversation.cwd))[key]);
+    await respond(interaction, say("settings.cleared", { setting: say(`whoami.${key}`), fallback }));
+    return;
+  }
+
   // A suggestion is only that: whatever was typed arrives here, and a name Claude Code does not know would fail every turn after it.
   if (key === "model" && !bridge.models.offers(value)) {
     const offered = bridge.models.choices().map((model) => `\`${model.value}\``);
@@ -116,8 +125,8 @@ const describedChoice = (model: ModelChoice): string => (model.description ? `${
 export async function suggestModels(bridge: Bridge, interaction: AutocompleteInteraction): Promise<void> {
   const typed = interaction.options.getFocused().toLowerCase();
   const matching = bridge.models.choices().filter((model) => `${model.value} ${model.name}`.toLowerCase().includes(typed));
-  const choices = matching
-    .slice(0, CHOICES)
-    .map((model) => ({ name: truncate(describedChoice(model), CHOICE_CHARS), value: model.value }));
+  const offered = matching.map((model) => ({ name: truncate(describedChoice(model), CHOICE_CHARS), value: model.value }));
+  const backToDefault = { name: truncate(bridge.language.say("settings.defaultChoice"), CHOICE_CHARS), value: BACK_TO_DEFAULT };
+  const choices = [...(BACK_TO_DEFAULT.includes(typed) ? [backToDefault] : []), ...offered].slice(0, CHOICES);
   await interaction.respond(choicesForDiscord(choices));
 }
