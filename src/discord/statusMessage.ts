@@ -2,9 +2,8 @@ import { redactHome } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import type { MessageSink, SinkAction } from "./messageSink.ts";
-import { forDiscord } from "./outgoing.ts";
+import { forDiscord, splitForDiscord } from "./outgoing.ts";
 import { DISCORD_MESSAGE_LIMIT } from "./limits.ts";
-import { chunkForDiscord } from "./renderer.ts";
 import { defuseStrayMarkup } from "./strayMarkup.ts";
 import { convertTables } from "./tables.ts";
 
@@ -209,7 +208,7 @@ export class StatusMessage {
     if (!clean) return;
     const origin = this.remarks.push(clean) - 1;
     // Remarks share one message, so each is sealed on its own and none can reach into the next.
-    for (const piece of chunkForDiscord(convertTables(clean), NOTE_BUDGET)) this.addNote(defuseStrayMarkup(piece), origin);
+    for (const piece of splitForDiscord(convertTables(clean), NOTE_BUDGET)) this.addNote(defuseStrayMarkup(piece), origin);
   }
 
   private addNote(piece: string, origin: number): void {
@@ -271,7 +270,7 @@ export class StatusMessage {
     let echo: Echo = "none";
     for (let last = this.lastRemark(); last !== undefined && said.includes(comparable(last)); last = this.lastRemark()) {
       const origin = this.origins.at(-1)!;
-      if (this.sealedOrigins.has(origin)) return "shown";
+      if (this.sealedOrigins.has(origin)) return echo === "dropped" ? "dropped" : "shown";
       while (this.origins.length > 0 && this.origins.at(-1) === origin) {
         this.notes.pop();
         this.origins.pop();

@@ -2,15 +2,19 @@ import type { AgentEvent, AgentOutcome } from "../claude/events.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 import type { DetailPost, DetailSink, MessageSink } from "./messageSink.ts";
+import { DISCORD_MESSAGE_LIMIT } from "./limits.ts";
+import { fitForDiscord } from "./outgoing.ts";
 import { formatElapsed } from "./statusMessage.ts";
 
 // The trail names this many running agents and counts the rest, so a fan-out cannot swamp the progress message.
 const MAX_LISTED = 4;
 const DESCRIPTION_CHARS = 60;
 const ACTIVITY_CHARS = 40;
-// Entries to one roster message: ten of them stay under Discord's limit with room to spare.
+// Entries to one roster message. Ten usually fit; a page that does not is cut to the limit, since one Discord refuses would never be written again.
 const PAGE_SIZE = 10;
 const ROSTER_DESCRIPTION_CHARS = 100;
+// A plugin's agent type carries its plugin's name, and nothing else bounds it.
+const ROSTER_TYPE_CHARS = 40;
 // Discord allows about five edits in five seconds per channel, and busy agents report far more often than that.
 const PACE_MS = 3000;
 // Discord allows a thread name a hundred characters.
@@ -288,7 +292,7 @@ export class AgentBoard {
   private async writePage(page: number): Promise<void> {
     await this.open();
     if (!this.detail) return;
-    const text = this.roster(page);
+    const text = fitForDiscord(this.roster(page), DISCORD_MESSAGE_LIMIT);
     const posted = this.pages[page];
     if (posted) await posted.revise(text);
     else this.pages[page] = await this.detail.post(text);
@@ -306,7 +310,7 @@ export class AgentBoard {
       .filter((agent) => pageOf(agent) === page)
       .map(
         (agent) =>
-          `**${agent.index} · ${agent.type}** · ${truncate(agent.description, ROSTER_DESCRIPTION_CHARS)}\n${this.standing(agent, false)}`,
+          `**${agent.index} · ${truncate(agent.type, ROSTER_TYPE_CHARS)}** · ${truncate(agent.description, ROSTER_DESCRIPTION_CHARS)}\n${this.standing(agent, false)}`,
       )
       .join("\n\n");
   }
