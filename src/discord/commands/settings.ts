@@ -1,5 +1,9 @@
-import type { ChatInputCommandInteraction } from "discord.js";
+import type { AutocompleteInteraction, ChatInputCommandInteraction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
+import type { ModelChoice } from "../../claude/models.ts";
+import { CHOICES, CHOICE_CHARS } from "../limits.ts";
+import { choicesForDiscord } from "../outgoing.ts";
+import { truncate } from "../../text.ts";
 import type { Conversation } from "../../conversations.ts";
 import { requireConversation } from "../binding.ts";
 import type { ContextStanding } from "../../claude/contextTracker.ts";
@@ -10,7 +14,6 @@ import { detail } from "../embeds.ts";
 import type { ClaudeVersions } from "../../claude/versions.ts";
 import { respond } from "../respond.ts";
 
-export const MODEL_CHOICES = ["fable", "opus", "sonnet", "haiku"] as const;
 export const EFFORT_CHOICES = ["low", "medium", "high", "xhigh", "max"] as const;
 
 // The footer names the Claude Code turns run on, and the host's when that is another build; a newer bridge that has been tagged is named beside the running one.
@@ -96,6 +99,25 @@ export async function handleSetting(
     return;
   }
 
+  // A suggestion is only that: whatever was typed arrives here, and a name Claude Code does not know would fail every turn after it.
+  if (key === "model" && !bridge.models.offers(value)) {
+    const offered = bridge.models.choices().map((model) => `\`${model.value}\``);
+    await respond(interaction, say("settings.unknownModel", { value, offered: offered.join(", ") }));
+    return;
+  }
+
   await bridge.store.updateSettings(conversation.sessionId, { [key]: value });
   await respond(interaction, say("settings.changed", { setting: say(`whoami.${key}`), value }));
+}
+
+const describedChoice = (model: ModelChoice): string => (model.description ? `${model.name} · ${model.description}` : model.name);
+
+// The list is Claude Code's own, so a model it gains or drops shows here without a release of the bridge.
+export async function suggestModels(bridge: Bridge, interaction: AutocompleteInteraction): Promise<void> {
+  const typed = interaction.options.getFocused().toLowerCase();
+  const matching = bridge.models.choices().filter((model) => `${model.value} ${model.name}`.toLowerCase().includes(typed));
+  const choices = matching
+    .slice(0, CHOICES)
+    .map((model) => ({ name: truncate(describedChoice(model), CHOICE_CHARS), value: model.value }));
+  await interaction.respond(choicesForDiscord(choices));
 }

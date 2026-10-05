@@ -470,6 +470,8 @@ export const fr: Catalog = {
       "{{setting}} réglé sur `{{value}}`. Cela s'applique à partir du prochain tour ; un tour déjà en cours garde ce avec quoi il a commencé.",
     hostDefault: "`{{value}}` (valeur par défaut de l'hôte)",
     claudeDefault: "la valeur par défaut de Claude Code",
+    unknownModel:
+      "`{{value}}` n'est pas un modèle que Claude Code propose sur cet hôte, tout tour réglé dessus échouerait donc. Rien n'a été modifié. Choisissez l'une des suggestions que `/model` affiche pendant la saisie : {{offered}}.",
   },
   whoami: {
     title: "Ce salon",

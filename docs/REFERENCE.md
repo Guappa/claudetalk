@@ -19,7 +19,7 @@ this covers behaviour.
 | `/operator <add\|remove\|list> [user]` | H | Who may use the bot, and where each one comes from. |
 | `/invite <user>` | H | Lets someone see this conversation's channel. Grants no use of the bot. |
 | `/uninvite <user>` | H | Takes that visibility away again. |
-| `/model [value]` | O | Shows or sets the model for this conversation. Persists across turns. Unset, it names the host default turns actually run with. |
+| `/model [value]` | O | Shows or sets the model for this conversation. Persists across turns. Unset, it names the host default turns actually run with. The suggestions are the models Claude Code itself offers on the host, asked for at start-up and again every few hours, so a new model appears without an update of the bridge; until Claude Code has answered they are the four aliases `fable`, `opus`, `sonnet` and `haiku`, which always hold. A name that is neither is refused. |
 | `/effort [value]` | O | Shows or sets the effort level. Persists across turns. Unset, it names the host default turns actually run with. |
 | `/language [value]` | H | Shows or sets the language the bridge itself speaks, for the whole bridge. Claude's answers are not affected. See [Language](#language). |
 | `/ask <prompt> [context:N]` | O | Asks with the last N channel messages as context. `N` is 1 to 50. A message with nothing written in it, an embed or an upload alone, is left out, and the reply says how many were taken. |

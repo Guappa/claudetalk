@@ -429,6 +429,8 @@ export const zh: Catalog = {
     changed: "{{setting}} 已设为 `{{value}}`。从下一轮起生效；已在运行的轮次保持其开始时的设置。",
     hostDefault: "`{{value}}`（主机默认值）",
     claudeDefault: "Claude Code 的默认值",
+    unknownModel:
+      "`{{value}}` 不是 Claude Code 在这台主机上提供的模型，设为它的每一轮都会失败。没有做任何更改。请从 `/model` 输入时显示的建议中选择：{{offered}}。",
   },
   whoami: {
     title: "此频道",

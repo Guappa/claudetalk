@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fc from "fast-check";
+import { ModelCatalog, type OpenModelSession } from "../src/claude/models.ts";
 import { SAME_CASES_EVERY_RUN } from "./helpers/properties.ts";
 import { usage, wait } from "./helpers/records.ts";
 import fs from "node:fs/promises";
@@ -714,6 +715,63 @@ describe("what a turn is refused outright", () => {
       }),
       SAME_CASES_EVERY_RUN,
     );
+  });
+});
+
+describe("the models Claude Code offers", () => {
+  const listed = [{ value: "claude-sonnet-9", displayName: "", description: "For routine work" }];
+  const answering = (answers: Array<() => Promise<typeof listed>>): { open: OpenModelSession; asked: () => number } => {
+    let asked = 0;
+    const supportedModels = (): Promise<typeof listed> => answers[Math.min(asked++, answers.length - 1)]!();
+    return { open: async (_cwd, ask) => ask({ supportedModels }), asked: () => asked };
+  };
+
+  // Asking costs a process, and a suggestion is wanted on every keystroke.
+  it("asks once for many suggestions, and again only when what it knows has gone stale", async () => {
+    let now = 0;
+    const session = answering([async () => listed]);
+    const catalog = new ModelCatalog("/somewhere", session.open, () => now);
+
+    expect(catalog.choices().map((model) => model.value)).toEqual(["fable", "opus", "sonnet", "haiku"]);
+    catalog.choices();
+    await catalog.refresh();
+    expect(session.asked()).toBe(1);
+    expect(catalog.choices()).toEqual([{ value: "claude-sonnet-9", name: "claude-sonnet-9", description: "For routine work" }]);
+    expect(session.asked()).toBe(1);
+
+    now = 7 * 60 * 60 * 1000;
+    catalog.choices();
+    await catalog.refresh();
+    expect(session.asked()).toBe(2);
+  });
+
+  it("keeps what it last knew when Claude Code cannot be asked, says so in the log, and asks again after a few minutes", async () => {
+    let now = 0;
+    const down = async (): Promise<typeof listed> => Promise.reject(new Error("the process did not start"));
+    const session = answering([async () => listed, down, async () => listed]);
+    const catalog = new ModelCatalog("/somewhere", session.open, () => now);
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await catalog.refresh();
+
+    now = 7 * 60 * 60 * 1000;
+    await catalog.refresh();
+    expect(logged.mock.calls.flat().join(" ")).toContain("could not be asked which models it offers: the process did not start");
+    expect(catalog.offers("claude-sonnet-9")).toBe(true);
+    catalog.choices();
+    expect(session.asked()).toBe(2);
+
+    now += 6 * 60 * 1000;
+    catalog.choices();
+    await catalog.refresh();
+    expect(session.asked()).toBe(3);
+    logged.mockRestore();
+  });
+
+  it("takes an alias whether or not Claude Code lists it, and nothing it has not heard of", async () => {
+    const catalog = new ModelCatalog("/somewhere", answering([async () => listed]).open);
+    await catalog.refresh();
+    expect(["haiku", "claude-sonnet-9"].map((value) => catalog.offers(value))).toEqual([true, true]);
+    expect(["default", "sonet", ""].map((value) => catalog.offers(value))).toEqual([false, false, false]);
   });
 });
 

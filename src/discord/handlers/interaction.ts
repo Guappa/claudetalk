@@ -24,7 +24,7 @@ import { handleInvite, handleMembers, handleUninvite } from "../commands/members
 import { handleOperator } from "../commands/operators.ts";
 import { handleAutocomplete, handleSessions } from "../commands/sessions.ts";
 import { handleRun, suggestCommands } from "../commands/run.ts";
-import { handleSetting, handleWhoami } from "../commands/settings.ts";
+import { handleSetting, handleWhoami, suggestModels } from "../commands/settings.ts";
 import { handleSync } from "../commands/sync.ts";
 import { handleSpend } from "../commands/spend.ts";
 import { handleMcpCommand } from "../commands/mcp.ts";
@@ -79,6 +79,7 @@ type Suggester = (bridge: Bridge, interaction: AutocompleteInteraction) => Promi
 const SUGGESTERS: Record<string, Suggester> = {
   resume: handleAutocomplete,
   run: suggestCommands,
+  model: suggestModels,
 };
 
 export async function handleInteraction(bridge: Bridge, interaction: Interaction): Promise<void> {

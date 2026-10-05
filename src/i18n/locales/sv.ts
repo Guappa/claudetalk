@@ -466,6 +466,8 @@ export const sv: Catalog = {
       "{{setting}} satt till `{{value}}`. Det gäller från och med nästa omgång; en omgång som redan körs behåller det den började med.",
     hostDefault: "`{{value}}` (värddatorns standard)",
     claudeDefault: "Claude Codes standard",
+    unknownModel:
+      "`{{value}}` är ingen modell som Claude Code erbjuder på den här värddatorn, så varje omgång som ställts in på den skulle misslyckas. Inget har ändrats. Välj ett av förslagen som `/model` visar medan du skriver: {{offered}}.",
   },
   whoami: {
     title: "Den här kanalen",
