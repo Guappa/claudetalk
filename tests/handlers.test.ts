@@ -21,7 +21,9 @@ import { handleSync } from "../src/discord/commands/sync.ts";
 import { handleButton } from "../src/discord/handlers/components.ts";
 import { handleInteraction } from "../src/discord/handlers/interaction.ts";
 import { handleMessage } from "../src/discord/handlers/message.ts";
-import { startUp } from "../src/discord/startup.ts";
+import { onServerJoined, startUp } from "../src/discord/startup.ts";
+import { inviteUrl } from "../src/discord/invite.ts";
+import { PermissionsBitField } from "discord.js";
 import { UNBIND_DELETE, UNBIND_KEEP, createResumeId } from "../src/discord/menus.ts";
 import type { SessionRecord } from "../src/sessions/index.ts";
 import { GUILD, OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
@@ -420,8 +422,15 @@ describe("the interaction door", () => {
 });
 
 describe("starting up", () => {
-  const client = (register: () => Promise<void>, fetch: (id: string) => Promise<unknown>) =>
-    ({ application: { commands: { set: register } }, channels: { fetch }, user: { tag: "bridge#0001" } }) as never;
+  const LINK = "https://discord.example/invite";
+  const client = (register: () => Promise<void>, fetch: (id: string) => Promise<unknown>, servers: string[] = [GUILD]) =>
+    ({
+      application: { commands: { set: register } },
+      channels: { fetch },
+      guilds: { cache: new Map(servers.map((id) => [id, {}])) },
+      generateInvite: () => LINK,
+      user: { tag: "bridge#0001" },
+    }) as never;
 
   // Registering commands is the first thing done, and the likeliest to fail: a bot invited without the scope for them.
   it("still marks interrupted turns, forgets deleted channels and watches the outboxes when commands cannot be registered", async () => {
@@ -444,6 +453,45 @@ describe("starting up", () => {
     expect(leftovers).toHaveBeenCalledOnce();
     expect(bridge.store.bySession(SESSION)).toBeUndefined();
     expect(bridge.store.bySession("still-here")).toBeDefined();
+  });
+
+  // A first start comes before the invite, and the permissions the bot needs are a list nobody should have to tick by hand.
+  it("prints the link that adds the bot while it is in no server, and registers the commands once it joins", async () => {
+    const bridge = await testBridge();
+    const said = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const register = vi.fn(async (): Promise<void> => undefined);
+    const outside = client(register, async (id) => ({ id }), []);
+
+    clearInterval(await startUp(bridge, outside));
+    expect(register).not.toHaveBeenCalled();
+    expect(said.mock.calls.flat().join("\n")).toContain(`not in server ${GUILD} yet`);
+    expect(said.mock.calls.flat().join("\n")).toContain(LINK);
+
+    await onServerJoined(bridge, outside, "some-other-server");
+    expect(register).not.toHaveBeenCalled();
+    await onServerJoined(bridge, outside, GUILD);
+    expect(register).toHaveBeenCalledOnce();
+    said.mockRestore();
+  });
+
+  // The README tells a reader what each permission is for, so it has to name every one the link asks for.
+  it("asks for both scopes, and for no permission the README does not explain", async () => {
+    const asked: Array<{ scopes: string[]; permissions: bigint[]; guild: string; disableGuildSelect: boolean }> = [];
+    const generateInvite = (options: (typeof asked)[number]): string => {
+      asked.push(options);
+      return LINK;
+    };
+    const recording = { generateInvite } as never;
+    expect(inviteUrl(recording, GUILD)).toBe(LINK);
+    expect(asked[0]).toMatchObject({ scopes: ["bot", "applications.commands"], guild: GUILD, disableGuildSelect: true });
+
+    const spaced = (name: string) => name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+    const readme = (await fs.readFile(path.join(import.meta.dirname, "..", "README.md"), "utf8"))
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+    const permissions = new PermissionsBitField(asked[0]!.permissions).toArray();
+    expect(permissions).toHaveLength(10);
+    for (const permission of permissions) expect(readme, permission).toContain(spaced(permission));
   });
 });
 

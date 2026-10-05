@@ -58,8 +58,8 @@ what you mount into it and the network. Read
 You need Node 22.12 or newer, Claude Code signed in (`claude auth login`), and a
 Discord server you administer.
 
-1. [Create the Discord bot](#setting-up-the-discord-bot) and add it to your
-   server. That gives you the bot token, the server id and your own user id.
+1. [Create the Discord bot](#setting-up-the-discord-bot). That gives you the
+   bot token, the server id and your own user id.
 2. Get the code:
    ```bash
    git clone https://github.com/Guappa/claudetalk.git
@@ -69,8 +69,10 @@ Discord server you administer.
 3. Copy `.env.example` to `.env` and fill in the four required values:
    `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_OWNER_IDS` and
    `PROJECTS_ROOT`, the folder your projects live in.
-4. Start it with `npm run dev`. To have it start with the machine, see
-   [Running](#running); for Docker, see [In a container](#in-a-container).
+4. Start it with `npm run dev`. The first time, it prints a link that adds the
+   bot to your server with the right permissions; open it. To have it start
+   with the machine, see [Running](#running); for Docker, see
+   [In a container](#in-a-container).
 5. In Discord, run `/create` with a name. It makes a channel for a new
    conversation: send a message there and Claude Code answers from your machine.
 
@@ -166,20 +168,24 @@ report a vulnerability, see [SECURITY.md](SECURITY.md).
    `DISCORD_BOT_TOKEN`. It is shown once.
 3. Still on the **Bot** tab, scroll to **Privileged Gateway Intents** and enable
    **Message Content Intent**. Without it the bot receives empty messages.
-4. Open **OAuth2 > URL Generator**. Tick the `bot` and
-   `applications.commands` scopes, then tick these bot permissions:
-   View Channels, Manage Channels, Manage Roles, Manage Messages, Send Messages,
-   Create Public Threads, Send Messages in Threads, Read Message History, Attach
-   Files, Add Reactions.
-   Manage Channels lets `/create` make a channel per conversation; Manage Roles
-   is what makes that channel private to you; Manage Messages is what lets
-   `/purge` delete messages that are not the bot's own, and a channel cannot be
-   made without it, since the bot gives itself that permission there; the two
-   thread permissions let a turn that uses agents list them in a thread.
-5. Open the generated URL and add the bot to your server.
-6. In Discord, enable **Settings > Advanced > Developer Mode**. Then right-click
+4. In Discord, enable **Settings > Advanced > Developer Mode**. Then right-click
    your server for **Copy Server ID** (`DISCORD_GUILD_ID`) and right-click
    yourself for **Copy User ID** (`DISCORD_OWNER_IDS`).
+5. Fill in [`.env`](#configuration) and start the bridge. While the bot is not
+   in your server, the bridge prints a link in its log that adds it there with
+   the scopes and permissions it needs already chosen. Open the link; the
+   commands register as soon as the bot joins, with no restart.
+
+The link asks for these permissions: View Channels, Manage Channels, Manage
+Roles, Manage Messages, Send Messages, Create Public Threads, Send Messages in
+Threads, Read Message History, Attach Files, Add Reactions. Manage Channels lets
+`/create` make a channel per conversation; Manage Roles is what makes that
+channel private to you; Manage Messages is what lets `/purge` delete messages
+that are not the bot's own, and a channel cannot be made without it, since the
+bot gives itself that permission there; the two thread permissions let a turn
+that uses agents list them in a thread. To build the link by hand instead, open
+**OAuth2 > URL Generator** in the developer portal, tick the `bot` and
+`applications.commands` scopes, and tick the same permissions.
 
 ## Configuration
 
