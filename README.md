@@ -48,7 +48,9 @@ Claude Code's own transcript, so nothing here owns it.
 | Update notice | An owner is told in Discord when a newer version has been tagged, at most once a week. |
 | Six languages | The bridge speaks English, German, Spanish, French, Swedish and Simplified Chinese, picked with `/language` or `BRIDGE_LANGUAGE`. Claude answers in whatever language you write. |
 
-There is no sandbox: a turn runs as you, with your rights. Read
+There is no sandbox: a turn runs as you, with your rights. For a fence around
+it, run the [container image](#in-a-container), where a session reaches only
+what you mount into it and the network. Read
 [Security](#security-read-this-first) before running it for anyone but yourself.
 
 ## Quick start
