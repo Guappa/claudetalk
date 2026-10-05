@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
-import { accessSync, constants, realpathSync } from "node:fs";
+import { accessSync, constants, readlinkSync, realpathSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -92,6 +92,41 @@ export function expandShortPath(target: string): string {
   } catch {
     return target;
   }
+}
+
+const MAX_LINK_STEPS = 100;
+
+function linkTarget(link: string): string | null {
+  try {
+    return readlinkSync(link);
+  } catch {
+    return null;
+  }
+}
+
+// Where a path lands once every link on the way is followed. What does not exist yet is judged from the nearest folder that does, and a link to nothing by where it points, since a file about to be written lands there. A network path is left as spelled: asking after a host that is not there holds the whole process for seconds.
+export function landingPath(target: string): string {
+  const spelled = path.resolve(target);
+  if (/^[\\/]{2}(?![?.][\\/])/.test(spelled)) return spelled;
+  let pending = spelled;
+  let rest = "";
+  for (let step = 0; step < MAX_LINK_STEPS; step += 1) {
+    try {
+      return path.join(realpathSync.native(pending), rest);
+    } catch {
+      const pointsAt = linkTarget(pending);
+      const parent = path.dirname(pending);
+      if (pointsAt !== null) {
+        pending = path.resolve(parent, pointsAt);
+      } else if (parent === pending) {
+        return spelled;
+      } else {
+        rest = path.join(path.basename(pending), rest);
+        pending = parent;
+      }
+    }
+  }
+  return spelled;
 }
 
 export function isWithin(parent: string, target: string): boolean {

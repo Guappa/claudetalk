@@ -316,9 +316,10 @@ to Claude Code's login file, or to the bridge's own `.env` and data folder
 (`keys`); and a write by an edit tool anywhere outside the conversation's folder
 (`writes`). That last one leaves alone where a turn writes as a matter of
 course: the temp directory, and Claude Code's own folder under your home, where
-its memory, plans and settings live. It judges the path as written, so a link
-inside the folder that points out of it is followed without a question, and it
-says nothing of a shell command that writes the same file.
+its memory, plans and settings live. All three judge a path by where it lands
+once every link on the way is followed, so a link inside the folder that points
+out of it is a path outside the folder, and one that points at a key is the
+key. None of them says anything of a shell command that reaches the same file.
 The rest read the text of a shell command and catch its obvious forms, no
 more: a recursive delete reaching outside the working directory (`deletes`); a
 force push to `main` or `master`, or deleting that branch (`force-push`), while

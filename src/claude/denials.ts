@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { isWithin, longTmpDir, samePath } from "../platform.ts";
+import { isWithin, landingPath, samePath } from "../platform.ts";
 
 // Shapes a turn is refused outright, approvals on or off: a guard against an accident or a careless model, not a fence against a determined one, which can spell the same thing another way.
 const DENIALS = ["deletes", "writes", "force-push", "secrets", "keys", "download-run", "machine"] as const;
@@ -46,18 +46,27 @@ function underAny(roots: string[], target: string): boolean {
   return roots.some((root) => samePath(root, target) || isWithin(root, target));
 }
 
-// Where a turn writes as a matter of course beside its own folder: scratch files under the temp directory in either spelling, and Claude Code's own memory, plans and settings.
+// Where a turn writes as a matter of course beside its own folder: scratch files under the temp directory, and Claude Code's own memory, plans and settings.
 function ordinaryRoots(scope: DenialScope): string[] {
-  return [scope.cwd, os.tmpdir(), longTmpDir(), path.join(home(), ".claude")];
+  return [scope.cwd, os.tmpdir(), path.join(home(), ".claude")];
 }
 
-// A file tool names its target outright, so where a write lands is known without reading a command. The path it resolves to, or null when that is somewhere a turn ordinarily writes.
+// A link inside the folder can point anywhere, so the file a tool names is judged by where it lands. Null when the call names none.
+function landingOf(scope: DenialScope, input: Record<string, unknown>): string | null {
+  const filePath = text(input.file_path) || text(input.notebook_path);
+  return filePath ? landingPath(path.resolve(scope.cwd, expandHome(filePath))) : null;
+}
+
+// The roots are followed the same way as what is held against them: a temp folder is itself a link on some systems and goes by a short name on others.
+function landsUnder(roots: string[], landing: string): boolean {
+  return underAny(roots.map(landingPath), landing);
+}
+
+// A file tool names its target outright, so where a write lands is known without reading a command. Where it lands, or null when that is somewhere a turn ordinarily writes.
 function writesOutside(scope: DenialScope, toolName: string, input: Record<string, unknown>): string | null {
   if (!EDIT_TOOLS.has(toolName)) return null;
-  const filePath = text(input.file_path) || text(input.notebook_path);
-  if (!filePath) return null;
-  const target = path.resolve(scope.cwd, expandHome(filePath));
-  return underAny(ordinaryRoots(scope), target) ? null : target;
+  const landing = landingOf(scope, input);
+  return landing === null || landsUnder(ordinaryRoots(scope), landing) ? null : landing;
 }
 
 // ~ and the home variables, as a shell would read them, so a path is judged by where it lands.
@@ -182,11 +191,10 @@ export function deniedBy(
     if (rules.has("keys") && KEY_MENTION.test(command)) return REASONS.keys;
     return null;
   }
-  const filePath = text(input.file_path) || text(input.notebook_path);
-  if (!filePath) return null;
-  const target = path.resolve(scope.cwd, expandHome(filePath));
-  if (rules.has("secrets") && EDIT_TOOLS.has(toolName) && underAny(protectedPaths(scope), target)) return REASONS.secrets;
-  if (rules.has("keys") && toolName === "Read" && underAny(keyFiles(), target) && !/\.pub$/.test(target)) return REASONS.keys;
+  const landing = landingOf(scope, input);
+  if (landing === null) return null;
+  if (rules.has("secrets") && EDIT_TOOLS.has(toolName) && landsUnder(protectedPaths(scope), landing)) return REASONS.secrets;
+  if (rules.has("keys") && toolName === "Read" && landsUnder(keyFiles(), landing) && !/\.pub$/.test(landing)) return REASONS.keys;
   if (rules.has("writes") && writesOutside(scope, toolName, input)) return REASONS.writes;
   return null;
 }
