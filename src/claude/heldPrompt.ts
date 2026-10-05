@@ -7,9 +7,16 @@ const FOLLOW_UP_GRACE_MS = 3_000;
 // A message handed over but never taken up must not hold the input open for good.
 const UNTAKEN_GRACE_MS = 15_000;
 
+// An image that travels inside a message, so the model sees it as it reads the words and spends no tool call fetching it.
+export interface PromptImage {
+  mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  base64: string;
+}
+
 // The CLI serves hooks and permissions only while its input is open, and a background command outlives the first answer.
 export class HeldPrompt {
   private readonly prompt: string;
+  private readonly images: PromptImage[];
   private readonly grace: number;
   private readonly untakenGrace: number;
   private outstanding = 0;
@@ -27,8 +34,9 @@ export class HeldPrompt {
   private readonly released: Promise<void>;
   private readonly release: () => void;
 
-  constructor(prompt: string, grace = FOLLOW_UP_GRACE_MS, untakenGrace = UNTAKEN_GRACE_MS) {
+  constructor(prompt: string, images: PromptImage[] = [], grace = FOLLOW_UP_GRACE_MS, untakenGrace = UNTAKEN_GRACE_MS) {
     this.prompt = prompt;
+    this.images = images;
     this.grace = grace;
     this.untakenGrace = untakenGrace;
     const startGate = Promise.withResolvers<void>();
@@ -55,11 +63,11 @@ export class HeldPrompt {
   }
 
   // Null when the turn can no longer take it: not yet under way, or already letting go of its input.
-  handOver(text: string): string | null {
+  handOver(text: string, images: PromptImage[] = []): string | null {
     if (this.closed || this.restart || !this.modelSpoke) return null;
     const uuid = randomUUID();
     this.untaken.add(uuid);
-    this.unsent.push({ ...userMessage(text), uuid, priority: "next" });
+    this.unsent.push({ ...userMessage(text, images), uuid, priority: "next" });
     this.clearTimer();
     // Handed over after the answer, no result is on its way to start the clock on it.
     if (this.answered) this.dropUntakenAfter(this.untakenGrace);
@@ -71,7 +79,7 @@ export class HeldPrompt {
     await this.started;
     // Closed before the handshake is a turn stopped before it began, and the prompt must not reach a process that is still dying.
     if (this.restart || this.closed) return;
-    yield userMessage(this.prompt);
+    yield userMessage(this.prompt, this.images);
     while (!this.closed) {
       await Promise.race([this.released, this.arrival.promise]);
       this.arrival = Promise.withResolvers<void>();
@@ -142,6 +150,12 @@ export class HeldPrompt {
   }
 }
 
-function userMessage(text: string): SDKUserMessage {
-  return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, session_id: "" };
+// A message with nothing to show stays the plain string it has always been; one with images names its text as the first part.
+function userMessage(text: string, images: PromptImage[]): SDKUserMessage {
+  const shown = images.map((image) => ({
+    type: "image" as const,
+    source: { type: "base64" as const, media_type: image.mediaType, data: image.base64 },
+  }));
+  const content = shown.length === 0 ? text : [{ type: "text" as const, text }, ...shown];
+  return { type: "user", message: { role: "user", content }, parent_tool_use_id: null, session_id: "" };
 }

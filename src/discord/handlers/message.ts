@@ -7,6 +7,7 @@ import { resolveByChannelName } from "../../sessions/resolve.ts";
 import { displayName } from "../../sessions/displayName.ts";
 import {
   appendAttachmentPaths,
+  imagesAmong,
   describeRefused,
   describeUnfetched,
   downloadAttachments,
@@ -194,6 +195,7 @@ async function askOf(
 ): Promise<boolean> {
   return await runConversationTurn(bridge, target.conversation, {
     prompt: appendAttachmentPaths(composePrompt(context, prompt), saved),
+    images: imagesAmong(saved),
     sink: channelSink(channel, {
       allowedUserIds: context.mentionableUserIds,
       replyToMessageId: message.id,

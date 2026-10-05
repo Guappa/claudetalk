@@ -7,7 +7,8 @@ import { markCaughtUp, newDrift } from "./sync.ts";
 import { describeDrift } from "./transcriptView.ts";
 
 // What a turn is given, and what of it goes to the flow as it is.
-export interface ConversationTurn extends Pick<TurnOptions, "name" | "fork" | "onSessionId" | "onState" | "asked" | "foldable"> {
+export interface ConversationTurn
+  extends Pick<TurnOptions, "name" | "fork" | "onSessionId" | "onState" | "asked" | "foldable" | "images"> {
   prompt: string;
   sink: MessageSink;
   // Called when the turn is refused over something `/takeover` can free, so whoever sent it need not send it again.
@@ -35,6 +36,7 @@ export async function runConversationTurn(bridge: Bridge, conversation: Conversa
     onState: turn.onState,
     asked: turn.asked,
     foldable: turn.foldable,
+    images: turn.images,
     // Judged once the turn ahead has ended and been marked seen, or its own lines would count as drift.
     beforeTurn: async () => {
       // A message can read the channel's conversation and then wait on a download or a lookup while the channel is started over or unbound under it.

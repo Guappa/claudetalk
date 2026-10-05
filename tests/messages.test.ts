@@ -2,13 +2,18 @@ import { describe, it, expect } from "vitest";
 import { attachmentsRoot, longTmpDir } from "../src/platform.ts";
 import { randomUUID } from "node:crypto";
 import { addressesBot, addressesSomeoneElse, shouldQuoteReplied, type Addressing } from "../src/discord/addressing.ts";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import {
   ATTACHMENT_TTL_MS,
   MAX_ATTACHMENT_BYTES,
+  appendAttachmentPaths,
   describeRefused,
   describeUnfetched,
   downloadAttachments,
   extensionFor,
+  imagesAmong,
+  inlineImage,
   isExpired,
   screenAttachments,
 } from "../src/attachments.ts";
@@ -254,6 +259,49 @@ describe("a message with nothing left in it spends no turn", () => {
   it("still runs for text alone or a file alone", () => {
     expect(nothingToSend("look at this", 0)).toBe(false);
     expect(nothingToSend("", 1)).toBe(false);
+  });
+});
+
+describe("an image goes inside the message as well as by its path", () => {
+  const png = Buffer.concat([Buffer.from("\x89PNG\r\n\x1a\n", "latin1"), Buffer.alloc(40, 1)]);
+  const served = async (body: Buffer): Promise<{ url: string; close: () => void }> => {
+    const server = http.createServer((_request, response) => response.end(body));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/file`, close: () => server.close() };
+  };
+
+  // What the sender called a file can be wrong, and an image sent under the wrong type is one the API may refuse.
+  it("tells an image by its first bytes, whatever it was called, and leaves anything else to its path", () => {
+    expect(inlineImage(png)).toEqual({ mediaType: "image/png", base64: png.toString("base64") });
+    expect(inlineImage(Buffer.from("\xff\xd8\xff\xe0 and the rest", "latin1"))?.mediaType).toBe("image/jpeg");
+    expect(inlineImage(Buffer.from("GIF89a and the rest", "latin1"))?.mediaType).toBe("image/gif");
+    expect(inlineImage(Buffer.from("RIFF\x10\x00\x00\x00WEBPVP8 ", "latin1"))?.mediaType).toBe("image/webp");
+    expect(inlineImage(Buffer.from("%PDF-1.7 and the rest", "latin1"))).toBeUndefined();
+    expect(inlineImage(Buffer.from("RIFF\x10\x00\x00\x00WAVEfmt ", "latin1"))).toBeUndefined();
+    expect(inlineImage(Buffer.alloc(0))).toBeUndefined();
+  });
+
+  it("leaves an image too large for one message to its path alone", () => {
+    const large = Buffer.concat([png, Buffer.alloc(4_000_000)]);
+    expect(inlineImage(large)).toBeUndefined();
+  });
+
+  it("reads an image as it is downloaded, under the type its bytes give, and says in the prompt which files it already shows", async () => {
+    const [image, notes] = await Promise.all([served(png), served(Buffer.from("plain notes"))]);
+    const { saved } = await downloadAttachments(
+      [
+        { url: image.url, name: "shot.jpg", contentType: "image/jpeg", size: png.length },
+        { url: notes.url, name: "notes.txt", contentType: "text/plain", size: 11 },
+      ],
+      randomUUID(),
+    );
+    image.close();
+    notes.close();
+
+    expect(imagesAmong(saved)).toEqual([{ mediaType: "image/png", base64: png.toString("base64") }]);
+    const lines = appendAttachmentPaths("look", saved).split("\n");
+    expect(lines.at(-2)).toBe(`[Attachment: image/jpeg, shown in this message] ${saved[0]!.path}`);
+    expect(lines.at(-1)).toBe(`[Attachment: text/plain] ${saved[1]!.path}`);
   });
 });
 

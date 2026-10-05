@@ -7,7 +7,7 @@ import { outboxRelative } from "../outboxFolder.ts";
 import type { ContextReport } from "./contextTracker.ts";
 import { detectClaudeError, type ClaudeError } from "./errors.ts";
 import type { ClaudeEvent, TokenUsage } from "./events.ts";
-import { HeldPrompt } from "./heldPrompt.ts";
+import { HeldPrompt, type PromptImage } from "./heldPrompt.ts";
 import { APPROVAL_REFUSED, QUESTIONS_UNANSWERED } from "./prompts.ts";
 import { QUESTION_TOOL, parseQuestions, type AskQuestions } from "./questions.ts";
 
@@ -29,6 +29,8 @@ export interface TurnRequest {
   sessionId: string;
   cwd: string;
   prompt: string;
+  // Images sent with the message, shown to the model with it.
+  images?: PromptImage[];
   resume: boolean;
   name?: string;
   settings: ChannelSettings;
@@ -321,7 +323,7 @@ export interface RunningTurn {
   // Stops tasks inside the turn and leaves the turn running; a cloud task is closed down where it runs.
   stopTasks: (taskIds: string[]) => Promise<void>;
   // Hands the running turn another message, taken up at its next step; null when it is past taking one.
-  handOver: (text: string) => string | null;
+  handOver: (text: string, images?: PromptImage[]) => string | null;
   // Cuts short what the turn is doing, so a message still waiting runs at once; false when there was nothing to tell, or it would not be told.
   interrupt: () => Promise<boolean>;
   done: Promise<TurnResult>;
@@ -362,7 +364,7 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
   };
 
   const start = (): Attempt => {
-    const held = new HeldPrompt(request.prompt);
+    const held = new HeldPrompt(request.prompt, request.images);
     const abort = new AbortController();
     const live: Live = { query: null };
     return { held, abort, live, done: consumeStream(held, options, abort, live, onEvent, () => complaints.tail) };
@@ -405,7 +407,8 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
     for (const taskId of taskIds) await attempt.live.query?.stopTask(taskId).catch(() => undefined);
   };
 
-  const handOver = (text: string): string | null => (stopped ? null : attempt.held.handOver(text));
+  const handOver = (text: string, images?: PromptImage[]): string | null =>
+    stopped ? null : attempt.held.handOver(text, images);
 
   const interrupt = async (): Promise<boolean> => {
     const session = attempt.live.query;

@@ -8,6 +8,7 @@ import {
   type TurnRequest,
   type TurnResult,
 } from "../claude/runner.ts";
+import type { PromptImage } from "../claude/heldPrompt.ts";
 import { assistantText, toolUses } from "../claude/streamParser.ts";
 import { linkPlain, linkReferences, resolveReferences } from "./repoLinks.ts";
 import { convertTables } from "./tables.ts";
@@ -92,6 +93,8 @@ export interface TurnOptions {
   asked?: string;
   // A plain message may join the turn already running, the way the terminal takes one typed mid-turn.
   foldable?: boolean;
+  // Images sent with the message, shown to the model with it whether it starts a turn or joins one.
+  images?: PromptImage[];
 }
 
 // A message handed to a running turn: where it stands, and the notice that offers to hurry it.
@@ -511,7 +514,7 @@ export class TurnFlow {
     if (!turn || this.stopping.has(sessionId) || this.finishing.has(sessionId)) return null;
     // A branch's first turn runs in this conversation's lane and talks to another session; a message handed to it would land in the branch.
     if (this.branching.has(sessionId)) return null;
-    const uuid = turn.handOver(prompt);
+    const uuid = turn.handOver(prompt, options.images);
     if (!uuid) return null;
     this.approvals.revoke(sessionId);
     this.attention.get(sessionId)?.seen();
@@ -669,6 +672,7 @@ export class TurnFlow {
         sessionId,
         cwd,
         prompt,
+        images: options.images,
         settings,
         resume,
         name: options.name,
