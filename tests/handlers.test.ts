@@ -43,6 +43,12 @@ const asked = vi.hoisted(() => [] as Asked[]);
 // A turn whose prompt starts with "hold" runs until the test lets it go.
 const held = vi.hoisted(() => new Map<string, () => void>());
 
+// Every message sweeps the attachments folder of the machine the suite runs on, which another test file fills with folders made to look old, and a running bridge with real ones.
+vi.mock("../src/attachments.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/attachments.ts")>()),
+  sweepAttachments: async () => 0,
+}));
+
 // A real turn spawns Claude Code; these tests are about what a command or a message does around one.
 vi.mock("../src/claude/runner.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/claude/runner.ts")>();
