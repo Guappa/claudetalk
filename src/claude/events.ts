@@ -27,7 +27,7 @@ export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string }
   | { type: "tool_use"; id?: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; content: unknown };
+  | { type: "tool_result"; tool_use_id?: string; content: unknown };
 
 interface BackgroundTask {
   task_id: string;

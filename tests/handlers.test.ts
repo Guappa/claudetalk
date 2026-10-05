@@ -26,7 +26,14 @@ import { handleMessage } from "../src/discord/handlers/message.ts";
 import { onServerJoined, startUp } from "../src/discord/startup.ts";
 import { inviteUrl } from "../src/discord/invite.ts";
 import { PermissionsBitField } from "discord.js";
-import { UNBIND_DELETE, UNBIND_KEEP, createResumeId } from "../src/discord/menus.ts";
+import {
+  SEND_WAIT,
+  UNBIND_DELETE,
+  UNBIND_KEEP,
+  createResumeId,
+  sendAnywayActionId,
+  sendNowActionId,
+} from "../src/discord/menus.ts";
 import type { SessionRecord } from "../src/sessions/index.ts";
 import { GUILD, OPERATOR, OWNER, STRANGER, testBridge } from "./helpers/bridge.ts";
 import { fakeChannel, fakeCommand, fakeGuild, fakeMessage, fakePress } from "./helpers/discord.ts";
@@ -1055,6 +1062,51 @@ describe("/unbind", () => {
     await handleButton(bridge, press.interaction);
     expect(place.wasDeleted()).toBe(false);
     expect(press.replies.at(-1)).toContain("bound to a conversation again");
+  });
+});
+
+describe("Send now", () => {
+  const inFlight = { label: "/code-review", startedAt: Date.now() - 185_000 };
+
+  // Interrupting throws away the call in flight, so a skill or an agent minutes in is not cut short by one press.
+  it("asks first while a skill or an agent is in flight, and sends only on the second press", async () => {
+    const bridge = await testBridge();
+    const place = fakeChannel("n1");
+    const sent = vi.spyOn(bridge.flow, "sendNow").mockResolvedValue("sent");
+    vi.spyOn(bridge.flow, "longCallOf").mockReturnValue(inFlight);
+
+    const first = fakePress(place, OWNER, sendNowActionId(SESSION));
+    await handleButton(bridge, first.interaction);
+    expect(sent).not.toHaveBeenCalled();
+    expect(first.replies.at(-1)).toMatch(/Claude is inside \/code-review, running for 3m \d+s/);
+    expect(first.controls()).toEqual([sendAnywayActionId(SESSION), SEND_WAIT]);
+
+    const anyway = fakePress(place, OWNER, sendAnywayActionId(SESSION));
+    await handleButton(bridge, anyway.interaction);
+    expect(sent).toHaveBeenCalledWith(SESSION);
+    expect(anyway.replies.at(-1)).toContain("cut short so it could read your message");
+    expect(anyway.controls()).toEqual([]);
+  });
+
+  it("leaves the message waiting when asked to wait", async () => {
+    const bridge = await testBridge();
+    const sent = vi.spyOn(bridge.flow, "sendNow").mockResolvedValue("sent");
+    vi.spyOn(bridge.flow, "longCallOf").mockReturnValue(inFlight);
+    const wait = fakePress(fakeChannel("n2"), OWNER, SEND_WAIT);
+    await handleButton(bridge, wait.interaction);
+    expect(sent).not.toHaveBeenCalled();
+    expect(wait.replies.at(-1)).toContain("Your message waits");
+    expect(wait.controls()).toEqual([]);
+  });
+
+  it("sends at once when nothing long is in flight", async () => {
+    const bridge = await testBridge();
+    const sent = vi.spyOn(bridge.flow, "sendNow").mockResolvedValue("sent");
+    vi.spyOn(bridge.flow, "longCallOf").mockReturnValue(undefined);
+    const press = fakePress(fakeChannel("n3"), OWNER, sendNowActionId(SESSION));
+    await handleButton(bridge, press.interaction);
+    expect(sent).toHaveBeenCalledWith(SESSION);
+    expect(press.whispers.at(-1)).toContain("cut short so it could read your message");
   });
 });
 

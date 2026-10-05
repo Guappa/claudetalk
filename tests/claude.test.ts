@@ -17,6 +17,7 @@ import { parseAuthStatus, SIGNED_OUT } from "../src/claude/auth.ts";
 import { askedOfOwner, deniedBy, parseDenials, withoutAskable } from "../src/claude/denials.ts";
 import { describeClaudeVersions, parseVersion } from "../src/claude/versions.ts";
 import { HeldPrompt } from "../src/claude/heldPrompt.ts";
+import { LongCalls } from "../src/claude/longCalls.ts";
 import { takenUp, type ClaudeEvent } from "../src/claude/events.ts";
 import { ContextTracker } from "../src/claude/contextTracker.ts";
 import { DISCORD_MESSAGE_LIMIT, MAX_FILE_BYTES } from "../src/discord/limits.ts";
@@ -435,6 +436,33 @@ describe("HeldPrompt", () => {
     held.observe(result);
     expect(held.needsRestart).toBe(false);
     expect((await stream.next()).done).toBe(true);
+  });
+});
+
+describe("the long calls a turn waits on", () => {
+  const said = (type: "assistant" | "user", content: unknown[], parent: string | null = null) =>
+    ({ type, message: { content }, parent_tool_use_id: parent }) as ClaudeEvent;
+
+  it("holds a skill or an agent from its call to its result, and nothing else", () => {
+    let clock = 1000;
+    const calls = new LongCalls(() => clock);
+    calls.observe(said("assistant", [{ type: "tool_use", id: "b1", name: "Bash", input: { command: "ls" } }]));
+    expect(calls.oldest()).toBeUndefined();
+    calls.observe(said("assistant", [{ type: "tool_use", id: "s1", name: "Skill", input: { skill: "code-review" } }]));
+    clock = 5000;
+    calls.observe(said("assistant", [{ type: "tool_use", id: "a1", name: "Agent", input: { description: "Audit the parser" } }]));
+    expect(calls.oldest()).toEqual({ label: "/code-review", startedAt: 1000 });
+    calls.observe(said("user", [{ type: "tool_result", tool_use_id: "s1", content: "done" }]));
+    expect(calls.oldest()).toEqual({ label: "Audit the parser", startedAt: 5000 });
+    calls.observe(said("user", [{ type: "tool_result", tool_use_id: "a1", content: "done" }]));
+    expect(calls.oldest()).toBeUndefined();
+  });
+
+  // The session waits on the agent, not on what the agent calls inside it.
+  it("leaves out what an agent calls inside it", () => {
+    const calls = new LongCalls();
+    calls.observe(said("assistant", [{ type: "tool_use", id: "s2", name: "Skill", input: { skill: "x" } }], "a1"));
+    expect(calls.oldest()).toBeUndefined();
   });
 });
 

@@ -10,6 +10,10 @@ export function toolUses(event: ClaudeEvent): Array<Extract<ContentBlock, { type
   return contentBlocks(event).filter((block): block is Extract<ContentBlock, { type: "tool_use" }> => block.type === "tool_use");
 }
 
+export function toolResultIds(event: ClaudeEvent): string[] {
+  return contentBlocks(event).flatMap((block) => (block.type === "tool_result" && block.tool_use_id ? [block.tool_use_id] : []));
+}
+
 export function assistantText(event: ClaudeEvent): string {
   if (event.type !== "assistant") return "";
   return contentBlocks(event)

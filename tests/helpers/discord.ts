@@ -153,13 +153,17 @@ export interface FakePress {
   replies: string[];
   // What was said to the presser alone, beside the menu.
   whispers: string[];
+  // The controls on the latest message the press wrote.
+  controls: () => string[];
 }
 
 export function fakePress(place: FakeChannel, userId: string, customId: string, guild: unknown = null): FakePress {
   const replies: string[] = [];
   const whispers: string[] = [];
+  let controls: string[] = [];
   const written = (payload: string | Payload): void => {
     if (typeof payload === "string" || payload.content !== undefined) replies.push(textOf(payload));
+    controls = controlsOf(payload);
   };
   const interaction = {
     customId,
@@ -180,8 +184,11 @@ export function fakePress(place: FakeChannel, userId: string, customId: string, 
     deferUpdate: async () => {
       interaction.deferred = true;
     },
+    deferReply: async () => {
+      interaction.deferred = true;
+    },
   };
-  return { interaction: interaction as unknown as ButtonInteraction, replies, whispers };
+  return { interaction: interaction as unknown as ButtonInteraction, replies, whispers, controls: () => controls };
 }
 
 interface FakeUpload {

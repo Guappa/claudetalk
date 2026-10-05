@@ -188,6 +188,11 @@ export const en = {
     nothingWaiting: "Nothing is waiting: the running turn has already taken your message up.",
     notRunning: "No turn is running here any more, so there is nothing to interrupt.",
     notInterrupted: "The running turn could not be interrupted, so your message still waits for its next step.",
+    sendAnyway: "Send now anyway",
+    waitForIt: "Wait for it",
+    cutsLongCall:
+      "Claude is inside {{call}}, running for {{elapsed}}. Sending now cuts it short and throws away what it has done so far. Waiting hands your message over the moment it returns.",
+    waiting: "Your message waits, and Claude reads it as soon as the call it is in returns.",
   },
   queue: {
     behind_one: "Queued behind the turn still running.",

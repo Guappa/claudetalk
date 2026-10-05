@@ -127,6 +127,8 @@ describe("what Discord allows a label", () => {
   const BUTTONS = [
     "common.cancel",
     "fold.sendNow",
+    "fold.sendAnyway",
+    "fold.waitForIt",
     "stop.button",
     "stop.allButton",
     "stop.agentsButton",

@@ -190,6 +190,11 @@ export const sv: Catalog = {
     nothingWaiting: "Inget väntar: den pågående omgången har redan tagit upp ditt meddelande.",
     notRunning: "Ingen omgång körs här längre, så det finns inget att avbryta.",
     notInterrupted: "Den pågående omgången kunde inte avbrytas, så ditt meddelande väntar fortfarande på nästa steg.",
+    sendAnyway: "Skicka nu ändå",
+    waitForIt: "Vänta på det",
+    cutsLongCall:
+      "Claude är inne i {{call}} och har hållit på i {{elapsed}}. Att skicka nu avbryter det och kastar bort det som gjorts hittills. Väntar du lämnas ditt meddelande över så fort det är klart.",
+    waiting: "Ditt meddelande väntar, och Claude läser det så fort det pågående anropet är klart.",
   },
   queue: {
     behind_one: "I kö bakom omgången som fortfarande körs.",

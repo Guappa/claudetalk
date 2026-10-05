@@ -191,6 +191,11 @@ export const es: Catalog = {
     nothingWaiting: "No hay nada esperando: el turno en marcha ya ha retomado tu mensaje.",
     notRunning: "Aquí ya no hay ningún turno en marcha, así que no hay nada que interrumpir.",
     notInterrupted: "No se pudo interrumpir el turno en marcha, así que tu mensaje sigue esperando a su siguiente paso.",
+    sendAnyway: "Enviar ahora de todos modos",
+    waitForIt: "Esperar",
+    cutsLongCall:
+      "Claude está dentro de {{call}}, en marcha desde hace {{elapsed}}. Enviar ahora lo interrumpe y descarta lo que lleva hecho. Si esperas, tu mensaje se entrega en cuanto termine.",
+    waiting: "Tu mensaje espera, y Claude lo lee en cuanto termine la llamada en curso.",
   },
   queue: {
     behind_one: "En cola detrás del turno que sigue en marcha.",
