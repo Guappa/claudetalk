@@ -86,34 +86,56 @@ function pathsNamed(command: string, cwd: string): string[] {
   return [...new Set(wordsOf(command))].map((word) => path.resolve(cwd, word));
 }
 
+// Quoted text is an argument, not a command: it is blanked to spaces of the same length before a rule looks for where a command starts, so a commit message that says "then shutdown" refuses nothing. What a shell is handed to run, after its -c, /c or -Command, is kept, its opening quote standing for a separator.
+function blankQuoted(command: string): string {
+  return command.replace(
+    /((?<![\w.-])(?:sh|bash|zsh|dash|ksh|fish|pwsh|powershell|cmd)(?:\.exe)?(?:[ \t]+-[\w-]+)*?[ \t]+(?:-[a-z]*c|\/c|-Command)[ \t]+)?("[^"]*"?|'[^']*'?)/gi,
+    (_whole, runner: string | undefined, quoted: string) =>
+      runner ? `${runner};${quoted.slice(1)}` : `${quoted[0]}${" ".repeat(quoted.length - 1)}`,
+  );
+}
+
+// The original text of a span found in the blanked one, which has the same length.
+function originalOf(command: string, match: RegExpExecArray | RegExpMatchArray, group: number): string {
+  const span = match.indices?.[group];
+  return span ? command.slice(span[0], span[1]) : "";
+}
+
 // The shell forms of a write that a reader would call obvious: a verb that writes, copies, moves or removes, or a redirection, spaced or not.
 const SHELL_WRITE_VERB =
-  /(^|[\s;&|(])(tee|cp|mv|install|chmod|chown|truncate|rm|sed\s+-[a-zA-Z]*i|Set-Content|Out-File|Add-Content|Copy-Item|Move-Item|Remove-Item)(?=\s|$)/im;
+  /(^|[\s;&|(])(tee|cp|mv|install|chmod|chown|truncate|touch|ln|rsync|rm|sed\s+-[a-zA-Z]*i\S*|Set-Content|Out-File|Add-Content|Clear-Content|New-Item|Copy-Item|Move-Item|Rename-Item|Remove-Item)(?=\s|$)/im;
 // A redirection writes only the word after it, so a read beside `2>/dev/null` is not a write to what it reads; `>&1` names no file.
-const REDIRECT_TARGET = />>?\|?\s*("[^"]*"|'[^']*'|[^\s<>;&|()]+)/g;
-// The parts of a command that run on their own, quotes kept whole, so a verb in one says nothing about the paths in another.
-const RUNS_ON_ITS_OWN = /(?:"[^"]*"|'[^']*'|[^;&|\n"'])+/g;
+const REDIRECTION = />>?\|?/g;
+// The parts of a command that run on their own, so a verb in one says nothing about the paths in another.
+const RUNS_ON_ITS_OWN = /[^;&|\n]+/dg;
 
 function writesProtected(command: string, scope: DenialScope): boolean {
-  const withVerb = (command.match(RUNS_ON_ITS_OWN) ?? []).filter((part) => SHELL_WRITE_VERB.test(part));
-  const redirected = [...command.matchAll(REDIRECT_TARGET)].map((match) => match[1] ?? "");
+  const blanked = blankQuoted(command);
+  const withVerb = [...blanked.matchAll(RUNS_ON_ITS_OWN)]
+    .filter((part) => SHELL_WRITE_VERB.test(part[0]))
+    .map((part) => originalOf(command, part, 0));
+  const targetAt = /\s*("[^"]*"|'[^']*'|[^\s<>;&|()]+)/y;
+  const redirected = [...blanked.matchAll(REDIRECTION)].map((match) => {
+    targetAt.lastIndex = (match.index ?? 0) + match[0].length;
+    return targetAt.exec(command)?.[1] ?? "";
+  });
   const roots = protectedPaths(scope);
   return [...withVerb, ...redirected].flatMap((part) => pathsNamed(part, scope.cwd)).some((target) => underAny(roots, target));
 }
 
-// Where a command starts: a line, a separator, a bracket or brace, a shell keyword, or what runs one command inside another, then a path or a backslash before its name. Only spaces and tabs may lead it, so a run of blank lines is read once.
-const COMMAND_START = String.raw`(?:^|[;&|({]|(?<![\w-])(?:then|do|else|xargs|-exec)(?=[ \t])|(?<![\w-])-c[ \t]+["'])[ \t]*(?:sudo[ \t]+)?(?:\\|[^\s;&|"'(){}]*[\\/])?`;
+// Where a command starts: a line, a separator, a bracket, brace or backtick, a shell keyword, or what runs one command inside another, then the wrappers that run what follows and a path or a backslash before its name. Only spaces and tabs may lead it, so a run of blank lines is read once.
+const COMMAND_START = String.raw`(?:^|[;&|({\x60]|(?<![\w-])(?:then|do|else|xargs|-exec|\/c|-Command)(?=[ \t]))[ \t]*(?:(?:sudo|env|nohup|time|command|exec)[ \t]+|(?:-|\w+=)[^\s;&|]*[ \t]+)*(?:\\|[^\s;&|"'(){}]*[\\/])?`;
 
 // The recursive flag may come after others, short or spelled out, and each flag is read one way only: read every way it could be, a long run of them costs the square of its length. The targets end where the command does, at a separator, a redirection or the end of the line.
 const RECURSIVE_DELETE = new RegExp(
-  String.raw`${COMMAND_START}(?:rm\s+(?:-(?:-(?!recursive\b)[a-z-]+|[a-qs-z]+)\s+)*(?:-[a-qs-z]*r[a-z]*|--recursive)\s+|(?:rmdir|rd)[ \t]+(?=(?:\/[a-z][ \t]+)*\/s[ \t])(?:\/[a-z][ \t]+)+|Remove-Item\s+(?=[^;&|\n]*-Recurse))([^;&|\n<>)}]*)`,
-  "gim",
+  String.raw`${COMMAND_START}(?:rm\s+(?:-(?:-(?!recursive\b)[a-z-]+|[a-qs-z]+)\s+)*(?:-[a-qs-z]*r[a-z]*|--recursive)\s+|(?:rmdir|rd)[ \t]+(?=(?:\/[a-z][ \t]+)*\/s[ \t])(?:\/[a-z][ \t]+)+|Remove-Item\s+(?=(?:[^;&|\n]*\s)?-r[a-z]*\b))([^;&|\n<>)}\x60]*)`,
+  "dgim",
 );
 
 // A recursive delete whose target is the working directory itself or anything outside it.
 function deletesOutside(command: string, cwd: string): boolean {
-  for (const match of command.matchAll(RECURSIVE_DELETE)) {
-    const targets = wordsOf(match[1] ?? "").filter((word) => !word.startsWith("-"));
+  for (const match of blankQuoted(command).matchAll(RECURSIVE_DELETE)) {
+    const targets = wordsOf(originalOf(command, match, 1)).filter((word) => !word.startsWith("-"));
     for (const target of targets) {
       if (/^(\/\*?|[A-Za-z]:[\\/]?\*?|\*|\.\.?|\.\.[\\/].*)$/.test(target)) return true;
       const resolved = path.resolve(cwd, target.replace(/[\\/]\*$/, ""));
@@ -147,7 +169,7 @@ function forcesMain(command: string): boolean {
 const DOWNLOAD_RUN =
   /\b(curl|wget|iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b[^|;&]*\|\s*(sh|bash|zsh|iex|Invoke-Expression|powershell|pwsh|node|python3?|perl)\b/i;
 const MACHINE = new RegExp(
-  String.raw`${COMMAND_START}(?:shutdown|reboot|halt|poweroff|mkfs(?:\.\w+)?|diskpart|format(?:\.com)?|Stop-Computer|Restart-Computer)(?=[\s;)}"']|$)|\bdd\b[^;&|\n]*\bof=\/dev\/`,
+  String.raw`${COMMAND_START}(?:(?:shutdown|reboot|halt|poweroff|mkfs(?:\.\w+)?|diskpart|format(?:\.com)?|Stop-Computer|Restart-Computer)(?=[\s;)}"'\x60]|$)|dd\b[^;&|\n]*\bof=\/dev\/)`,
   "im",
 );
 const KEY_MENTION = /(?:^|[\s"'=:\\/])\.ssh[\\/]id_[A-Za-z0-9_]+(?!\.pub)\b|\.credentials\.json\b/;
@@ -214,7 +236,7 @@ export function deniedBy(
     if (rules.has("deletes") && deletesOutside(command, scope.cwd)) return REASONS.deletes;
     if (rules.has("force-push") && forcesMain(command)) return REASONS["force-push"];
     if (rules.has("download-run") && DOWNLOAD_RUN.test(command)) return REASONS["download-run"];
-    if (rules.has("machine") && MACHINE.test(command)) return REASONS.machine;
+    if (rules.has("machine") && MACHINE.test(blankQuoted(command))) return REASONS.machine;
     if (rules.has("secrets") && writesProtected(command, scope)) return REASONS.secrets;
     if (rules.has("keys") && KEY_MENTION.test(command)) return REASONS.keys;
     return null;

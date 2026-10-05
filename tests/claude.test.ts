@@ -826,6 +826,44 @@ describe("what a turn is refused outright", () => {
     expect(shell("{ shutdown -h now; }")).toContain("restart or reformat");
   });
 
+  // Quoted text is an argument: a word in a commit message or a search pattern starts no command.
+  it("refuses nothing for a command word inside quoted text", () => {
+    for (const command of [
+      'grep -rnE "lint|format" package.json',
+      'grep -E "(lint|format)" package.json',
+      'git commit -m "drain sockets, then shutdown cleanly"',
+      'git commit -m "tools do format the dates"',
+      'git commit -m "fix the handler\nShutdown waits for the queue"',
+      'git commit -m "cold start (reboot) path"',
+      'grep -c "shutdown now" app.log',
+      'grep -c "rm -rf /" notes.txt',
+    ]) {
+      expect(shell(command), command).toBeNull();
+    }
+    const inBridge = { ...scope, cwd: process.cwd() };
+    expect(deniedBy(all, inBridge, "Bash", { command: 'git commit -m "mv cache -> data/cache"' })).toBeNull();
+  });
+
+  // What a shell is handed to run is read as a command, and so is what a wrapper runs.
+  it("finds a delete or a shutdown handed to another shell or run by a wrapper", () => {
+    for (const command of [
+      'bash -lc "rm -rf ~/x"',
+      "sh -ec 'reboot'",
+      'cmd /c "rd /s /q C:\\"',
+      "cmd /c rd /s /q C:\\x",
+      'powershell -Command "Remove-Item -Recurse -Force C:\\x"',
+      "env FOO=1 rm -rf ~/x",
+      "nohup rm -rf ~/x &",
+      "sudo -E rm -rf ~/x",
+      "echo `rm -rf ~/x`",
+      "Remove-Item -r C:\\x",
+    ]) {
+      expect(shell(command), command).not.toBeNull();
+    }
+    expect(shell("sed -i.bak s/a/b/ ~/.ssh/config")).toContain("credentials");
+    expect(shell("touch ~/.ssh/probe")).toContain("credentials");
+  });
+
   // cmd takes its switches before the folder, in any order, and a switch is not a target.
   it("lets cmd delete a folder inside the project with its switches in any order", () => {
     expect(shell("rd /s /q build")).toBeNull();
@@ -850,7 +888,17 @@ describe("what a turn is refused outright", () => {
   it("judges a command of any length in about the time it takes to read it", () => {
     const started = performance.now();
     for (const flag of ["r".repeat(200_000), "rf ".repeat(60_000), "-r ".repeat(60_000)]) expect(shell(`rm -${flag}`)).toBeNull();
-    for (const filler of ["\n".repeat(100_000), " \n".repeat(60_000), "(".repeat(100_000), "a/".repeat(60_000)])
+    for (const filler of [
+      "\n".repeat(100_000),
+      " \n".repeat(60_000),
+      "(".repeat(100_000),
+      "a/".repeat(60_000),
+      '"a'.repeat(60_000),
+      "bash -x ".repeat(20_000),
+      "dd if=x ".repeat(20_000),
+      "env A=1 ".repeat(20_000),
+      "> ".repeat(60_000),
+    ])
       expect(shell(`echo ${filler}x`)).toBeNull();
     expect(performance.now() - started).toBeLessThan(2_000);
   });
