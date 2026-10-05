@@ -4,7 +4,18 @@ import { EFFORT_CHOICES } from "./settings.ts";
 import { TRAIL_KINDS } from "../toolTrail.ts";
 import { EVERY_KIND } from "../trailChoice.ts";
 
-const TRAIL_CHOICES = [...TRAIL_KINDS, EVERY_KIND];
+// What each kind covers, said in the menu itself, since the bare names leave a reader guessing which tools fall under each.
+const TRAIL_LABELS: Record<(typeof TRAIL_KINDS)[number] | typeof EVERY_KIND, string> = {
+  edits: "edits: file edits and written files, with their diffs",
+  commands: "commands: shell commands (bash, PowerShell)",
+  reads: "reads: file reads and searches",
+  web: "web: web fetches and web searches",
+  agents: "agents: agents and skills being started",
+  todos: "todos: to-do list updates",
+  other: "other: every other tool, MCP tools included",
+  all: "all: every kind at once",
+};
+const TRAIL_CHOICES = [...TRAIL_KINDS, EVERY_KIND].map((kind) => ({ name: TRAIL_LABELS[kind], value: kind }));
 
 export function bridgeCommandDefinitions() {
   return [
@@ -59,24 +70,26 @@ export function bridgeCommandDefinitions() {
 
     new SlashCommandBuilder()
       .setName("trail")
-      .setDescription("Show or choose which kinds of tool call the trail draws in this conversation")
+      .setDescription("Choose which tool calls the live trail shows. Alone, it says what is shown now")
       .addStringOption((option) =>
         option
           .setName("hide")
-          .setDescription("A kind to stop drawing")
-          .addChoices(...TRAIL_CHOICES.map((kind) => ({ name: kind, value: kind }))),
+          .setDescription("Stop showing this kind of tool call in the trail")
+          .addChoices(...TRAIL_CHOICES),
       )
       .addStringOption((option) =>
         option
           .setName("show")
-          .setDescription("A kind to draw again")
-          .addChoices(...TRAIL_CHOICES.map((kind) => ({ name: kind, value: kind }))),
+          .setDescription("Show this kind again. Given with hide, it applies after it: hide all, show agents")
+          .addChoices(...TRAIL_CHOICES),
       )
       .addBooleanOption((option) =>
-        option.setName("everywhere").setDescription("Show or change the default for every conversation instead of this one"),
+        option
+          .setName("everywhere")
+          .setDescription("True: apply to the default for all conversations (owners). Omit: this one only"),
       )
       .addBooleanOption((option) =>
-        option.setName("reset").setDescription("Drop this conversation's own choice, so it follows the default again"),
+        option.setName("reset").setDescription("True: drop this conversation's own choice and follow the default again"),
       ),
 
     new SlashCommandBuilder()
