@@ -406,14 +406,16 @@ embed, menu, button, modal, custom id and upload limits are named there and
 nowhere else, so that a limit Discord changes is one edit. A bare `2000` or
 `100` beside a cut in code is a copy that will be missed.
 
-**Emoji appear in exactly three places, each from a fixed set.** The reaction
+**Emoji appear in exactly four places, each from a fixed set.** The reaction
 on the message that started a turn, and the heading of the progress message,
 each carrying the turn's state: queued, running, waiting on a person, done,
-stopped, failed. And the line that says an agent has come back, behind a
+stopped, failed. The line that says an agent has come back, behind a
 circle coloured by how it ended, as the terminal draws one; a circle and not
-the turn's tick, which there would read as the turn itself being over. The
-sets live in `src/discord/reactions.ts`, `statusMessage.ts` and
-`agentBoard.ts`, standard Unicode only, so every client draws the same thing
+the turn's tick, which there would read as the turn itself being over. And a
+robot in front of the trail line that sends an agent out, so work carrying on
+beside the turn stands apart from the tool calls around it. The sets live in
+`src/discord/reactions.ts`, `statusMessage.ts`, `agentBoard.ts` and
+`toolTrail.ts`, standard Unicode only, so every client draws the same thing
 and no server needs a custom emoji. Nothing else in the bridge uses emoji: not
 prose, not notices, not the answer, not commits.
 

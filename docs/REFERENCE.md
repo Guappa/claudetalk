@@ -464,8 +464,9 @@ that started the turn carries one reaction from the bot, changed as the turn
 moves: eyes while it works, a clock while it waits on another turn, a
 question mark while it waits on you, then a tick, a stop sign or a cross for
 finished, stopped or failed. The heading carries the same state in front of the
-verb, an hourglass while working. Those, and the circle in front of an agent
-that has come back, are the only emoji the bridge uses.
+verb, an hourglass while working. Those, the robot in front of a trail line
+that sends an agent out, and the circle in front of an agent that has come
+back, are the only emoji the bridge uses.
 
 ```
 ⏳ **Working** 1m 12s · 3 steps
