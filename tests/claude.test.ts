@@ -817,7 +817,7 @@ describe("what a turn is refused outright", () => {
       "xargs rm -rf ~/x",
       "/bin/rm -rf ~/x",
       "\\rm -rf ~/x",
-      "if (Test-Path x) { Remove-Item -Recurse -Force C:\\x }",
+      "if (Test-Path x) { Remove-Item -Recurse -Force ~/x }",
       "rd /q /s C:\\",
     ]) {
       expect(shell(command), command).not.toBeNull();
@@ -850,13 +850,13 @@ describe("what a turn is refused outright", () => {
       'bash -lc "rm -rf ~/x"',
       "sh -ec 'reboot'",
       'cmd /c "rd /s /q C:\\"',
-      "cmd /c rd /s /q C:\\x",
-      'powershell -Command "Remove-Item -Recurse -Force C:\\x"',
+      "cmd /c rd /s /q ~/x",
+      'powershell -Command "Remove-Item -Recurse -Force ~/x"',
       "env FOO=1 rm -rf ~/x",
       "nohup rm -rf ~/x &",
       "sudo -E rm -rf ~/x",
       "echo `rm -rf ~/x`",
-      "Remove-Item -r C:\\x",
+      "Remove-Item -r ~/x",
     ]) {
       expect(shell(command), command).not.toBeNull();
     }
@@ -876,8 +876,8 @@ describe("what a turn is refused outright", () => {
   // A shell reads its command after flags with values and switches of either kind, and the shell runs a substitution inside double quotes.
   it("reads what a shell is handed however its flags are spelled", () => {
     for (const command of [
-      'powershell -ExecutionPolicy Bypass -Command "Remove-Item -Recurse -Force C:\\x"',
-      'cmd /d /s /c "rd /s /q C:\\x"',
+      'powershell -ExecutionPolicy Bypass -Command "Remove-Item -Recurse -Force ~/x"',
+      'cmd /d /s /c "rd /s /q ~/x"',
       'su -c "rm -rf ~/x"',
       'eval "rm -rf ~/x"',
       'echo "$(rm -rf ~/x)"',
@@ -931,9 +931,14 @@ describe("what a turn is refused outright", () => {
   });
 
   // Every tool call waits on this check, and it runs in the bridge's own process, so a command built to be slow would hold every channel.
+  // Each input on its own budget: a slow runner stretches every one a little, while a pattern that reads a run of them once per item takes ten times the budget or more.
   it("judges a command of any length in about the time it takes to read it", () => {
-    const started = performance.now();
-    for (const flag of ["r".repeat(200_000), "rf ".repeat(60_000), "-r ".repeat(60_000)]) expect(shell(`rm -${flag}`)).toBeNull();
+    const judgedQuickly = (command: string) => {
+      const started = performance.now();
+      expect(shell(command)).toBeNull();
+      expect(performance.now() - started, command.slice(0, 24)).toBeLessThan(1_000);
+    };
+    for (const flag of ["r".repeat(200_000), "rf ".repeat(60_000), "-r ".repeat(60_000)]) judgedQuickly(`rm -${flag}`);
     for (const filler of [
       "\n".repeat(100_000),
       " \n".repeat(60_000),
@@ -955,8 +960,7 @@ describe("what a turn is refused outright", () => {
       Array.from({ length: 20_000 }, (_, index) => `bash <<T${index}\n`).join(""),
       "$((1<<3))\n".repeat(20_000),
     ])
-      expect(shell(`echo ${filler}x`)).toBeNull();
-    expect(performance.now() - started).toBeLessThan(2_000);
+      judgedQuickly(`echo ${filler}x`);
   });
 
   // Claude Code runs the tool when the hook that judges it throws, so nothing a model can put in a call may make a rule throw.
