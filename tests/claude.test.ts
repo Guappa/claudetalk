@@ -706,6 +706,74 @@ describe("what a turn is refused outright", () => {
     expect(deniedBy(all, linked, "Read", through("src", "id_ed25519"))).toBeNull();
   });
 
+  // A model writes a command over several lines, splits its flags and indents as it likes; each is an obvious form of the same act.
+  it("catches a delete or a command against the machine on any line, after spaces or a bracket, and with its flags in any order", () => {
+    for (const command of [
+      "echo start\nrm -rf ~/x",
+      "  rm -rf /",
+      "(rm -rf /)",
+      "rm -f -r ~/x",
+      "rm --recursive --force ~/x",
+      "rm --force --recursive ~/x",
+      "rm -fR ~/x",
+    ]) {
+      expect(shell(command), command).toContain("recursive delete");
+    }
+    for (const command of ["cd x\nshutdown -h now", "  reboot", "(poweroff)"])
+      expect(shell(command), command).toContain("machine");
+    expect(shell("rm -f notes.txt")).toBeNull();
+    expect(shell("rm --force notes.txt")).toBeNull();
+  });
+
+  // A redirection or a line break ends the command, so what follows it is not a target of the delete.
+  it("does not take a redirection or the next line for a target of a delete inside the folder", () => {
+    for (const command of [
+      "rm -rf build > /dev/null",
+      "rm -rf build 2> /dev/null",
+      "rm -rf build 2>/dev/null",
+      "rm -rf dist\ncd /",
+      "rm -rf dist\nls ..",
+      'rm -rf "my build"',
+    ]) {
+      expect(shell(command), command).toBeNull();
+    }
+  });
+
+  it("refuses deleting main on the remote however the push spells it", () => {
+    for (const command of [
+      "git push origin --delete main",
+      "git push -d origin main",
+      "git push origin :main",
+      "git push origin :refs/heads/master",
+      "git push --force origin refs/heads/main",
+      "git push origin +refs/heads/main",
+    ]) {
+      expect(shell(command), command).toContain("force push");
+    }
+    expect(shell("git push origin --delete feat/old")).toBeNull();
+    expect(shell("git push origin refs/heads/main")).toBeNull();
+  });
+
+  // A redirection needs no space either side, and a quoted path keeps its spaces.
+  it("refuses a write to a protected path by a redirection with no space, or to a quoted path with a space in it", () => {
+    expect(shell("echo k >>~/.ssh/authorized_keys")).toContain("credentials");
+    expect(shell(`echo X>"${path.join(scope.dataDir, "probe file.txt")}"`)).toContain("credentials");
+    expect(shell(`echo X > "${path.join(scope.dataDir, "probe file.txt")}"`)).toContain("credentials");
+    expect(shell("echo probe>notes.txt")).toBeNull();
+  });
+
+  // Grep prints what it finds, so pointed at ~/.ssh it reads the keys as surely as Read does.
+  it("refuses a search by Grep of ~/.ssh or a key in it, and lets it read a public key", () => {
+    const grep = (searched: string) => deniedBy(all, scope, "Grep", { pattern: ".", path: searched });
+    expect(grep(path.join(os.homedir(), ".ssh"))).toContain("~/.ssh");
+    expect(grep("~/.ssh/id_ed25519")).toContain("~/.ssh");
+    expect(grep(path.join(os.homedir(), ".ssh", "id_ed25519.pub"))).toBeNull();
+    expect(grep(scope.cwd)).toBeNull();
+    expect(deniedBy(all, scope, "Read", { file_path: path.join(os.homedir(), ".ssh", "config") })).toContain(
+      "a read of ~/.ssh, where private keys live",
+    );
+  });
+
   // Every tool call waits on this check, and it runs in the bridge's own process, so a command built to be slow would hold every channel.
   it("judges a command of any length in about the time it takes to read it", () => {
     const started = performance.now();

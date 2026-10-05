@@ -313,9 +313,9 @@ elsewhere. Where nobody can be asked, both are refused like the others.
 The seven come in two kinds, and it matters which. Three are judged by tool and
 path and hold whatever the model writes: a write by an edit tool under `~/.ssh`,
 to Claude Code's login file, or to the bridge's own `.env` and data folder
-(`secrets`); a read by the Read tool of a private key or of that login file
-(`keys`); and a write by an edit tool anywhere outside the conversation's folder
-(`writes`). That last one leaves alone where a turn writes as a matter of
+(`secrets`); a read by the Read tool, or a search by Grep, of anything under
+`~/.ssh` but a public key, or of that login file (`keys`); and a write by an
+edit tool anywhere outside the conversation's folder (`writes`). That last one leaves alone where a turn writes as a matter of
 course: the temp directory, and Claude Code's own folder under your home, where
 its memory, plans and settings live. All three judge a path by where it lands
 once every link on the way is followed, so a link inside the folder that points
