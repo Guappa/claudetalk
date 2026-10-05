@@ -2,6 +2,7 @@ import type { ChatInputCommandInteraction } from "discord.js";
 import type { Bridge } from "../../bridge.ts";
 import type { Conversation } from "../../conversations.ts";
 import { requireConversation } from "../binding.ts";
+import type { ContextStanding } from "../../claude/contextTracker.ts";
 import { describeDefault, readHostDefaults, type HostDefaults } from "../../claude/hostSettings.ts";
 import { displayPath } from "../../displayPath.ts";
 import type { Say } from "../../i18n/index.ts";
@@ -24,10 +25,17 @@ export function versionsFooter(say: Say, build: string, versions: ClaudeVersions
   return `${bridge} · ${claude}`;
 }
 
+export function describeContext(say: Say, standing: ContextStanding | null): string {
+  if (!standing) return say("whoami.contextUnmeasured");
+  const ceiling = say("units.kiloTokens", { thousands: String(Math.round(standing.ceilingTokens / 1000)) });
+  return say("whoami.contextStanding", { percent: standing.percent, ceiling });
+}
+
 function bindingEmbed(
   say: Say,
   conversation: Conversation,
   defaults: HostDefaults,
+  context: ContextStanding | null,
   build: string,
   versions: ClaudeVersions,
   newer: string | null,
@@ -42,6 +50,7 @@ claude --resume ${conversation.sessionId}
       { name: say("whoami.directory"), value: `\`${displayPath(conversation.cwd)}\`` },
       { name: say("whoami.model"), value: describeDefault(say, conversation.settings.model, defaults.model), inline: true },
       { name: say("whoami.effort"), value: describeDefault(say, conversation.settings.effort, defaults.effort), inline: true },
+      { name: say("whoami.context"), value: describeContext(say, context) },
     ],
   ).setFooter({ text: versionsFooter(say, build, versions, newer) });
 }
@@ -50,7 +59,16 @@ export async function handleWhoami(bridge: Bridge, interaction: ChatInputCommand
   const conversation = await requireConversation(bridge, interaction);
   if (!conversation) return;
   const defaults = await readHostDefaults(conversation.cwd);
-  const embed = bindingEmbed(bridge.language.say, conversation, defaults, bridge.build, bridge.claude, bridge.updates.newer());
+  const context = bridge.contextOf(conversation.sessionId);
+  const embed = bindingEmbed(
+    bridge.language.say,
+    conversation,
+    defaults,
+    context,
+    bridge.build,
+    bridge.claude,
+    bridge.updates.newer(),
+  );
   await respond(interaction, { embeds: [embed] });
 }
 

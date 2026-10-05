@@ -1,5 +1,3 @@
-import type { TokenUsage } from "./events.ts";
-
 export type WarningLevel = "approaching" | "critical";
 
 export interface Warning {
@@ -7,40 +5,62 @@ export interface Warning {
   percent: number;
 }
 
+// The session's own account of itself: what it holds, and where it compacts, or where its window ends when it does not.
+export interface ContextReport {
+  usedTokens: number;
+  ceilingTokens: number;
+}
+
+export interface ContextStanding {
+  percent: number;
+  ceilingTokens: number;
+}
+
 const APPROACHING = 0.75;
 const CRITICAL = 0.9;
 
+const fullness = (report: ContextReport): number => Math.min(Math.round((report.usedTokens / report.ceilingTokens) * 100), 99);
+
 export class ContextTracker {
   private readonly fired = new Set<WarningLevel>();
-  private ceiling: number | null;
+  private latest: ContextReport | null = null;
 
-  constructor(ceiling: number | null = null) {
-    this.ceiling = ceiling;
-  }
-
-  // The only trustworthy sign of where this session compacts is where it last compacted by itself, which moves down as well as up when the model changes.
-  learnCeiling(preTokens: number): void {
-    if (preTokens > 0) this.ceiling = preTokens;
-  }
-
-  knownCeiling(): number | null {
-    return this.ceiling;
-  }
-
+  // A compaction empties the session, so both warnings are due again and the last measure describes what is gone.
   reset(): void {
     this.fired.clear();
+    this.latest = null;
   }
 
-  observe(usage: TokenUsage): Warning | null {
-    if (!this.ceiling) return null;
+  // Null until a turn has been measured.
+  standing(): ContextStanding | null {
+    return this.latest ? { percent: fullness(this.latest), ceilingTokens: this.latest.ceilingTokens } : null;
+  }
 
-    const usedTokens = usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens;
-    const percent = usedTokens / this.ceiling;
+  observe(report: ContextReport): Warning | null {
+    this.latest = report;
+    const share = report.usedTokens / report.ceilingTokens;
 
-    const level: WarningLevel | null = percent >= CRITICAL ? "critical" : percent >= APPROACHING ? "approaching" : null;
+    const level: WarningLevel | null = share >= CRITICAL ? "critical" : share >= APPROACHING ? "approaching" : null;
     if (!level || this.fired.has(level)) return null;
     this.fired.add(level);
 
-    return { level, percent: Math.min(Math.round(percent * 100), 99) };
+    return { level, percent: fullness(report) };
+  }
+}
+
+// One tracker per conversation, made when its first turn starts.
+export class ContextTrackers {
+  private readonly bySession = new Map<string, ContextTracker>();
+
+  trackerFor(sessionId: string): ContextTracker {
+    const existing = this.bySession.get(sessionId);
+    if (existing) return existing;
+    const created = new ContextTracker();
+    this.bySession.set(sessionId, created);
+    return created;
+  }
+
+  standing(sessionId: string): ContextStanding | null {
+    return this.bySession.get(sessionId)?.standing() ?? null;
   }
 }

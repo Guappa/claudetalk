@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { Bridge } from "../../src/bridge.ts";
 import { CapabilityCache } from "../../src/claude/capabilities.ts";
-import { ContextTracker } from "../../src/claude/contextTracker.ts";
+import { ContextTrackers } from "../../src/claude/contextTracker.ts";
 import { PlanUsage } from "../../src/claude/planUsage.ts";
 import { UsageLedger } from "../../src/claude/usageLedger.ts";
 import type { Config } from "../../src/config.ts";
@@ -60,6 +60,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
   const activeTurns = new ActiveTurns(path.join(dir, "turns.json"));
   const outbox = new OutboxDelivery();
   const updates = new UpdateCheck("0.0.0", null);
+  const trackers = new ContextTrackers();
   const sessions = {
     build: async () => records,
     find: async (sessionId: string) => newestCopy(records, sessionId),
@@ -89,7 +90,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     outbox,
     flow: new TurnFlow(
       capabilities,
-      () => new ContextTracker(),
+      (sessionId) => trackers.trackerFor(sessionId),
       usage,
       planUsage,
       approvals,
@@ -100,6 +101,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
       () => language.say,
       1,
     ),
+    contextOf: (sessionId) => trackers.standing(sessionId),
     sessions,
     pendingCreates: new PendingCreates(),
     pendingRuns: new Pending(),

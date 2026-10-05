@@ -874,6 +874,16 @@ describe("TurnFlow", () => {
     expect(shown).not.toContain("Try sending");
   });
 
+  // A conversation that has never compacted is the one a warning serves most, and it has no past compaction to be measured against.
+  it("warns that the context is filling when the session says so, on a conversation's first turn here", async () => {
+    endings.set("nearly full", { ok: true, text: "done", context: { usedTokens: 130_000, ceilingTokens: 167_000 } });
+    const flow = makeFlow();
+    const sink = recordingSink();
+    await flow.run("s71", cwd, "nearly full", {}, sink, { resume: true });
+
+    expect(sink.written.join("\n")).toContain("Context is about 78% full.");
+  });
+
   describe("a stop that lands at an awkward moment", () => {
     const held = (): { wait: Promise<void>; release: () => void } => {
       const gate = Promise.withResolvers<void>();

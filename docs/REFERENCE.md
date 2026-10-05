@@ -13,7 +13,7 @@ this covers behaviour.
 | `/resume <name>` | O | Opens an existing conversation: makes a channel, binds it, posts the last exchange. Points at the existing channel if one is already open. Autocompletes to the most recent per name; type a session id to reach an older one. |
 | `/fork [name]` | O | Branches this conversation into a new one in its own channel. The original is untouched. |
 | `/sessions [filter]` | O | Lists conversations on the host: name, transcript size, directory, last activity, whether something is holding it. Ones working inside the temp folder are left out unless a filter is given. |
-| `/whoami` | O | What this channel is bound to, its model and effort, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. The footer names the version the bridge started on, with the commit where the code is not exactly that tagged release, and a newer version once one has been tagged. |
+| `/whoami` | O | What this channel is bound to, its model and effort, how full its context was at the last turn, and the exact `claude --resume <id>` command for the host. A value the conversation does not override is shown as the host's default: what `~/.claude/settings.json` sets, with the conversation folder's own `.claude/settings.json` and `.claude/settings.local.json` laid over it as Claude Code lays them, or Claude Code's own default when none of them sets one. The footer names the version the bridge started on, with the commit where the code is not exactly that tagged release, and a newer version once one has been tagged. |
 | `/spend` | O | Plan usage first, the 5-hour and weekly windows as Claude Code reports them with each turn, for the whole account; a window whose reset has passed with nothing reported since is shown as reset, not as the share last seen for it. Then turns and tokens for this conversation and for every conversation the bridge has touched since it last started; a restart resets those, and turns run in a terminal are never counted. The tokens are the session's own and leave out what its agents used, which the cost does include. An API-equivalent cost comes last, only for ranking conversations against each other: a subscription is not billed by it. Named `/spend` so Claude Code's own `/usage` and `/cost` still reach the session. |
 | `/members` | O | The conversation's owner, who else can see its channel, and where it runs. |
 | `/operator <add\|remove\|list> [user]` | H | Who may use the bot, and where each one comes from. |
@@ -752,12 +752,15 @@ seconds, since compacting a large conversation takes minutes. Finishing posts
 how many tokens went in, came out and were dropped, how long it took, and
 whether it was manual or automatic.
 
-Crossing 75% of the context window posts a quiet warning; 90% a louder one.
-Each fires once and rearms after a compaction. The window is learned per
-conversation, from the largest automatic compaction recorded in its transcript,
-and no warning is issued until it is known; a manual `/compact` teaches nothing,
-since it happens wherever it was asked for. `/context` remains the authoritative
-figure.
+Crossing 75% of what the conversation holds before it compacts posts a quiet
+warning; 90% a louder one. Each fires once and rearms after a compaction. The
+measure is the session's own: when a turn's answer comes, the bridge asks the
+session how many tokens it holds and where it compacts, which follows the model
+and Claude Code's own settings, and is the window's end where automatic
+compaction is switched off. `/whoami` shows the same figure as of the last turn.
+It is kept in memory only, so after a restart of the bridge it reads as not
+measured until the next turn in that conversation. A turn that fails is not
+measured. `/context` gives the breakdown.
 
 **Transcript size is not context size.** A transcript is an append-only log of
 everything that ever happened, including what compaction has dropped. Resuming

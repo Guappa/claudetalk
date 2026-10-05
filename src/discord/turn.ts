@@ -25,8 +25,6 @@ export async function runConversationTurn(bridge: Bridge, conversation: Conversa
     return false;
   }
 
-  if (record) await bridge.flow.ensureCeiling(conversation.sessionId, record.transcriptPath);
-
   // Settled when the turn's place in the lane comes up: a turn ahead of this one may be what creates the session.
   const session = { exists: true };
   return await bridge.flow.run(conversation.sessionId, conversation.cwd, turn.prompt, conversation.settings, turn.sink, {

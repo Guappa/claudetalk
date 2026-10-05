@@ -12,6 +12,8 @@ const sessions = vi.hoisted(() => ({
   scripts: [] as Script[],
   options: [] as Array<Record<string, unknown>>,
   children: [] as ChildProcess[],
+  // What the session says of its own context when asked; null is a session that does not answer.
+  context: null as Record<string, unknown> | null,
 }));
 const killed = vi.hoisted(() => [] as number[]);
 
@@ -40,6 +42,10 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
       initializationResult: async () => ({ commands: [] }),
       interrupt: async () => undefined,
       stopTask: async () => undefined,
+      getContextUsage: async () => {
+        if (!sessions.context) throw new Error("no answer");
+        return sessions.context;
+      },
     });
   },
 }));
@@ -54,6 +60,7 @@ afterEach(() => {
   sessions.children.length = 0;
   sessions.scripts.length = 0;
   sessions.options.length = 0;
+  sessions.context = null;
   killed.length = 0;
 });
 
@@ -103,15 +110,22 @@ describe("a turn around an Agent SDK session", () => {
     expect(sessions.options.map((options) => options.hooks !== undefined)).toEqual([false, true, true]);
   });
 
-  it("reads the session's context use off its own messages, which the context warnings are built on", async () => {
+  // A session compacts short of its window's end, so a share of the window would call a nearly full session comfortable.
+  it("takes how full the session is from the session's own account, measured against where it compacts", async () => {
+    sessions.context = { totalTokens: 140_000, maxTokens: 200_000, isAutoCompactEnabled: true, autoCompactThreshold: 167_000 };
+    sessions.scripts.push(answers("done"));
+    expect((await runTurn(request(), () => undefined).done).context).toEqual({ usedTokens: 140_000, ceilingTokens: 167_000 });
+
+    sessions.context = { totalTokens: 140_000, maxTokens: 200_000, isAutoCompactEnabled: false };
+    sessions.scripts.push(answers("done"));
+    expect((await runTurn(request(), () => undefined).done).context).toEqual({ usedTokens: 140_000, ceilingTokens: 200_000 });
+  });
+
+  it("ends the turn with its answer when the session gives no account of its context", async () => {
     sessions.scripts.push(answers("done"));
     const result = await runTurn(request(), () => undefined).done;
-    expect(result.contextUsage).toEqual({
-      input_tokens: 40,
-      output_tokens: 0,
-      cache_read_input_tokens: 10,
-      cache_creation_input_tokens: 0,
-    });
+    expect(result).toMatchObject({ ok: true, text: "done" });
+    expect(result.context).toBeUndefined();
   });
 
   // A stop that lands after the turn is over must not signal a pid that by then belongs to nobody, or to somebody else.

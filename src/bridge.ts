@@ -5,7 +5,7 @@ import { readClaudeVersions, type ClaudeVersions } from "./claude/versions.ts";
 import { ConversationStore } from "./conversations.ts";
 import { OperatorStore } from "./operators.ts";
 import { CapabilityCache } from "./claude/capabilities.ts";
-import { ContextTracker } from "./claude/contextTracker.ts";
+import { ContextTrackers, type ContextStanding } from "./claude/contextTracker.ts";
 import { UsageLedger } from "./claude/usageLedger.ts";
 import { PlanUsage } from "./claude/planUsage.ts";
 import { TurnFlow } from "./discord/turnFlow.ts";
@@ -40,6 +40,8 @@ export interface Bridge {
   heldAttachments: Set<string>;
   outbox: OutboxDelivery;
   flow: TurnFlow;
+  // How full a conversation was at its last turn; null until one has run since the bridge started.
+  contextOf: (sessionId: string) => ContextStanding | null;
   sessions: SessionIndex;
   pendingCreates: PendingCreates;
   pendingRuns: Pending<PendingRun>;
@@ -86,14 +88,7 @@ export async function createBridge(config: Config, supervised: boolean): Promise
   const updates = new UpdateCheck(bridgeVersion(), config.updateCheck ? githubSlug(bridgeRepository()) : null);
   const updateNotice = new UpdateNotice(path.join(config.dataDir, "update.json"), updates);
   await updateNotice.load();
-  const trackers = new Map<string, ContextTracker>();
-  const trackerFor = (sessionId: string): ContextTracker => {
-    const existing = trackers.get(sessionId);
-    if (existing) return existing;
-    const created = new ContextTracker();
-    trackers.set(sessionId, created);
-    return created;
-  };
+  const trackers = new ContextTrackers();
 
   return {
     config,
@@ -118,7 +113,7 @@ export async function createBridge(config: Config, supervised: boolean): Promise
     outbox,
     flow: new TurnFlow(
       capabilities,
-      trackerFor,
+      (sessionId) => trackers.trackerFor(sessionId),
       usage,
       planUsage,
       approvals,
@@ -128,6 +123,7 @@ export async function createBridge(config: Config, supervised: boolean): Promise
       config,
       () => language.say,
     ),
+    contextOf: (sessionId) => trackers.standing(sessionId),
     sessions: new SessionIndex(),
     pendingCreates: new PendingCreates(),
     pendingRuns: new Pending<PendingRun>(),

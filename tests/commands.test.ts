@@ -37,7 +37,7 @@ import { describePurge, isBulkDeletable, purgeChannel } from "../src/discord/pur
 import { CHANNELS_PER_CATEGORY, describeCategoryFull, findCategory, normaliseCategoryName } from "../src/discord/category.ts";
 import { forkName } from "../src/discord/commands/fork.ts";
 import { sayIn } from "../src/i18n/index.ts";
-import { versionsFooter } from "../src/discord/commands/settings.ts";
+import { describeContext, versionsFooter } from "../src/discord/commands/settings.ts";
 import { TurnQueue, describeDepth, describeFull, describeQueued, MAX_QUEUE_DEPTH } from "../src/discord/turnQueue.ts";
 
 const say = sayIn("en");
@@ -789,6 +789,13 @@ describe("clear asks before starting over", () => {
     expect(text).toContain("none of what was said in this one");
     expect(text).toContain("/resume");
     expect(text).toContain("/purge");
+  });
+});
+
+describe("the context line in /whoami", () => {
+  it("gives the share of what the conversation holds, and says so when no turn has been measured", () => {
+    expect(describeContext(say, { percent: 58, ceilingTokens: 967_000 })).toBe("58% of 967k tokens");
+    expect(describeContext(say, null)).toBe("Not measured yet. The next turn here measures it.");
   });
 });
 
