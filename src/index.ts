@@ -8,7 +8,7 @@ import { createBridge } from "./bridge.ts";
 import { sweepAttachments } from "./attachments.ts";
 import { handleMessage } from "./discord/handlers/message.ts";
 import { handleInteraction } from "./discord/handlers/interaction.ts";
-import { startUp } from "./discord/startup.ts";
+import { onServerJoined, startUp } from "./discord/startup.ts";
 import { describeClaudeVersions } from "./claude/versions.ts";
 import { count } from "./text.ts";
 
@@ -138,6 +138,12 @@ client.on(Events.ShardReconnecting, (id) => console.log(`shard ${id} reconnectin
 
 client.once(Events.ClientReady, (ready) => {
   void startUp(bridge, ready).catch((error: unknown) => console.error("the bridge did not finish starting up", error));
+});
+
+client.on(Events.GuildCreate, (guild) => {
+  void onServerJoined(bridge, guild.client, guild.id).catch((error: unknown) => {
+    console.error("joining a server could not be acted on", error);
+  });
 });
 
 client.on(Events.MessageCreate, (message) => {

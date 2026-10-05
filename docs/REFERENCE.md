@@ -980,7 +980,13 @@ afterwards.
 ## Troubleshooting
 
 **Slash commands don't appear.** The bot was invited without the
-`applications.commands` scope. Re-open the invite URL; it updates in place.
+`applications.commands` scope. The host log says so at start-up and prints the
+link that adds it with both scopes; open that link, which updates the bot in
+place, then restart the bridge.
+
+**The bot is not in the server yet.** The host log prints the same link at
+start-up for as long as that is so, and the commands register the moment the
+bot joins.
 
 **The bot replies to nothing.** Message Content Intent is off in the Developer
 Portal, or unsaved. Without it every message arrives blank.
