@@ -1,6 +1,6 @@
 import { setTimeout as wait } from "node:timers/promises";
 import { spawn } from "node:child_process";
-import { query, type Options, type Query } from "@anthropic-ai/claude-agent-sdk";
+import { query, type Options, type Query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { killTree, turnSpawnOptions } from "../platform.ts";
 import { errorMessage } from "../text.ts";
 import { outboxRelative } from "../outboxFolder.ts";
@@ -415,6 +415,33 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
   };
 
   return { stop, stopTasks, handOver, interrupt, done };
+}
+
+// A session opened to ask Claude Code about the folder and nothing else: no message is sent, so no model is called, and no transcript is kept.
+export async function askSession<Answer>(cwd: string, ask: (session: Query) => Promise<Answer>): Promise<Answer> {
+  const done = Promise.withResolvers<void>();
+  // An input that says nothing and ends once the question is answered; an input that ended at once would close the session before it could be asked.
+  const silence: AsyncIterable<SDKUserMessage> = {
+    [Symbol.asyncIterator]: () => ({
+      next: async () => {
+        await done.promise;
+        return { done: true, value: undefined };
+      },
+    }),
+  };
+  const session = query({ prompt: silence, options: { cwd, persistSession: false } });
+  // Nobody reads what it says of itself, and output left unread stalls the process that writes it.
+  const drained = (async () => {
+    for await (const message of session) void message;
+  })().catch(() => undefined);
+  try {
+    await session.initializationResult();
+    return await ask(session);
+  } finally {
+    done.resolve();
+    session.close();
+    await drained;
+  }
 }
 
 // What a failed result says went wrong is its own errors, never the answer an earlier turn in the same process left behind.

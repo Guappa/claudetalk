@@ -27,6 +27,7 @@ this covers behaviour.
 | `/skills` | O | Lists the bound session's skills, A to Z across up to five menus of twenty-five, and runs the one you pick. Past 125 the rest are counted and reachable by sending `/name` as a message. |
 | `/run <command> [args]` | O | Runs one of the conversation's commands, skills or plugin commands, after showing exactly what will run and waiting for **Run** to be pressed. As you type, it searches what this conversation has, by name and description, with each command's arguments shown; whatever a plugin adds is listed without anything being registered. `args` is passed as you would type it after the command. |
 | `/plugins` | H | Lists installed Claude Code plugins and toggles one. |
+| `/mcp` | H | Lists the MCP servers Claude Code has for this conversation's folder, each with what it is doing: connected with its tool count, failed with the reason, waiting for a sign-in, or switched off. Pick one to switch it off or on, or to reconnect it. See [MCP servers](#mcp-servers). |
 | `/purge` | O | Deletes every message in this channel after a confirmation. The conversation is kept. |
 | `/clear` | O | Starts this channel over with a fresh conversation after a confirmation: same folder, model, effort and members, with none of what was said before. The previous conversation stays on the host. The channel's messages are kept. |
 | `/stop [all]` | O | Kills the in-flight turn and its process tree; what is queued behind it runs next, so a correction sent while a wrong turn runs takes over once it is stopped. `all:true` drops the queue too. The transcript keeps the partial turn. A **Stop** button on the progress message does the same without typing, and a **Stop all** button appears beside it whenever something is queued. While agents or a cloud task are running there is also **Stop agents**, which stops them and leaves the turn going. |
@@ -358,7 +359,7 @@ on hover.
 ## Claude Code commands
 
 Anything starting with `/` that is not a bridge command is passed to the session
-unchanged: `/compact`, `/context`, `/usage`, `/recap`, `/mcp`, `/config`,
+unchanged: `/compact`, `/context`, `/usage`, `/recap`, `/config`,
 `/autocompact`, and every skill and plugin command. The ones the session
 reports as terminal-only (`/doctor`, `/color`, `/reload-plugins`) are refused
 with an explanation; the list is read from the session, not hardcoded.
@@ -400,6 +401,31 @@ reports for the folder. `/ask` with no context is held to all of it too, since
 its prompt then reaches the session exactly as a typed message would. A refusal
 is only posted when the message was for the bot: a command typed in a channel
 it is not part of, or as a reply to another person, gets no answer.
+
+### MCP servers
+
+`/mcp` shows the MCP servers Claude Code loads for the conversation's folder:
+the ones in your own settings, the ones a plugin brings, and claude.ai
+connectors. Each is listed with what it is doing: connected, with how many tools
+it offers; failed, with the reason Claude Code gives; waiting for a sign-in; or
+switched off.
+
+Picking one from the menu offers **Reconnect** and **Switch off**, or **Switch
+on** for one that is off. Claude Code keeps the switch for the folder, so it
+holds for the next turn in that conversation and for a terminal opened in the
+same folder, and leaves every other folder as it is.
+
+The bridge asks by opening a session in the folder and sending it nothing, which
+takes two or three seconds, calls no model and leaves no transcript. A server
+still connecting when asked is waited on for a few seconds and then shown as it
+stands.
+
+A server waiting for a sign-in cannot be signed in from Discord: the consent
+happens in a browser on the host. Run `/mcp` in Claude Code there, or authorise
+a claude.ai connector in the connector settings on claude.ai. `/mcp` neither
+adds nor removes a server; that stays `claude mcp add` and `claude mcp remove` on
+the host. Typed as a message, `/mcp` is still passed to the session as Claude
+Code's own command; the bridge's is the one Discord offers in its command list.
 
 ## A turn, start to finish
 
