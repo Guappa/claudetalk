@@ -86,13 +86,39 @@ function pathsNamed(command: string, cwd: string): string[] {
   return [...new Set(wordsOf(command))].map((word) => path.resolve(cwd, word));
 }
 
-// Quoted text is an argument, not a command: it is blanked to spaces of the same length before a rule looks for where a command starts, so a commit message that says "then shutdown" refuses nothing. What a shell is handed to run, after its -c, /c or -Command, is kept, its opening quote standing for a separator.
-function blankQuoted(command: string): string {
-  return command.replace(
-    /((?<![\w.-])(?:sh|bash|zsh|dash|ksh|fish|pwsh|powershell|cmd)(?:\.exe)?(?:[ \t]+-[\w-]+)*?[ \t]+(?:-[a-z]*c|\/c|-Command)[ \t]+)?("[^"]*"?|'[^']*'?)/gi,
-    (_whole, runner: string | undefined, quoted: string) =>
-      runner ? `${runner};${quoted.slice(1)}` : `${quoted[0]}${" ".repeat(quoted.length - 1)}`,
+const SHELLS = String.raw`(?<![\w.-])(?:sh|bash|zsh|dash|ksh|fish|su|pwsh|powershell|cmd)(?:\.exe)?`;
+// A shell handed a command to run, after its flags and their values, or eval. A flag's value can be any word, so the flags are capped: unbounded, each shell name would read on to the end of the line.
+const RUNNER = String.raw`(?:${SHELLS}(?:[ \t]+[-\/][\w-]+(?:[ \t]+(?![-\/"'])[\w.-]+)?){0,8}?[ \t]+(?:-[a-z]*c|\/c|-Command)|(?<![\w.-])eval)[ \t]+`;
+// A closed double quote honours \"; a quote never closed ends with its line, as a reader would take it, so one apostrophe cannot hide the lines below.
+const QUOTED = String.raw`(?<!\\)(?:"(?:[^"\\]|\\[^])*"|'[^']*'|["'][^\n]*)`;
+// A heredoc's body runs to the line holding its tag alone, or to the end; it is text unless a shell is the one reading it.
+const HEREDOC = String.raw`(?<feed>${SHELLS}(?:[ \t]+[-\/][\w-]+){0,8}[ \t]*)?(?<!<)<<(?!<)-?[ \t]*(?<tagQuote>["']?)(?<tag>\w+)\k<tagQuote>[^\n]*(?<body>\n[^]*?(?:\n[ \t]*\k<tag>(?=\n|$)|$))?`;
+const COMMENT = String.raw`(?<![^\s;&|(])#[^\n]*`;
+const NOT_A_COMMAND = new RegExp(`(?<runner>${RUNNER})?(?<quoted>${QUOTED})|${HEREDOC}|(?<comment>${COMMENT})`, "gi");
+
+const blank = (text: string): string => " ".repeat(text.length);
+
+// Inside double quotes the shell still runs $(...) and backticks, so those stay readable, the $ dropped so the bracket starts a command.
+function keepSubstitutions(text: string): string {
+  return text.replace(/\$\([^()]*\)?|`[^`]*`?|[^$`]+|[$`]/g, (part) =>
+    part.startsWith("$(") ? ` ${part.slice(1)}` : part.startsWith("`") ? part : blank(part),
   );
+}
+
+// Quoted text, a comment and a heredoc's body are arguments, not commands: each is blanked to spaces of the same length before a rule looks for where a command starts, so a commit message that says "then shutdown" refuses nothing. What a shell is handed to run is kept, its opening quote standing for a separator.
+function blankQuoted(command: string): string {
+  return command.replace(NOT_A_COMMAND, (...args: unknown[]) => {
+    const whole = args[0] as string;
+    const found = args.at(-1) as Record<string, string | undefined>;
+    if (found.comment !== undefined) return blank(whole);
+    if (found.tag !== undefined) {
+      const body = found.body ?? "";
+      return found.feed !== undefined ? whole : `${whole.slice(0, whole.length - body.length)}${blank(body)}`;
+    }
+    const quoted = found.quoted ?? "";
+    if (found.runner !== undefined) return `${found.runner};${quoted.slice(1)}`;
+    return `${quoted[0]}${quoted[0] === '"' ? keepSubstitutions(quoted.slice(1)) : blank(quoted.slice(1))}`;
+  });
 }
 
 // The original text of a span found in the blanked one, which has the same length.
@@ -124,11 +150,11 @@ function writesProtected(command: string, scope: DenialScope): boolean {
 }
 
 // Where a command starts: a line, a separator, a bracket, brace or backtick, a shell keyword, or what runs one command inside another, then the wrappers that run what follows and a path or a backslash before its name. Only spaces and tabs may lead it, so a run of blank lines is read once.
-const COMMAND_START = String.raw`(?:^|[;&|({\x60]|(?<![\w-])(?:then|do|else|xargs|-exec|\/c|-Command)(?=[ \t]))[ \t]*(?:(?:sudo|env|nohup|time|command|exec)[ \t]+|(?:-|\w+=)[^\s;&|]*[ \t]+)*(?:\\|[^\s;&|"'(){}]*[\\/])?`;
+const COMMAND_START = String.raw`(?:^|[;&|({\x60]|(?<![\w-])(?:then|do|else|xargs|-exec|\/c|-Command)(?=[ \t]))[ \t]*(?:(?:sudo|env|nohup|time|exec)[ \t]+|(?:-[\w-]|\w+=)[^\s;&|(){}\x60]*[ \t]+)*(?:\\|[^\s;&|"'(){}]*[\\/])?`;
 
 // The recursive flag may come after others, short or spelled out, and each flag is read one way only: read every way it could be, a long run of them costs the square of its length. The targets end where the command does, at a separator, a redirection or the end of the line.
 const RECURSIVE_DELETE = new RegExp(
-  String.raw`${COMMAND_START}(?:rm\s+(?:-(?:-(?!recursive\b)[a-z-]+|[a-qs-z]+)\s+)*(?:-[a-qs-z]*r[a-z]*|--recursive)\s+|(?:rmdir|rd)[ \t]+(?=(?:\/[a-z][ \t]+)*\/s[ \t])(?:\/[a-z][ \t]+)+|Remove-Item\s+(?=(?:[^;&|\n]*\s)?-r[a-z]*\b))([^;&|\n<>)}\x60]*)`,
+  String.raw`${COMMAND_START}(?:rm\s+(?:-(?:-(?!recursive\b)[a-z-]+|[a-qs-z]+)\s+)*(?:-[a-qs-z]*r[a-z]*|--recursive)\s+|(?:rmdir|rd)[ \t]+(?=(?:\/[a-z][ \t]+)*\/s[ \t])(?:\/[a-z][ \t]+)+|Remove-Item(?=[^;&|\n]{0,300}?\s-r[a-z]*\b)\s+)([^;&|\n<>)}\x60]*)`,
   "dgim",
 );
 

@@ -864,6 +864,36 @@ describe("what a turn is refused outright", () => {
     expect(shell("touch ~/.ssh/probe")).toContain("credentials");
   });
 
+  // A quote a shell would never open, in a comment or a heredoc, or escaped, hides nothing after it.
+  it("still sees a delete or a write after a stray apostrophe or an escaped quote", () => {
+    expect(shell("# don't touch the project\nrm -rf ~/old")).not.toBeNull();
+    expect(shell("cat > a.md <<'EOF'\nDon't\nEOF\nrm -rf ~/x")).not.toBeNull();
+    expect(shell('git commit -m "say \\"hi" && rm -rf ~/y')).not.toBeNull();
+    expect(shell("# don't\ncat notes.txt > ~/.ssh/authorized_keys")).toContain("credentials");
+    expect(shell("echo it's done\nrm -rf ~/z")).not.toBeNull();
+  });
+
+  // A shell reads its command after flags with values and switches of either kind, and the shell runs a substitution inside double quotes.
+  it("reads what a shell is handed however its flags are spelled", () => {
+    for (const command of [
+      'powershell -ExecutionPolicy Bypass -Command "Remove-Item -Recurse -Force C:\\x"',
+      'cmd /d /s /c "rd /s /q C:\\x"',
+      'su -c "rm -rf ~/x"',
+      'eval "rm -rf ~/x"',
+      'echo "$(rm -rf ~/x)"',
+      "bash <<EOF\nrm -rf ~/x\nEOF",
+    ]) {
+      expect(shell(command), command).not.toBeNull();
+    }
+  });
+
+  // A heredoc's body is the text of a file, and asking whether a tool exists runs nothing.
+  it("refuses nothing for command words in a heredoc's body or a lookup of a command", () => {
+    expect(shell("cat > README.md <<'EOF'\n- reboot the router\nEOF")).toBeNull();
+    expect(shell('cat > cfg.toml <<EOF\nformat = "json"\nshutdown the worker\nEOF')).toBeNull();
+    expect(shell("command -v shutdown")).toBeNull();
+  });
+
   // cmd takes its switches before the folder, in any order, and a switch is not a target.
   it("lets cmd delete a folder inside the project with its switches in any order", () => {
     expect(shell("rd /s /q build")).toBeNull();
@@ -898,6 +928,13 @@ describe("what a turn is refused outright", () => {
       "dd if=x ".repeat(20_000),
       "env A=1 ".repeat(20_000),
       "> ".repeat(60_000),
+      "-(".repeat(50_000),
+      "then Remove-Item ".repeat(8_000),
+      "<<a ".repeat(20_000),
+      '\\"'.repeat(50_000),
+      "# '\n".repeat(30_000),
+      "bash -x a ".repeat(15_000),
+      '"$('.repeat(30_000),
     ])
       expect(shell(`echo ${filler}x`)).toBeNull();
     expect(performance.now() - started).toBeLessThan(2_000);
