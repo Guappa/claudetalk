@@ -181,7 +181,7 @@ describe("HeldPrompt", () => {
   const replay = (uuid: string) => ({ type: "user", message: { content: [] }, uuid, isReplay: true }) as ClaudeEvent;
 
   it("passes on a message handed over mid-turn, and refuses one before the turn is under way or after it has let go", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     expect(held.handOver("too early")).toBeNull();
     const stream = held.stream();
     held.ready();
@@ -198,9 +198,26 @@ describe("HeldPrompt", () => {
     expect(held.handOver("too late")).toBeNull();
   });
 
+  // A message that shows nothing stays the plain string every other test here sees, so only one with images takes the shape the API reads parts from.
+  it("sends an image inside the message it came with, at the start of a turn and handed over to one", async () => {
+    const image = { mediaType: "image/png" as const, base64: "aGVsbG8=" };
+    const shown = { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } };
+    const held = new HeldPrompt("look at this", [image], 5);
+    const stream = held.stream();
+    held.ready();
+    expect((await stream.next()).value?.message.content).toEqual([{ type: "text", text: "look at this" }, shown]);
+
+    held.observe(spoke);
+    held.handOver("and this", [image]);
+    expect((await stream.next()).value?.message.content).toEqual([{ type: "text", text: "and this" }, shown]);
+    held.handOver("words alone");
+    expect((await stream.next()).value?.message.content).toBe("words alone");
+    held.close();
+  });
+
   // A turn that ends with a message still waiting is about to run it as the next turn, in the same process.
   it("stays open past an answer while a handed-over message is still to be taken up", async () => {
-    const held = new HeldPrompt("hello", 5, 1000);
+    const held = new HeldPrompt("hello", [], 5, 1000);
     const stream = held.stream();
     held.ready();
     await stream.next();
@@ -222,7 +239,7 @@ describe("HeldPrompt", () => {
   // Captured from a session with nothing in hand: it reports starting on the message 1.5s before it echoes it, and longer when it thinks first.
   it("counts a message as taken up when the session says it started on it, without waiting for the echo", async () => {
     const lifecycle = (uuid: string, state: string) => ({ type: "command_lifecycle", command_uuid: uuid, state }) as ClaudeEvent;
-    const held = new HeldPrompt("hello", 5, 1000);
+    const held = new HeldPrompt("hello", [], 5, 1000);
     const stream = held.stream();
     held.ready();
     await stream.next();
@@ -307,7 +324,7 @@ describe("HeldPrompt", () => {
   });
 
   it("does not hold the input open for good when a handed-over message is never taken up", async () => {
-    const held = new HeldPrompt("hello", 5, 10);
+    const held = new HeldPrompt("hello", [], 5, 10);
     const stream = held.stream();
     held.ready();
     await stream.next();
@@ -320,7 +337,7 @@ describe("HeldPrompt", () => {
 
   // A background command keeps the input open past the answer, and no further result comes to start the clock on a message handed over then.
   it("does not hold the input open for a message handed over after the answer and never taken up", async () => {
-    const held = new HeldPrompt("hello", 5, 10);
+    const held = new HeldPrompt("hello", [], 5, 10);
     const stream = held.stream();
     held.ready();
     await stream.next();
@@ -334,7 +351,7 @@ describe("HeldPrompt", () => {
   });
 
   it("holds the prompt until the handshake is done, then yields it once", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     const stream = held.stream();
     const first = stream.next();
     held.observe(init);
@@ -346,14 +363,14 @@ describe("HeldPrompt", () => {
   });
 
   it("stays open while a background command is still running", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     held.observe(tasks(1));
     held.observe(result);
     expect(await settled(held)).toBe(false);
   });
 
   it("lets go a moment after the last command finishes with no follow-up", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     held.observe(tasks(1));
     held.observe(result);
     held.observe(tasks(0));
@@ -362,7 +379,7 @@ describe("HeldPrompt", () => {
 
   // The follow-up turn a finished task triggers is the whole reason the input was held.
   it("keeps holding when a follow-up turn starts, until that turn answers", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     held.observe(tasks(1));
     held.observe(result);
     held.observe(tasks(0));
@@ -373,14 +390,14 @@ describe("HeldPrompt", () => {
   });
 
   it("does not count a watcher as work", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     held.observe(tasks(0, 2));
     held.observe(result);
     expect(await settled(held)).toBe(true);
   });
 
   it("lets go at once when closed, whatever is running", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     held.observe(tasks(3));
     held.close();
     expect(await settled(held)).toBe(true);
@@ -388,7 +405,7 @@ describe("HeldPrompt", () => {
 
   // A process that opens by reporting an orphaned task cancels every tool call, so the prompt must never reach it.
   it("asks for a restart the moment the CLI opens with an orphaned task, and sends nothing", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     const stream = held.stream();
     const first = stream.next();
     held.observe(orphan);
@@ -400,7 +417,7 @@ describe("HeldPrompt", () => {
 
   // The report can land a moment after the handshake let the prompt go; only a model reply makes it too late.
   it("still restarts when the report lands after the prompt but before the model has spoken", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     const stream = held.stream();
     held.ready();
     await stream.next();
@@ -409,7 +426,7 @@ describe("HeldPrompt", () => {
   });
 
   it("treats an orphan reported once the model has spoken as an ordinary notification", async () => {
-    const held = new HeldPrompt("hello", 5);
+    const held = new HeldPrompt("hello", [], 5);
     const stream = held.stream();
     held.ready();
     await stream.next();

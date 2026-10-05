@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { PromptImage } from "./claude/heldPrompt.ts";
+import { attachmentLine } from "./claude/prompts.ts";
 import type { Say } from "./i18n/index.ts";
 import { attachmentsRoot, ownUid } from "./platform.ts";
 
@@ -59,9 +61,35 @@ export interface SavedAttachment {
   path: string;
   contentType: string | null;
   name: string;
+  // Set for an image that goes inside the message as well, so the model sees it without reading the file.
+  image?: PromptImage;
 }
 
 const FALLBACK_TYPE = "application/octet-stream";
+
+// Base64 grows a file by a third, and five megabytes of that is the most the API takes for one image; a larger one goes by its path alone, which Claude Code scales down as it reads it.
+const MAX_INLINE_IMAGE_BYTES = 3_750_000;
+
+const startsWith = (bytes: Buffer, text: string, at = 0): boolean =>
+  bytes.subarray(at, at + text.length).toString("latin1") === text;
+
+// The first bytes say what an image is; what the sender called it can be wrong, and an image sent under the wrong type is one the API may refuse.
+function imageTypeOf(bytes: Buffer): PromptImage["mediaType"] | null {
+  if (startsWith(bytes, "\x89PNG\r\n\x1a\n")) return "image/png";
+  if (startsWith(bytes, "\xff\xd8\xff")) return "image/jpeg";
+  if (startsWith(bytes, "GIF87a") || startsWith(bytes, "GIF89a")) return "image/gif";
+  if (startsWith(bytes, "RIFF") && startsWith(bytes, "WEBP", 8)) return "image/webp";
+  return null;
+}
+
+export function inlineImage(bytes: Buffer): PromptImage | undefined {
+  const mediaType = bytes.length <= MAX_INLINE_IMAGE_BYTES ? imageTypeOf(bytes) : null;
+  return mediaType ? { mediaType, base64: bytes.toString("base64") } : undefined;
+}
+
+export function imagesAmong(files: SavedAttachment[]): PromptImage[] {
+  return files.flatMap((file) => (file.image ? [file.image] : []));
+}
 const OWNER_ONLY_DIR = 0o700;
 const OWNER_ONLY_FILE = 0o600;
 
@@ -70,7 +98,8 @@ export const ATTACHMENT_TTL_MS = 60 * 60 * 1000;
 
 export function appendAttachmentPaths(prompt: string, files: SavedAttachment[]): string {
   if (files.length === 0) return prompt;
-  const lines = files.map((file) => `[Attachment: ${file.contentType ?? FALLBACK_TYPE}] ${file.path}`);
+  // The path is named for an image the message already carries as well, since a request to keep or move the file needs it.
+  const lines = files.map((file) => attachmentLine(file.contentType ?? FALLBACK_TYPE, file.path, file.image !== undefined));
   return `${prompt}\n\n${lines.join("\n")}`;
 }
 
@@ -161,8 +190,9 @@ export async function downloadAttachments(attachments: RemoteAttachment[], turnI
         const response = await fetch(attachment.url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const target = path.join(dir, `att_${index}${extensionFor(attachment.name, attachment.contentType)}`);
-        await fs.writeFile(target, Buffer.from(await response.arrayBuffer()), { mode: OWNER_ONLY_FILE });
-        return { path: target, contentType: attachment.contentType, name: attachment.name };
+        const bytes = Buffer.from(await response.arrayBuffer());
+        await fs.writeFile(target, bytes, { mode: OWNER_ONLY_FILE });
+        return { path: target, contentType: attachment.contentType, name: attachment.name, image: inlineImage(bytes) };
       } catch {
         return null;
       }

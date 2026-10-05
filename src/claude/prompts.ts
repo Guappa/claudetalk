@@ -1,6 +1,11 @@
 // Everything here is written for Claude to read, so it stays in English whatever language the bridge speaks to people.
 const SAY_HELLO = "Say hello in one short line, naming the folder you are working in but not its full path.";
 
+// How a file that came with a message is named to the session; an image the message itself carries is said to be shown, which spares a read of it.
+export function attachmentLine(contentType: string, filePath: string, shown: boolean): string {
+  return shown ? `[Attachment: ${contentType}, shown in this message] ${filePath}` : `[Attachment: ${contentType}] ${filePath}`;
+}
+
 export function helloToNew(name: string): string {
   return `This conversation was created from Discord and is named "${name}". ${SAY_HELLO}`;
 }

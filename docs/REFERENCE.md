@@ -840,7 +840,13 @@ Images, PDFs and text files dropped into a message are downloaded to a temporary
 directory on the host and their paths handed to the session. Discord's URLs
 expire, so they are fetched during the turn. An image or PDF is saved under the
 extension its content type implies, so a WebP that arrived as `shot.png` lands
-as `.webp`; text and source keep the name they were sent under. A file is kept
+as `.webp`; text and source keep the name they were sent under. A PNG, JPEG,
+GIF or WebP of up to 3.75 MB also travels inside the message itself, so Claude
+sees it as it reads your words and spends no tool call on reading the file;
+which of the four it is comes from the file's first bytes, never from what it
+was called. Its path is still handed over, marked as already shown, for a
+request to keep or move the file. A larger image, a PDF and every other file go
+by path alone. A file is kept
 for an hour so a follow-up can still act on it, then swept. The download folder
 is readable only by the account the bridge runs as, which matters where `/tmp`
 is shared, and the bridge refuses to write there if the folder belongs to
