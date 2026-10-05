@@ -2,6 +2,9 @@ import { displayPath } from "../displayPath.ts";
 import type { Say } from "../i18n/index.ts";
 import { truncate } from "../text.ts";
 
+// An agent sent out is work that carries on beside the turn, so its line is marked apart from the tool calls around it.
+const AGENT_MARK = "🤖";
+
 // What the terminal shows for a tool call, drawn from the call's own input, so it costs the model nothing: every call gets a line, as in the terminal, so nothing a turn does goes unseen.
 export function describeToolUse(say: Say, name: string, input: Record<string, unknown>): string | null {
   switch (name) {
@@ -31,7 +34,7 @@ export function describeToolUse(say: Say, name: string, input: Record<string, un
       return quoted(input.query, (query) => say("tools.toolSearch", { query: asCode(query) }));
     case "Agent":
     case "Task":
-      return quoted(input.description, (description) => say("tools.agent", { description }));
+      return quoted(input.description, (description) => `${AGENT_MARK} ${say("tools.agent", { description })}`);
     case "Skill":
       return quoted(input.skill, (name) => say("tools.skill", { name }));
     case "TodoWrite":
