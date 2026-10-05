@@ -1,6 +1,6 @@
 import { SlashCommandBuilder } from "discord.js";
 import { LANGUAGES } from "../../i18n/index.ts";
-import { EFFORT_CHOICES } from "./settings.ts";
+import { BACK_TO_DEFAULT, EFFORT_CHOICES } from "./settings.ts";
 import { TRAIL_KINDS } from "../toolTrail.ts";
 import { EVERY_KIND } from "../trailChoice.ts";
 
@@ -65,7 +65,7 @@ export function bridgeCommandDefinitions() {
         option
           .setName("value")
           .setDescription("Effort")
-          .addChoices(...EFFORT_CHOICES.map((effort) => ({ name: effort, value: effort }))),
+          .addChoices(...[...EFFORT_CHOICES, BACK_TO_DEFAULT].map((effort) => ({ name: effort, value: effort }))),
       ),
 
     new SlashCommandBuilder()

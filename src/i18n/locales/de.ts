@@ -496,6 +496,8 @@ export const de: Catalog = {
       "{{setting}} auf `{{value}}` gesetzt. Es gilt ab dem nächsten Durchlauf; ein Durchlauf, der schon läuft, behält, womit er begonnen hat.",
     hostDefault: "`{{value}}` (Standard des Hosts)",
     claudeDefault: "dem Standard von Claude Code",
+    cleared: "{{setting}} ist für dieses Gespräch zurückgesetzt, ab dem nächsten Durchlauf gilt also {{fallback}}.",
+    defaultChoice: "default · Überschreibung entfernen und dem Host folgen",
     unknownModel:
       "`{{value}}` ist kein Modell, das Claude Code auf diesem Host anbietet, jeder darauf eingestellte Durchlauf würde also scheitern. Nichts wurde geändert. Wähle einen der Vorschläge, die `/model` beim Tippen zeigt: {{offered}}.",
   },

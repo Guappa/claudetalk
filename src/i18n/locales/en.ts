@@ -485,6 +485,8 @@ export const en = {
       "{{setting}} set to `{{value}}`. It applies from the next turn onward; a turn already running keeps what it started with.",
     hostDefault: "`{{value}}` (host default)",
     claudeDefault: "Claude Code's default",
+    cleared: "{{setting}} is cleared for this conversation, so from the next turn it runs with {{fallback}}.",
+    defaultChoice: "default · clear the override and follow the host",
     unknownModel:
       "`{{value}}` is not a model Claude Code offers on this host, so every turn set to it would fail. Nothing has changed. Pick one of the suggestions `/model` shows as you type: {{offered}}.",
   },
