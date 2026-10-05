@@ -81,6 +81,13 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...valid, PING_AFTER_SECONDS: "2m" })).toThrow(/PING_AFTER_SECONDS is "2m"/);
   });
 
+  it("leaves a turn unlimited unless CLAUDE_MAX_TURNS gives a count of model calls, and refuses what is not one", () => {
+    expect(loadConfig(valid).maxTurns).toBeNull();
+    expect(loadConfig({ ...valid, CLAUDE_MAX_TURNS: " 200 " }).maxTurns).toBe(200);
+    expect(() => loadConfig({ ...valid, CLAUDE_MAX_TURNS: "0" })).toThrow(/CLAUDE_MAX_TURNS is "0"/);
+    expect(() => loadConfig({ ...valid, CLAUDE_MAX_TURNS: "many" })).toThrow(/CLAUDE_MAX_TURNS is "many"/);
+  });
+
   it("checks for a newer version unless UPDATE_CHECK says not to, and refuses what is neither true nor false", () => {
     expect(loadConfig(valid).updateCheck).toBe(true);
     expect(loadConfig({ ...valid, UPDATE_CHECK: "false" }).updateCheck).toBe(false);

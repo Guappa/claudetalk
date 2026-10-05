@@ -141,6 +141,8 @@ export const sv: Catalog = {
       "Den konversationen är öppen i en terminal på värddatorn (pid {{pid}}, {{cwd}}). Stäng den terminalen eller byt den till en annan konversation och försök sedan igen.",
     conversationGone:
       "Den här kanalens konversation börjades om eller kopplades från medan ditt meddelande var på väg, så det kördes inte. Skicka det igen.",
+    turnLimit:
+      "Omgången nådde gränsen som `CLAUDE_MAX_TURNS` sätter för hur ofta en omgång får gå tillbaka till modellen, och Claude Code stoppade den där. Det den gjorde finns kvar. Skicka ett meddelande så fortsätter den, eller höj gränsen i `.env` på värddatorn och starta om bryggan.",
     unknownSession:
       "Claude Code har ingen konversation under det sessions-id som den här kanalen är kopplad till: dess transkript har tagits bort från värddatorn, eller så kom dess första omgång aldrig så långt att ett skrevs. Att skicka meddelandet igen hjälper inte. Kör `/clear` för att starta en ny konversation i den här kanalen.",
     errors: {

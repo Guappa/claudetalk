@@ -218,4 +218,22 @@ describe("a turn around an Agent SDK session", () => {
 
     expect(await turn.done).toMatchObject({ ok: true, text: "the second answer" });
   });
+
+  it("hands the host's limit on model calls to the session, and names a turn stopped at it", async () => {
+    const atTheLimit: ClaudeEvent = {
+      type: "result",
+      subtype: "error_max_turns",
+      is_error: true,
+      errors: ["Reached maximum number of turns (3)"],
+    } as unknown as ClaudeEvent;
+    sessions.scripts.push(answers("unlimited"), async function* () {
+      yield spoke;
+      yield atTheLimit;
+    });
+    await runTurn(request(), () => undefined).done;
+    const limited = await runTurn(request({ maxTurns: 3 }), () => undefined).done;
+
+    expect(sessions.options.map((options) => options.maxTurns)).toEqual([undefined, 3]);
+    expect(limited).toMatchObject({ ok: false, error: { kind: "turn-limit" } });
+  });
 });

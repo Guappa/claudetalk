@@ -35,6 +35,8 @@ export interface TurnRequest {
   askQuestions?: AskQuestions;
   deny?: (toolName: string, toolInput: Record<string, unknown>) => string | null;
   ask?: AskFirst;
+  // How many times the turn may go back to the model before Claude Code stops it; left out, it runs as long as it needs.
+  maxTurns?: number;
   // Told when the turn is run a second time after a login refresh lost to another process, so the trail can say so.
   onRetry?: () => void;
   retryDelayMs?: number;
@@ -94,6 +96,7 @@ export function buildOptions(request: TurnRequest): Options {
   if (settings.fallbackModel) options.fallbackModel = settings.fallbackModel;
   if (settings.effort) options.effort = settings.effort as Options["effort"];
   if (settings.agent) options.agent = settings.agent;
+  if (request.maxTurns) options.maxTurns = request.maxTurns;
   // The bridge has its own control for stopping agents, which is what makes an interrupt spare them; without this one kills every agent running.
   options.perTaskStopAffordance = true;
   // Replay is how the bridge learns a message handed over mid-turn was taken up; no typed option covers it, or autocompact.
@@ -416,6 +419,7 @@ export function runTurn(request: TurnRequest, onEvent: (event: ClaudeEvent) => v
 
 // What a failed result says went wrong is its own errors, never the answer an earlier turn in the same process left behind.
 export function resultError(subtype: string, errors: string[]): ClaudeError {
+  if (subtype === "error_max_turns") return { kind: "turn-limit" };
   const text = errors.join("\n");
   return detectClaudeError(text) ?? { kind: "ended", subtype, text };
 }

@@ -651,6 +651,16 @@ away from it, so a long `ping`, build or generation can outlive the stop and
 has to be dealt with on the host; the reply says so. Anything deliberately
 detached is untouched.
 
+A turn can also be given a limit to stop at by itself. `CLAUDE_MAX_TURNS` in
+`.env` is passed to Claude Code as its own turn limit: the number of times one
+turn may go back to the model, where each time is one reply that can call
+several tools. A turn that reaches it is stopped by Claude Code and the channel
+says so, with nothing lost: the transcript keeps what it did, and the next
+message carries on from there. Unset, which is the default, a turn runs as long
+as it needs. The limit is for a host where turns run with nobody watching and a
+loop would spend the plan's window; it counts model calls, not minutes or
+tokens.
+
 Stopping the bridge itself is different: `npm run stop` on the host lets every
 turn in flight finish, queued messages included, and admits nothing new until
 the bridge is back. A message sent meanwhile is answered with a notice saying

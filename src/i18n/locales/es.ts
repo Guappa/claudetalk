@@ -142,6 +142,8 @@ export const es: Catalog = {
       "Esa conversación está abierta en una terminal del host (pid {{pid}}, {{cwd}}). Cierra esa terminal o cámbiala a otra conversación, y vuelve a intentarlo.",
     conversationGone:
       "La conversación de este canal se reinició o se desvinculó mientras tu mensaje iba de camino, así que no se ejecutó. Envíalo otra vez.",
+    turnLimit:
+      "El turno alcanzó el límite que `CLAUDE_MAX_TURNS` pone a las veces que uno puede volver al modelo, y Claude Code lo detuvo ahí. Lo que hizo se conserva. Envía un mensaje para que continúe, o sube el límite en `.env` en el host y reinicia el puente.",
     unknownSession:
       "Claude Code no tiene ninguna conversación con el id de sesión al que está vinculado este canal: su transcripción se eliminó del host, o su primer turno nunca llegó lo bastante lejos como para escribir una. Volver a enviar el mensaje no sirve. Ejecuta `/clear` para empezar una conversación nueva en este canal.",
     errors: {

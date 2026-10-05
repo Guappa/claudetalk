@@ -4,6 +4,8 @@ export type ClaudeError =
   // The id a turn was told to resume is one Claude Code holds no transcript for.
   | { kind: "unknown-session" }
   | { kind: "stopped" }
+  // Claude Code stopped the turn at the number of model calls the host allows one.
+  | { kind: "turn-limit" }
   | { kind: "orphan-twice" }
   | { kind: "ended"; subtype: string; text: string }
   // Claude Code's own account of why it could not answer: a plan limit, an API error.

@@ -142,6 +142,8 @@ export const fr: Catalog = {
       "Cette conversation est ouverte dans un terminal sur l'hôte (pid {{pid}}, {{cwd}}). Ferme ce terminal ou passe-le à une autre conversation, puis réessaie.",
     conversationGone:
       "La conversation de ce salon a été relancée ou déliée pendant que ton message était en route, il n'a donc pas été exécuté. Renvoie-le.",
+    turnLimit:
+      "Le tour a atteint la limite que `CLAUDE_MAX_TURNS` fixe au nombre de fois où un tour peut revenir au modèle, et Claude Code l'a arrêté là. Ce qu'il a fait est conservé. Envoie un message pour qu'il continue, ou relève la limite dans `.env` sur l'hôte et redémarre la passerelle.",
     unknownSession:
       "Claude Code n'a aucune conversation sous l'identifiant de session auquel ce salon est lié : sa transcription a été retirée de l'hôte, ou son premier tour n'est jamais allé assez loin pour en écrire une. Renvoyer le message n'y changera rien. Lance `/clear` pour démarrer une nouvelle conversation dans ce salon.",
     errors: {

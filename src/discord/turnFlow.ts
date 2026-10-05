@@ -184,10 +184,14 @@ async function whileWaiting<T>(onState: StateMarker | undefined, stillRunning: (
 function describeFailure(say: Say, error: ClaudeError): string {
   if (error.kind === "session-busy") return say("turn.heldByBackgroundAgent", { shortId: error.shortId });
   if (error.kind === "unknown-session") return say("turn.unknownSession");
+  if (error.kind === "turn-limit") return say("turn.turnLimit");
   return say("turn.failed", { error: failureDetail(say, error) });
 }
 
-function failureDetail(say: Say, error: Exclude<ClaudeError, { kind: "session-busy" | "unknown-session" }>): string {
+function failureDetail(
+  say: Say,
+  error: Exclude<ClaudeError, { kind: "session-busy" | "unknown-session" | "turn-limit" }>,
+): string {
   switch (error.kind) {
     case "stopped":
       return say("turn.errors.stopped");
@@ -668,6 +672,7 @@ export class TurnFlow {
         approve: this.approvalGate(say, sessionId, sink, stillRunning, attention, options.onState),
         deny: this.denialGate(cwd, sink),
         ask: this.ownerGate(say, sessionId, cwd, sink, stillRunning, attention, options.onState),
+        maxTurns: this.config.maxTurns ?? undefined,
         onRetry: () => status.note(say("trail.retryingRefresh")),
         askQuestions: (questions) =>
           whileWaiting(options.onState, stillRunning, () =>

@@ -41,6 +41,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     toolApprovals: false,
     toolDenials: new Set(),
     pingAfterMs: 0,
+    maxTurns: null,
     updateCheck: false,
     language: "en",
     ...config,

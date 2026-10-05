@@ -241,10 +241,10 @@ describe("HeldPrompt", () => {
   // The reason a result failed is its own errors; the answer an earlier turn left in the same process is not one.
   it("words a failed result from its own errors", () => {
     expect(resultError("error_during_execution", [])).toEqual({ kind: "ended", subtype: "error_during_execution", text: "" });
-    expect(resultError("error_max_turns", ["hit the limit", "twice"])).toEqual({
+    expect(resultError("error_during_execution", ["the run broke", "twice"])).toEqual({
       kind: "ended",
-      subtype: "error_max_turns",
-      text: "hit the limit\ntwice",
+      subtype: "error_during_execution",
+      text: "the run broke\ntwice",
     });
   });
 
@@ -294,8 +294,12 @@ describe("HeldPrompt", () => {
     });
 
     it("words a failure subtype from the errors it carries", () => {
-      const failed = { subtype: "error_max_turns", is_error: true, errors: ["hit the limit"] };
-      expect(foldResult({ text: "" }, failed)).toEqual({ kind: "ended", subtype: "error_max_turns", text: "hit the limit" });
+      const failed = { subtype: "error_during_execution", is_error: true, errors: ["the run broke"] };
+      expect(foldResult({ text: "" }, failed)).toEqual({
+        kind: "ended",
+        subtype: "error_during_execution",
+        text: "the run broke",
+      });
     });
   });
 
