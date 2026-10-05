@@ -19,6 +19,8 @@ const DETAIL_LIMIT = 900;
 interface Pending {
   turnId: string;
   ownerIds: string[];
+  // Put to an owner one call at a time, so approving the rest of the turn never settles it.
+  onceOnly: boolean;
   settle: (choice: Settlement) => void;
 }
 
@@ -69,13 +71,18 @@ export class ApprovalPrompts {
     if (!waiting.ownerIds.includes(userId)) return say("approvals.ownersOnly");
 
     this.pending.delete(id);
+    // Its buttons offer no approve-all, so one that arrives anyway is taken for what the prompt asks: this call alone.
+    if (waiting.onceOnly && choice === "approve-all") {
+      waiting.settle("approve");
+      return describeChoice(say, "approve");
+    }
     waiting.settle(choice);
     if (choice !== "approve-all") return describeChoice(say, choice);
 
     this.approveAll.add(waiting.turnId);
     // Tools asked about side by side each have a prompt on screen; the rest of the turn includes those, or each would wait out its timer and be denied.
     for (const [otherId, other] of this.pending) {
-      if (other.turnId !== waiting.turnId) continue;
+      if (other.turnId !== waiting.turnId || other.onceOnly) continue;
       this.pending.delete(otherId);
       other.settle("approve-all");
     }
@@ -101,7 +108,7 @@ export class ApprovalPrompts {
     delivery?: Delivery,
   ): Promise<ToolDecision> {
     if (this.approveAll.has(turnId)) return { allow: true };
-    return await this.put(say, turnId, sink, ownerIds, describeRequest(say, toolName, input), approvalActions, delivery);
+    return await this.put(say, turnId, sink, ownerIds, describeRequest(say, toolName, input), approvalActions, delivery, false);
   }
 
   // Asked whatever the turn was approved for: approving the rest of a turn was said of ordinary calls, never of a delete or a write outside its folder.
@@ -117,7 +124,7 @@ export class ApprovalPrompts {
       asked.rule === "deletes"
         ? say("approvals.deleteOutside", { detail: detail({ command: asked.subject }) })
         : say("approvals.writeOutside", { detail: detail({ file_path: asked.subject }) });
-    return await this.put(say, turnId, sink, ownerIds, request, onceActions, delivery);
+    return await this.put(say, turnId, sink, ownerIds, request, onceActions, delivery, true);
   }
 
   private async put(
@@ -127,7 +134,8 @@ export class ApprovalPrompts {
     ownerIds: string[],
     request: string,
     actionsFor: (say: Say, id: string) => SinkAction[],
-    delivery?: Delivery,
+    delivery: Delivery | undefined,
+    onceOnly: boolean,
   ): Promise<ToolDecision> {
     // Without a way to ask, the safe answer is the one that does not act.
     if (!sink.ask) return { allow: false, reason: APPROVAL_REFUSED.unaskable };
@@ -135,7 +143,7 @@ export class ApprovalPrompts {
     const id = randomUUID();
     const { promise: answered, resolve: settle } = Promise.withResolvers<Settlement>();
 
-    this.pending.set(id, { turnId, ownerIds, settle });
+    this.pending.set(id, { turnId, ownerIds, onceOnly, settle });
     const timer = setTimeout(() => {
       if (this.pending.delete(id)) settle("expired");
     }, APPROVAL_TIMEOUT_MS);

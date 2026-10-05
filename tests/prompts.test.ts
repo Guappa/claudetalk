@@ -232,6 +232,33 @@ describe("ApprovalPrompts", () => {
     expect(shown.actions).toEqual(["approve", "deny"]);
   });
 
+  // Approving the rest of a turn is said of ordinary calls; a delete or a write outside the folder asked beside them is still asked on its own.
+  it("leaves an owner's prompt waiting when the rest of the turn is approved on another prompt beside it", async () => {
+    const prompts = new ApprovalPrompts();
+    const open: Array<{ text: string; actions: SinkAction[] }> = [];
+    const sink = {
+      ...quietSink(),
+      ask: async (text: string, actions: SinkAction[]) => {
+        open.push({ text, actions });
+        return { close: async () => undefined };
+      },
+    };
+    const outside = prompts.askOfOwner(say, "turn-1", sink, [OWNER], { rule: "deletes", subject: "rm -rf /srv/elsewhere" });
+    const ordinary = prompts.ask(say, "turn-1", sink, [OWNER], "Bash", { command: "ls" });
+    await vi.waitFor(() => expect(open).toHaveLength(2));
+    const [deletePrompt, lsPrompt] = open;
+
+    prompts.decide(say, actionId(lsPrompt!.actions, "approve-all"), OWNER, "approve-all");
+    expect(await ordinary).toEqual({ allow: true });
+    const settledEarly = await Promise.race([outside.then(() => true), wait(20).then(() => false)]);
+    expect(settledEarly).toBe(false);
+
+    prompts.decide(say, actionId(deletePrompt!.actions, "approve"), OWNER, "approve-all");
+    expect(await outside).toEqual({ allow: true });
+    expect(prompts.covers("turn-1")).toBe(true);
+    prompts.finish("turn-1");
+  });
+
   it("refuses a delete outside the folder where nobody can be asked", async () => {
     const asked = { rule: "deletes" as const, subject: "rm -rf /srv/elsewhere" };
     const decision = await new ApprovalPrompts().askOfOwner(say, "turn-1", quietSink(), [OWNER], asked);
