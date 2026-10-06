@@ -379,7 +379,7 @@ What is different inside a container, said plainly:
   git and Node. For anything else, extend it:
 
   ```dockerfile
-  FROM ghcr.io/guappa/claudetalk:0.22.0
+  FROM ghcr.io/guappa/claudetalk:latest
   USER root
   RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
   USER 1000:0
