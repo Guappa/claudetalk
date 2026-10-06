@@ -254,6 +254,41 @@ one found by its name, keeps the permissions its server gave it. `/invite` and
 `/uninvite` refuse there and change nothing: replacing those permissions would
 hide the channel from everyone it was shared with.
 
+### What reaches Discord
+
+A conversation channel is a copy of the conversation held by Discord, not by
+this machine. Posted there, and kept on Discord's servers under
+[Discord's privacy policy](https://discord.com/privacy):
+
+- what is typed in the channel, and every reply;
+- the trail: the full text of each command, the paths of files read and
+  searched, each edit as a diff and each file written in full up to the trail's
+  cap, search terms, fetched addresses, the todo list, the description of each
+  subagent, and the command or path in each approval prompt;
+- every file sent from the outbox, and every file attached in the channel;
+- what `/sync` and the recaps bring over from the conversation's use outside
+  Discord, a terminal's prompts and replies included.
+
+Thinking is never posted, nor is what a command prints or a file read returns.
+A secret still reaches the channel when Claude repeats it in a reply, writes it
+into a file or an edit, or sends back a file holding it, so reading one into a
+turn is enough. `/trail hide:edits`, or `hide:all`, keeps diffs and written
+files out of the channel; replies and files sent back are posted whatever it is
+set to.
+
+Messages are encrypted on the way to Discord and not end to end: Discord can
+read them, and so can any server administrator, whatever the channel's
+permissions. `/clear` leaves them where they are; `/purge` deletes them, and so
+does deleting the channel, which `/unbind` offers. Removing the bot from the
+server deletes nothing. Deleting takes a message out of the channel, not
+necessarily off Discord's servers: how long Discord keeps what was deleted is
+for its privacy policy to say, not this bridge, so treat anything once posted
+as possibly kept.
+
+What stays on this machine: the transcripts, everything under `data/`, and the
+files Claude reads but does not send. The conversation itself goes to Anthropic
+exactly as it does from a terminal; the bridge adds nothing to that.
+
 ## Context, and what it costs
 
 Anything fed into a session is written into its transcript and re-sent on every
