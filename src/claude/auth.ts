@@ -35,4 +35,4 @@ export function readAuthStatus(): AuthStatus | null {
 
 export const SIGNED_OUT =
   "Claude Code is signed out, so every turn would fail as soon as anyone sent one. " +
-  "Run `claude auth login` as the account this bridge runs as, then start it again.";
+  "Run `npm run login` here as the account this bridge runs as, or `claude auth login` where Claude Code is installed, then start it again.";

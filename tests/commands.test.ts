@@ -801,7 +801,7 @@ describe("the context line in /whoami", () => {
 
 describe("the versions under /whoami", () => {
   it("names a newer bridge beside the running one, and only once one has been tagged", () => {
-    const versions = { bundled: "2.1.9", host: "2.1.9" };
+    const versions = { bundled: "2.1.9", host: "2.1.9", hostIsBundled: false };
     expect(versionsFooter(say, "1.2.3 (abc1234)", versions, null)).toBe("bridge v1.2.3 (abc1234) · Claude Code 2.1.9");
     expect(versionsFooter(say, "1.2.3", versions, "9.9.9")).toBe("bridge v1.2.3 · v9.9.9 is out · Claude Code 2.1.9");
   });

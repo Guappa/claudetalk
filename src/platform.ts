@@ -26,25 +26,43 @@ function findOnPath(command: string, env: NodeJS.ProcessEnv): string | null {
   return null;
 }
 
-export function resolveClaudeBin(env: NodeJS.ProcessEnv = process.env): string {
-  if (env.CLAUDE_BIN) return env.CLAUDE_BIN;
-  return findOnPath("claude", env) ?? "claude";
+function isScriptShim(bin: string): boolean {
+  return process.platform === "win32" && UNSPAWNABLE_EXTENSIONS.includes(path.extname(bin).toLowerCase());
 }
 
-// The Agent SDK ships Claude Code as a package per platform; null when none is installed for this one.
-export function bundledClaudeBin(): string | null {
-  const name = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
-  try {
-    const manifest = createRequire(import.meta.url).resolve(`${name}/package.json`);
-    return path.join(path.dirname(manifest), process.platform === "win32" ? "claude.exe" : "claude");
-  } catch {
-    return null;
+// The SDK's own build answers every side job the bridge asks of the host's, so Claude Code need not be installed separately, and a shim Node cannot start gives way to it.
+export function resolveClaudeBin(env: NodeJS.ProcessEnv = process.env, bundled: () => string | null = bundledClaudeBin): string {
+  if (env.CLAUDE_BIN) return env.CLAUDE_BIN;
+  const onPath = findOnPath("claude", env);
+  if (onPath && !isScriptShim(onPath)) return onPath;
+  return bundled() ?? onPath ?? "claude";
+}
+
+type ResolvePackage = (specifier: string) => string;
+
+// The Agent SDK ships Claude Code as a package per platform, with a musl build beside the glibc one on Linux; npm installs whichever fits, and null means neither is here.
+export function bundledClaudeBin(
+  resolvePackage: ResolvePackage = createRequire(import.meta.url).resolve,
+  platform: string = process.platform,
+  arch: string = process.arch,
+): string | null {
+  const base = `@anthropic-ai/claude-agent-sdk-${platform}-${arch}`;
+  for (const name of platform === "linux" ? [base, `${base}-musl`] : [base]) {
+    try {
+      const manifest = resolvePackage(`${name}/package.json`);
+      return path.join(path.dirname(manifest), platform === "win32" ? "claude.exe" : "claude");
+    } catch {}
   }
+  return null;
+}
+
+// One build reached by two spellings, a symlink or a relative path, is still one build.
+export function sameExecutable(first: string, second: string | null): boolean {
+  return second !== null && samePath(landingPath(first), landingPath(second));
 }
 
 export function assertSpawnable(bin: string): void {
-  if (process.platform !== "win32") return;
-  if (!UNSPAWNABLE_EXTENSIONS.includes(path.extname(bin).toLowerCase())) return;
+  if (!isScriptShim(bin)) return;
 
   throw new Error(
     `The only claude on PATH is a script shim (${bin}), which Node cannot start directly on Windows. ` +
