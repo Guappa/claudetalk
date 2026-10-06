@@ -155,6 +155,16 @@ another person you have to trust. That includes your own.
 **Enable two-factor authentication** on the Discord account that owns the bot
 application anyway. For containment, run the bridge in a container or VM.
 
+**Everything a conversation shows is posted to Discord and stored there.** That
+is the prompts and replies, and the trail too: each command's full text, file
+paths, every edit as a diff, searches and fetched addresses, and every file
+Claude sends back. A secret Claude repeats, writes or attaches becomes a Discord
+message. Discord holds it without end-to-end encryption, and server
+administrators can read every channel. Deleting a message takes it out of the
+channel, not necessarily off Discord's servers; how long Discord keeps anything
+is set by [its privacy policy](https://discord.com/privacy).
+[What reaches Discord](docs/REFERENCE.md#what-reaches-discord) lists it all.
+
 Every turn runs against the host's Claude subscription. Sharing that is not
 something the Anthropic terms permit; for a team, run one bridge per person.
 
