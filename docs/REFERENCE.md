@@ -1074,16 +1074,23 @@ short any turn it was running, so that no message is answered twice. The other
 carries on; nothing needs doing.
 
 **"The only claude on PATH is a script shim".** Node cannot start `.cmd` or
-`.bat` files directly on Windows. Set `CLAUDE_BIN` to the real executable,
-usually `%USERPROFILE%\.local\bin\claude.exe`.
+`.bat` files directly on Windows, so a shim gives way to the build the Agent SDK
+ships; this appears only when that build is missing too. Run `npm ci` again, or
+set `CLAUDE_BIN` to the real executable, usually
+`%USERPROFILE%\.local\bin\claude.exe`.
 
 **The bridge refuses to start, saying Claude Code is signed out.** Run
-`claude auth login` as the account the bridge runs as, then start it again. The
-check reads `claude auth status --json`; output it cannot parse counts as unknown
-and the bridge starts anyway, so a changed CLI cannot lock you out.
+`npm run login` as the account the bridge runs as, or `claude auth login` where
+Claude Code is installed, then start it again. The check reads
+`claude auth status --json` from the `claude` on the PATH, the one `CLAUDE_BIN`
+names, or without either the build the Agent SDK ships; output it cannot parse
+counts as unknown and the bridge starts anyway, so a changed CLI cannot lock you
+out.
 
-**A turn fails immediately with a spawn error.** Claude Code is not on the PATH
-of the process running the bridge. Set `CLAUDE_BIN`.
+**A turn fails immediately with a spawn error.** Turns run on the build of
+Claude Code the Agent SDK ships, which `npm ci` installs as a package for this
+platform. An install that skipped optional packages leaves it out; run `npm ci`
+again without `--omit=optional`.
 
 **A turn fails saying Claude Code has no conversation under the session id.**
 The channel is bound to a session whose transcript is no longer on the host:

@@ -56,8 +56,9 @@ what you mount into it and the network. Read
 
 ## Quick start
 
-You need Node 22.12 or newer, Claude Code signed in (`claude auth login`), and a
-Discord server you administer.
+You need Node 22.12 or newer, a Claude subscription, and a Discord server you
+administer. Claude Code itself comes with the bridge; see
+[Requirements](#requirements) for when to install it too.
 
 1. [Create the Discord bot](#setting-up-the-discord-bot). That gives you the
    bot token, the server id and your own user id.
@@ -70,11 +71,13 @@ Discord server you administer.
 3. Copy `.env.example` to `.env` and fill in the four required values:
    `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_OWNER_IDS` and
    `PROJECTS_ROOT`, the folder your projects live in.
-4. Start it with `npm run dev`. The first time, it prints a link that adds the
+4. Sign in with `npm run login`, unless Claude Code on this machine is signed
+   in already. It opens the claude.ai sign-in in your browser.
+5. Start it with `npm run dev`. The first time, it prints a link that adds the
    bot to your server with the right permissions; open it. To have it start
    with the machine, see [Running](#running); for Docker, see
    [In a container](#in-a-container).
-5. In Discord, run `/create` with a name. It makes a channel for a new
+6. In Discord, run `/create` with a name. It makes a channel for a new
    conversation: send a message there and Claude Code answers from your machine.
 
 ## How it differs from the built-in options
@@ -99,22 +102,42 @@ Every command and behaviour is in [docs/REFERENCE.md](docs/REFERENCE.md).
 ## Requirements
 
 - Node 22.12 or newer
-- Claude Code, signed in with a claude.ai subscription (`claude auth login`). Sign in as
-  the same account the bridge runs as: it refuses to start against a signed-out
-  Claude Code, since every turn would fail the moment anyone sent one
+- A Claude subscription (Pro, Max, Team or Enterprise), signed in on this
+  machine as the same account the bridge runs as. `npm run login` does it; so
+  does `claude auth login` where Claude Code is installed. The bridge refuses to
+  start against a signed-out Claude Code, since every turn would fail the moment
+  anyone sent one
 - A Discord server you administer
 
 Turns run through `@anthropic-ai/claude-agent-sdk`, which `npm ci` installs and
-which brings its own build of Claude Code to run them on. The `claude` you
-installed is what the bridge asks for the side jobs: which sessions are open on
-the host, stopping a background one, and listing plugins. The two share your
-sign-in and your conversations, and can be different versions; the bridge prints
-both at start-up and in `/whoami`, and says so when they differ, since that is
-the first thing to check if resuming breaks after an update. This bridge is MIT; that
-package is not, so using it means accepting
+which brings its own build of Claude Code to run them on. The bridge also asks
+Claude Code for side jobs: which sessions are open on the host, stopping a
+background one, and listing plugins. A `claude` on the PATH, or the one
+`CLAUDE_BIN` names, does those; without one, the SDK's build does them too, so
+nothing else has to be installed. The two share your sign-in and your
+conversations, and can be different versions; the bridge prints both at
+start-up and in `/whoami`, and says so when they differ, since that is the first
+thing to check if resuming breaks after an update.
+
+This bridge is MIT; the Agent SDK is not, so using it means accepting
 [Anthropic's terms](https://code.claude.com/docs/en/legal-and-compliance). That
 is the same agreement Claude Code itself is under, so it asks nothing new of
 you, but a fork should know it is there.
+
+**The conversations come from Claude Code.** The bridge resumes what Claude Code
+has saved on this machine, so anyone using it already works with one of
+Anthropic's clients. Installing one is also how you keep working at the desk on
+what you started from Discord:
+
+- [Claude Code in a terminal](https://code.claude.com/docs/en/setup), for
+  Windows, macOS and Linux. Its conversations are the ones `/sessions` lists.
+- The [VS Code](https://code.claude.com/docs/en/vs-code) and
+  [JetBrains](https://code.claude.com/docs/en/jetbrains) extensions share the
+  same settings and conversation history.
+- The [Claude desktop app](https://claude.com/download) shares the settings and
+  `CLAUDE.md` files but keeps its own list of sessions in its Code tab. A
+  conversation from a terminal can be opened there with `/resume`, and stays
+  the same conversation; one started in the app may not appear in `/sessions`.
 
 ## Security, read this first
 
@@ -212,7 +235,7 @@ cp .env.example .env
 | `DISCORD_CATEGORY_ID` | Optional. The category new conversation channels are created in. It only files them; where a message is acted on does not depend on it |
 | `WORKSPACES_ROOT` | Optional. Parent folder for per-operator workspaces. Required before other operators can create conversations |
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
-| `CLAUDE_BIN` | Optional, path to `claude` if it is not on PATH |
+| `CLAUDE_BIN` | Optional, path to the `claude` the bridge asks for listings and sign-in. Without it, the one on PATH; without that, the build the Agent SDK ships |
 | `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
 | `TOOL_DENIALS` | Optional, all seven rules by default. What a turn is refused outright, or has to ask an owner for, approvals on or off: `deletes`, `writes`, `force-push`, `secrets`, `keys`, `download-run`, `machine`, or `none`. `.env.example` says what each refuses |
 | `PING_AFTER_SECONDS` | Optional, `120` by default. How long you may have been away from a turn before its answer, a failure, a question or an approval request pings you. `0` never pings |

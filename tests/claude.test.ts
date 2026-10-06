@@ -1052,14 +1052,21 @@ describe("Claude Code versions", () => {
 
   // Both builds read the same transcripts; the log says which runs what, and whether they agree.
   it("says when the SDK's build and the host's are one, and names both when they differ", () => {
-    expect(describeClaudeVersions({ bundled: "2.1.285", host: "2.1.285" })).toBe(
+    expect(describeClaudeVersions({ bundled: "2.1.285", host: "2.1.285", hostIsBundled: false })).toBe(
       "Claude Code 2.1.285, the SDK's build and the host's.",
     );
-    const differ = describeClaudeVersions({ bundled: "2.1.285", host: "2.1.286" });
+    const differ = describeClaudeVersions({ bundled: "2.1.285", host: "2.1.286", hostIsBundled: false });
     expect(differ).toContain("2.1.285 in the SDK (turns run on it)");
     expect(differ).toContain("2.1.286 on the host");
     expect(differ).toContain("They differ");
-    expect(describeClaudeVersions({ bundled: null, host: "2.1.286" })).toContain("unknown in the SDK");
+    expect(describeClaudeVersions({ bundled: null, host: "2.1.286", hostIsBundled: false })).toContain("unknown in the SDK");
+  });
+
+  // With nothing installed the one build does both jobs, and the log says so instead of claiming a host install.
+  it("says when the SDK's build does the listings too", () => {
+    expect(describeClaudeVersions({ bundled: "2.1.285", host: "2.1.285", hostIsBundled: true })).toBe(
+      "Claude Code 2.1.285, the SDK's build, which does the listings too: no other claude was found.",
+    );
   });
 
   it("finds the build the SDK ships for this platform", () => {

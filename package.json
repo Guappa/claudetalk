@@ -21,6 +21,7 @@
     "stop": "node --env-file-if-exists=.env scripts/stop.mjs",
     "stop:now": "node --env-file-if-exists=.env scripts/stop.mjs --now",
     "restart": "node --env-file-if-exists=.env scripts/restart.mjs",
+    "login": "node --env-file-if-exists=.env --experimental-strip-types scripts/login.mjs",
     "check:private": "node scripts/scan-private.mjs",
     "lint": "biome check .",
     "format": "biome check --write .",

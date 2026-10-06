@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import {
   resolveClaudeBin,
+  bundledClaudeBin,
+  sameExecutable,
   claudeProjectsDir,
   assertSpawnable,
   expandShortPath,
@@ -27,15 +29,54 @@ describe("platform", () => {
   });
 
   // A .cmd shim is what npm installs on Windows, and Node cannot start one without a shell.
-  it("finds a real executable on the PATH ahead of a script shim, and guesses only when there is none", async () => {
+  it("finds a real executable on the PATH ahead of a script shim, then the SDK's build, and guesses only when there is neither", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "on-path-"));
     const real = path.join(dir, process.platform === "win32" ? "claude.exe" : "claude");
     await fs.writeFile(path.join(dir, "claude.cmd"), "@echo off");
     await fs.writeFile(real, "");
     await fs.chmod(real, 0o755);
+    const emptyPath = await fs.mkdtemp(path.join(os.tmpdir(), "empty-path-"));
 
-    expect(resolveClaudeBin({ PATH: dir })).toBe(real);
-    expect(resolveClaudeBin({ PATH: await fs.mkdtemp(path.join(os.tmpdir(), "empty-path-")) })).toBe("claude");
+    expect(resolveClaudeBin({ PATH: dir }, () => "/sdk/claude")).toBe(real);
+    expect(resolveClaudeBin({ PATH: emptyPath }, () => "/sdk/claude")).toBe("/sdk/claude");
+    expect(resolveClaudeBin({ PATH: emptyPath }, () => null)).toBe("claude");
+  });
+
+  it("lets a script shim give way to the SDK's build, and keeps it only when there is nothing else", async () => {
+    if (process.platform !== "win32") return;
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "shim-only-"));
+    const shim = path.join(dir, "claude.cmd");
+    await fs.writeFile(shim, "@echo off");
+
+    expect(resolveClaudeBin({ PATH: dir }, () => "C:/sdk/claude.exe")).toBe("C:/sdk/claude.exe");
+    expect(resolveClaudeBin({ PATH: dir }, () => null)).toBe(shim);
+  });
+
+  // npm installs the musl build alone on Alpine, so a lookup that knew only the glibc name would find nothing there.
+  it("finds the SDK's build under either Linux package name, and nothing when neither is installed", () => {
+    const installed = (names: string[]) => (specifier: string) => {
+      if (!names.some((name) => specifier === `${name}/package.json`)) throw new Error("not installed");
+      return `/app/node_modules/${specifier}`;
+    };
+    const glibc = "@anthropic-ai/claude-agent-sdk-linux-x64";
+
+    expect(bundledClaudeBin(installed([glibc]), "linux", "x64")).toBe(path.join(`/app/node_modules/${glibc}`, "claude"));
+    expect(bundledClaudeBin(installed([`${glibc}-musl`]), "linux", "x64")).toBe(
+      path.join(`/app/node_modules/${glibc}-musl`, "claude"),
+    );
+    expect(bundledClaudeBin(installed([]), "linux", "x64")).toBeNull();
+    expect(bundledClaudeBin(installed(["@anthropic-ai/claude-agent-sdk-darwin-arm64-musl"]), "darwin", "arm64")).toBeNull();
+  });
+
+  it("takes one build reached by two spellings for one build", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "same-bin-"));
+    const bin = path.join(dir, "claude");
+    await fs.writeFile(bin, "");
+
+    expect(sameExecutable(bin, path.join(dir, ".", "claude"))).toBe(true);
+    expect(sameExecutable(path.relative(process.cwd(), bin), bin)).toBe(true);
+    expect(sameExecutable(bin, path.join(dir, "other"))).toBe(false);
+    expect(sameExecutable(bin, null)).toBe(false);
   });
 
   it("rejects a script shim on Windows with an actionable message", () => {

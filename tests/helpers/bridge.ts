@@ -93,7 +93,7 @@ export async function testBridge(records: SessionRecord[] = [], config: Partial<
     activeTurns,
     latestPosts: new Map<string, string>(),
     heldAttachments: new Set<string>(),
-    claude: { bundled: "2.1.9", host: "2.1.9" },
+    claude: { bundled: "2.1.9", host: "2.1.9", hostIsBundled: false },
     updates,
     updateNotice: new UpdateNotice(path.join(dir, "update.json"), updates),
     build: "0.0.0 (abc1234)",
