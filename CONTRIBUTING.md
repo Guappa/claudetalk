@@ -358,7 +358,7 @@ controlled at admission: `access.ts` answers who may do what, and tier `none` is
 refused at both entry points before anything else runs.
 
 **What gates a turn is a `PreToolUse` hook, never a permission mode.** With
-`CLAUDE_TOOL_APPROVALS=true` an owner approves each command, edit or fetch from
+`CLAUDE_TOOL_APPROVALS` on, the default, an owner approves each command, edit or fetch from
 Discord. It has to be a hook because the host's own allow rules in
 `settings.json` are consulted before a permission mode, so a bare `allowedTools`
 entry there would open the gate without anyone noticing. A hook is asked either

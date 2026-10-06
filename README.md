@@ -38,7 +38,7 @@ Claude Code's own transcript, so nothing here owns it.
 | Claude Code's commands | Skills, plugin commands and Claude Code's own slash commands, through `/run` and `/skills`. |
 | Plugins and MCP servers | `/plugins` toggles a plugin. `/mcp` shows what each MCP server is doing and switches one off or on, or reconnects it. |
 | Access control | Owners are set in `.env`, operators are added from Discord, and everyone else is ignored. A channel is private to whoever created it until someone is invited. |
-| Tool approvals | Optional: an owner approves each command, edit and fetch from the channel. |
+| Tool approvals | On by default: an owner approves each command, edit and fetch from the channel. `CLAUDE_TOOL_APPROVALS=false` switches them off. |
 | Guard rules | Seven kinds of call are caught before they run. Five are refused, such as a force push to `main`. A recursive delete, or a file written, outside the conversation's folder asks an owner first. |
 | Turn limit | Optional: a turn stops by itself after a set number of model calls, and the next message carries on from it. |
 | Context and usage | A warning before a conversation fills its context, the figure in `/whoami`, and plan usage with `/spend`. |
@@ -142,10 +142,16 @@ what you started from Discord:
 ## Security, read this first
 
 **There is no sandbox.** Every turn runs as the user the bridge runs as, with
-your files, credentials, SSH keys and Claude plan. Setting
-`CLAUDE_TOOL_APPROVALS=true` makes an owner approve each command, edit and fetch
-from Discord first, which shows you every step without limiting what a step may
-do.
+your files, credentials, SSH keys and Claude plan.
+
+**Every command, file edit and web fetch waits for an owner's approval by
+default.** It appears in the channel with **Approve once**, **Deny** and
+**Approve the rest of this turn**, the way Claude Code asks in a terminal;
+reading files is never asked about. This shows you every step before it runs
+without limiting what a step may do once approved. To let turns run without
+asking, add `CLAUDE_TOOL_APPROVALS=false` to `.env` and restart. Do that only if
+you trust everyone who can send the bot a message, yourself included, to drive
+your machine unwatched.
 
 **A few things are stopped whatever you set.** Seven kinds of call are caught
 before they run: five are refused outright, such as a force push to `main` or a
@@ -236,7 +242,7 @@ cp .env.example .env
 | `WORKSPACES_ROOT` | Optional. Parent folder for per-operator workspaces. Required before other operators can create conversations |
 | `PROJECTS_ROOT` | Filesystem path. Folder new conversations are created under by default. Not a Discord channel |
 | `CLAUDE_BIN` | Optional, path to the `claude` the bridge asks for listings and sign-in. Without it, the one on PATH; without that, the build the Agent SDK ships |
-| `CLAUDE_TOOL_APPROVALS` | Optional, `false` by default. `true` asks an owner in Discord before each command, file edit or web fetch |
+| `CLAUDE_TOOL_APPROVALS` | Optional, `true` by default: an owner is asked in Discord before each command, file edit or web fetch. `false` runs every turn without asking |
 | `TOOL_DENIALS` | Optional, all seven rules by default. What a turn is refused outright, or has to ask an owner for, approvals on or off: `deletes`, `writes`, `force-push`, `secrets`, `keys`, `download-run`, `machine`, or `none`. `.env.example` says what each refuses |
 | `PING_AFTER_SECONDS` | Optional, `120` by default. How long you may have been away from a turn before its answer, a failure, a question or an approval request pings you. `0` never pings |
 | `CLAUDE_MAX_TURNS` | Optional, unset by default. How many times one turn may go back to the model before Claude Code stops it. A stopped turn loses nothing, and the next message carries on from it. Unset, a turn runs as long as it needs |
@@ -387,8 +393,8 @@ What is different inside a container, said plainly:
 
 - The container is a fence, not a sandbox. It limits what a session can reach
   to what you mount into it and to the network; within that it runs with the
-  same rights as on a host, and nothing asks before a command runs unless the
-  approval gate is on. What is mounted is fully exposed: the projects, and the
+  same rights as on a host, and once approvals are switched off nothing asks
+  before a command runs. What is mounted is fully exposed: the projects, and the
   sign-in in `~/.claude`. Do not mount the Docker socket, and do not run it as
   root.
 

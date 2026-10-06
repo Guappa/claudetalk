@@ -101,6 +101,11 @@ describe("loadConfig", () => {
     PROJECTS_ROOT: "/home/u/projects",
   };
 
+  it("asks an owner before each step unless approvals are switched off", () => {
+    expect(loadConfig(valid).toolApprovals).toBe(true);
+    expect(loadConfig({ ...valid, CLAUDE_TOOL_APPROVALS: "false" }).toolApprovals).toBe(false);
+  });
+
   it("parses a comma separated owner list", () => {
     expect(loadConfig(valid).ownerIds).toEqual(["100000000000000001", "987654321098765432"]);
   });

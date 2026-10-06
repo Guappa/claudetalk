@@ -112,8 +112,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bindingsPath: bindingsPathFrom(env),
     dataDir: path.dirname(bindingsPathFrom(env)),
     operatorsPath: env.OPERATORS_PATH?.trim() || path.join(path.dirname(bindingsPathFrom(env)), "operators.json"),
-    // A turn runs with the host's rights either way; this decides whether an owner sees each step first.
-    toolApprovals: flag(env.CLAUDE_TOOL_APPROVALS, "CLAUDE_TOOL_APPROVALS", false),
+    // A turn runs with the host's rights either way; an owner sees each step first, as Claude Code itself asks, unless they choose otherwise.
+    toolApprovals: flag(env.CLAUDE_TOOL_APPROVALS, "CLAUDE_TOOL_APPROVALS", true),
     toolDenials: parseDenials(env.TOOL_DENIALS),
     pingAfterMs: pingAfterMs(env),
     maxTurns: maxTurns(env),

@@ -323,8 +323,9 @@ message. Nothing else about Discord reaches the model.
 
 ## Approving what a turn does
 
-With `CLAUDE_TOOL_APPROVALS=true`, a turn asks before Claude runs a command,
-edits a file, or fetches the web. The request appears in the channel naming the
+By default a turn asks before Claude runs a command, edits a file, or fetches
+the web, as Claude Code does in a terminal; `CLAUDE_TOOL_APPROVALS=false` in
+`.env` lets every turn run without asking. The request appears in the channel naming the
 tool and what it would do, with **Approve once**, **Deny** and **Approve the
 rest of this turn**. Only an owner can answer; an operator who presses a button
 is told so. Reading the working directory is never gated: `Read`, `Glob`,
@@ -372,8 +373,8 @@ determined one; what contains a turn is still who may send one.
 The gate is a `PreToolUse` hook, not a permission mode, because the host's own
 allow rules in `settings.json` are consulted before a permission mode and would
 silently open it; a hook is asked either way. A denial stops only the call it
-was asked about. With the setting `false`, the default, every turn runs without
-asking.
+was asked about. With the setting `false` every turn runs without asking, and
+only the seven rules above stand in its way.
 
 ## Answering Claude's questions
 
