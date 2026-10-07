@@ -156,9 +156,17 @@ client.on(Events.MessageCreate, (message) => {
 });
 
 client.on(Events.ChannelDelete, (channel) => {
-  void bridge.store.unbind(channel.id).catch((error: unknown) => {
-    console.error("failed to unbind deleted channel", error);
-  });
+  // A voice channel's deletion leaves the conversation bound through its text channel, so only the text channel's is told.
+  const unbinding = bridge.store.byChannel(channel.id);
+  const bound = unbinding?.channels.text === channel.id ? unbinding : undefined;
+  void bridge.store
+    .unbind(channel.id)
+    .then(() => {
+      if (bound) console.log(`Unbound ${bound.sessionId}: its channel was deleted.`);
+    })
+    .catch((error: unknown) => {
+      console.error("failed to unbind deleted channel", error);
+    });
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
