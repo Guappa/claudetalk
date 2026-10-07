@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { refusal } from "../scripts/check-boot.mjs";
+import { refusal, strippingUnavailable } from "../scripts/check-boot.mjs";
 import { DOC_ONLY, SHAPES, publishable } from "../scripts/scan-private.mjs";
 import { execFileSync } from "node:child_process";
 import os from "node:os";
@@ -529,5 +529,20 @@ describe("the boot check", () => {
     expect(refusal(`export class Held { constructor(${heldInItsConstructor}) {} }`)).toContain("parameter property");
     expect(refusal("namespace Held { export const value = 1; }")).toContain("namespace");
     expect(refusal("const limit: number = 3;\nexport const twice = limit * 2;")).toBeNull();
+  });
+
+  // A Node packaged without TypeScript support refuses every file alike; the check has to name that, not blame the code.
+  it("tells a Node built without TypeScript support from code it cannot run", () => {
+    const withoutSupport = () => {
+      throw Object.assign(new Error("Node.js is not compiled with TypeScript support"), { code: "ERR_NO_TYPESCRIPT" });
+    };
+    const refusingSyntax = () => {
+      throw Object.assign(new Error("TypeScript enum is not supported in strip-only mode"), {
+        code: "ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX",
+      });
+    };
+    expect(strippingUnavailable(withoutSupport)).toBe(true);
+    expect(strippingUnavailable(refusingSyntax)).toBe(false);
+    expect(strippingUnavailable()).toBe(false);
   });
 });
