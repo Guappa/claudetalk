@@ -15,12 +15,22 @@ function sourceFiles(dir) {
 }
 
 // The stripper itself is asked, as Node asks it when it loads a file: a syntax check run with the flag does not apply its rules.
-export function refusal(source) {
+export function refusal(source, strip = nodeModule.stripTypeScriptTypes) {
   try {
-    nodeModule.stripTypeScriptTypes(source, { mode: "strip" });
+    strip(source, { mode: "strip" });
     return null;
   } catch (error) {
     return error.message;
+  }
+}
+
+// A Node built without TypeScript support, as some distribution packages are, refuses every file alike, which reads as a fault in the code.
+export function strippingUnavailable(strip = nodeModule.stripTypeScriptTypes) {
+  try {
+    strip("const probe: number = 1;", { mode: "strip" });
+    return false;
+  } catch (error) {
+    return error.code === "ERR_NO_TYPESCRIPT";
   }
 }
 
@@ -29,6 +39,13 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(file
   if (typeof nodeModule.stripTypeScriptTypes !== "function") {
     console.error(
       `This check asks Node's type stripper directly, which Node ${process.versions.node} does not offer to a script. The bridge runs on it; the check needs Node 22.13 or newer. Run it again under a newer Node, for example \`nvm use 24\`.`,
+    );
+    process.exit(1);
+  }
+
+  if (strippingUnavailable()) {
+    console.error(
+      `This Node (${process.versions.node}, ${process.execPath}) was built without TypeScript support, so it cannot run the bridge, which loads its source as TypeScript. Distribution packages are sometimes built this way; Ubuntu's nodejs package is one. Install an upstream build instead, from nodejs.org, NodeSource, nvm or fnm, and run the check again.`,
     );
     process.exit(1);
   }

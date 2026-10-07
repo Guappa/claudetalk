@@ -56,7 +56,8 @@ what you mount into it and the network. Read
 
 ## Quick start
 
-You need Node 22.12 or newer, a Claude subscription, and a Discord server you
+You need Node 22.12 or newer (an upstream build, see
+[Requirements](#requirements)), a Claude subscription, and a Discord server you
 administer. Claude Code itself comes with the bridge; see
 [Requirements](#requirements) for when to install it too.
 
@@ -101,7 +102,9 @@ Every command and behaviour is in [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## Requirements
 
-- Node 22.12 or newer
+- Node 22.12 or newer, an upstream build (nodejs.org, NodeSource, nvm, fnm or the
+  like). The bridge runs its TypeScript source directly, and some distribution
+  packages, Ubuntu's `nodejs` among them, leave that ability out
 - A Claude subscription (Pro, Max, Team or Enterprise), signed in on this
   machine as the same account the bridge runs as. `npm run login` does it; so
   does `claude auth login` where Claude Code is installed. The bridge refuses to

@@ -1088,6 +1088,13 @@ names, or without either the build the Agent SDK ships; output it cannot parse
 counts as unknown and the bridge starts anyway, so a changed CLI cannot lock you
 out.
 
+**The bridge will not start: "Node.js is not compiled with TypeScript support".**
+The bridge runs its TypeScript source directly, through Node's type stripping,
+and this Node was built without it. Some distribution packages are, Ubuntu's
+`nodejs` among them. Install an upstream build, from nodejs.org, NodeSource,
+nvm or fnm, then start it again. `npm run check:boot` says the same when it
+meets such a Node.
+
 **A turn fails immediately with a spawn error.** Turns run on the build of
 Claude Code the Agent SDK ships, which `npm ci` installs as a package for this
 platform. An install that skipped optional packages leaves it out; run `npm ci`
